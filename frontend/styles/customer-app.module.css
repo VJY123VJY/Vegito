@@ -1,0 +1,6 @@
+.shell { min-height: 100vh; background: linear-gradient(145deg, #f4f8ee, #fffaf2); }
+.header { position: sticky; top: 0; z-index: 4; border-bottom: 1px solid rgba(18, 60, 53, .1); background: rgba(255, 254, 250, .9); backdrop-filter: blur(16px); }
+.panel { border: 1px solid var(--vegito-border); border-radius: var(--radius-lg); background: var(--vegito-surface); box-shadow: var(--shadow-sm); }
+.search { min-height: 52px; border: 1px solid var(--vegito-border); border-radius: var(--radius-md); background: var(--vegito-surface); }
+.status { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: var(--radius-pill); background: var(--vegito-success-soft); color: var(--vegito-success); font-size: 12px; font-weight: 700; }
+@media (min-width: 760px) { .shell { padding-inline: 24px; } .panel { border-radius: var(--radius-xl); } }

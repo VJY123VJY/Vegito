@@ -1,0 +1,2 @@
+import { ArrowRight, ShoppingBasket } from "lucide-react";
+export function CartSummary({ count, total }: { count: number; total: number }) { if (!count) return null; return <aside className="basket-bar"><div className="basket-icon"><ShoppingBasket size={21} /><em>{count}</em></div><div><b>{count} {count === 1 ? "item" : "items"} in your basket</b><span>₹{total} · View basket</span></div><ArrowRight size={21} /></aside>; }

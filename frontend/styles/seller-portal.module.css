@@ -1,0 +1,6 @@
+.shell { min-height: 100vh; background: #eef2ed; }
+.dashboard { width: min(100%, 1280px); margin: 0 auto; padding: 24px 16px 72px; }
+.panel { border: 1px solid #c7d2c8; border-radius: 12px; background: #fff; box-shadow: 0 8px 24px rgba(20, 46, 43, .07); }
+.alert { border-left: 4px solid #c95738; background: #fff1ed; color: #813523; }
+.action { min-height: 48px; border-radius: 8px; font-weight: 800; }
+@media (min-width: 900px) { .dashboard { padding: 36px 24px; } }

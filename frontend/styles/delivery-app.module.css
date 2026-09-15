@@ -1,0 +1,6 @@
+.shell { min-height: 100vh; background: #162320; color: #f5fbf4; }
+.dashboard { width: min(100%, 720px); margin: 0 auto; padding: 18px 16px calc(96px + env(safe-area-inset-bottom)); }
+.task { padding: 18px; border: 1px solid #3e5b50; border-radius: 14px; background: #20332e; }
+.tapTarget { min-width: 48px; min-height: 48px; border-radius: 10px; }
+.offline { padding: 10px 12px; border-radius: 8px; background: #5c3826; color: #ffe6bd; font-size: 12px; font-weight: 700; }
+@media (prefers-color-scheme: light) { .shell { background: #eff5ef; color: #142e2b; } .task { border-color: #c7d8cb; background: #fff; } }

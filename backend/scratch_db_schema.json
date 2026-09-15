@@ -1,0 +1,3898 @@
+{
+  "addresses": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('addresses_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "user_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "address_line1",
+        "type": "VARCHAR(255)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "address_line2",
+        "type": "VARCHAR(255)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "landmark",
+        "type": "VARCHAR(255)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "city",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "state",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "country",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": "'India'::character varying",
+        "primary_key": false
+      },
+      {
+        "name": "pincode",
+        "type": "VARCHAR(10)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "latitude",
+        "type": "NUMERIC(10, 7)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "longitude",
+        "type": "NUMERIC(10, 7)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "address_type",
+        "type": "VARCHAR(30)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "is_default",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "false",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "addresses_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "addresses_user_id_fkey",
+        "constrained_columns": [
+          "user_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": [
+      {
+        "name": "idx_addresses_user",
+        "unique": false,
+        "column_names": [
+          "user_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "cart_items": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('cart_items_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "cart_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "seller_product_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "quantity",
+        "type": "NUMERIC(10, 3)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "cart_items_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "cart_items_cart_id_fkey",
+        "constrained_columns": [
+          "cart_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "carts",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      },
+      {
+        "name": "cart_items_seller_product_id_fkey",
+        "constrained_columns": [
+          "seller_product_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "seller_products",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "cart_id",
+          "seller_product_id"
+        ],
+        "name": "cart_items_cart_id_seller_product_id_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "cart_items_cart_id_seller_product_id_key",
+        "unique": true,
+        "column_names": [
+          "cart_id",
+          "seller_product_id"
+        ],
+        "duplicates_constraint": "cart_items_cart_id_seller_product_id_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_cart_items_cart",
+        "unique": false,
+        "column_names": [
+          "cart_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "carts": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('carts_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "user_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "carts_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "carts_user_id_fkey",
+        "constrained_columns": [
+          "user_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "user_id"
+        ],
+        "name": "carts_user_id_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "carts_user_id_key",
+        "unique": true,
+        "column_names": [
+          "user_id"
+        ],
+        "duplicates_constraint": "carts_user_id_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "categories": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": "nextval('categories_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "description",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "image_url",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "true",
+        "primary_key": false
+      },
+      {
+        "name": "display_order",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "categories_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "name"
+        ],
+        "name": "categories_name_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "categories_name_key",
+        "unique": true,
+        "column_names": [
+          "name"
+        ],
+        "duplicates_constraint": "categories_name_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "complaints": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('complaints_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "order_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "customer_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "complaint_type",
+        "type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "description",
+        "type": "TEXT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": "'OPEN'::character varying",
+        "primary_key": false
+      },
+      {
+        "name": "resolution",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "resolved_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "resolved_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "complaints_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "complaints_customer_id_fkey",
+        "constrained_columns": [
+          "customer_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      },
+      {
+        "name": "complaints_order_id_fkey",
+        "constrained_columns": [
+          "order_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "orders",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      },
+      {
+        "name": "complaints_resolved_by_fkey",
+        "constrained_columns": [
+          "resolved_by"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "SET NULL"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": [
+      {
+        "name": "idx_complaints_order",
+        "unique": false,
+        "column_names": [
+          "order_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "coupon_usage": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('coupon_usage_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "coupon_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "user_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "order_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "discount_amount",
+        "type": "NUMERIC(12, 2)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "coupon_usage_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "coupon_usage_coupon_id_fkey",
+        "constrained_columns": [
+          "coupon_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "coupons",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      },
+      {
+        "name": "coupon_usage_order_id_fkey",
+        "constrained_columns": [
+          "order_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "orders",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      },
+      {
+        "name": "coupon_usage_user_id_fkey",
+        "constrained_columns": [
+          "user_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "coupon_id",
+          "user_id",
+          "order_id"
+        ],
+        "name": "coupon_usage_coupon_id_user_id_order_id_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "coupon_usage_coupon_id_user_id_order_id_key",
+        "unique": true,
+        "column_names": [
+          "coupon_id",
+          "user_id",
+          "order_id"
+        ],
+        "duplicates_constraint": "coupon_usage_coupon_id_user_id_order_id_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_coupon_usage_coupon",
+        "unique": false,
+        "column_names": [
+          "coupon_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_coupon_usage_order",
+        "unique": false,
+        "column_names": [
+          "order_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_coupon_usage_user",
+        "unique": false,
+        "column_names": [
+          "user_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "coupons": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('coupons_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "code",
+        "type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "description",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "discount_type",
+        "type": "VARCHAR(20)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "discount_value",
+        "type": "NUMERIC(10, 2)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "minimum_order_amount",
+        "type": "NUMERIC(12, 2)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "maximum_discount",
+        "type": "NUMERIC(12, 2)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "usage_limit",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "used_count",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "starts_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "expires_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "true",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "coupons_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "code"
+        ],
+        "name": "coupons_code_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "coupons_code_key",
+        "unique": true,
+        "column_names": [
+          "code"
+        ],
+        "duplicates_constraint": "coupons_code_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_coupons_active",
+        "unique": false,
+        "column_names": [
+          "is_active"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_coupons_expiry",
+        "unique": false,
+        "column_names": [
+          "expires_at"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "customer_favorites": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('customer_favorites_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "user_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "product_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "customer_favorites_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "customer_favorites_product_id_fkey",
+        "constrained_columns": [
+          "product_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "products",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      },
+      {
+        "name": "customer_favorites_user_id_fkey",
+        "constrained_columns": [
+          "user_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "user_id",
+          "product_id"
+        ],
+        "name": "customer_favorites_user_id_product_id_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "customer_favorites_user_id_product_id_key",
+        "unique": true,
+        "column_names": [
+          "user_id",
+          "product_id"
+        ],
+        "duplicates_constraint": "customer_favorites_user_id_product_id_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_customer_favorites_product",
+        "unique": false,
+        "column_names": [
+          "product_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_customer_favorites_user",
+        "unique": false,
+        "column_names": [
+          "user_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "customer_profiles": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('customer_profiles_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "user_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "date_of_birth",
+        "type": "DATE",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "profile_image_url",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "total_orders",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "customer_profiles_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "customer_profiles_user_id_fkey",
+        "constrained_columns": [
+          "user_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "user_id"
+        ],
+        "name": "customer_profiles_user_id_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "customer_profiles_user_id_key",
+        "unique": true,
+        "column_names": [
+          "user_id"
+        ],
+        "duplicates_constraint": "customer_profiles_user_id_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "delivery_batch_orders": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('delivery_batch_orders_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "batch_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "delivery_task_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "sequence_number",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "delivery_batch_orders_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "delivery_batch_orders_batch_id_fkey",
+        "constrained_columns": [
+          "batch_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "delivery_batches",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      },
+      {
+        "name": "delivery_batch_orders_delivery_task_id_fkey",
+        "constrained_columns": [
+          "delivery_task_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "delivery_tasks",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "batch_id",
+          "delivery_task_id"
+        ],
+        "name": "delivery_batch_orders_batch_id_delivery_task_id_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      },
+      {
+        "column_names": [
+          "batch_id",
+          "sequence_number"
+        ],
+        "name": "delivery_batch_orders_batch_id_sequence_number_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "delivery_batch_orders_batch_id_delivery_task_id_key",
+        "unique": true,
+        "column_names": [
+          "batch_id",
+          "delivery_task_id"
+        ],
+        "duplicates_constraint": "delivery_batch_orders_batch_id_delivery_task_id_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "delivery_batch_orders_batch_id_sequence_number_key",
+        "unique": true,
+        "column_names": [
+          "batch_id",
+          "sequence_number"
+        ],
+        "duplicates_constraint": "delivery_batch_orders_batch_id_sequence_number_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_delivery_batch_orders_batch",
+        "unique": false,
+        "column_names": [
+          "batch_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_delivery_batch_orders_task",
+        "unique": false,
+        "column_names": [
+          "delivery_task_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "delivery_batches": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('delivery_batches_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "delivery_partner_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "zone_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": "'CREATED'::character varying",
+        "primary_key": false
+      },
+      {
+        "name": "total_orders",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "started_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "completed_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "delivery_batches_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "delivery_batches_delivery_partner_id_fkey",
+        "constrained_columns": [
+          "delivery_partner_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "delivery_partners",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "SET NULL"
+        },
+        "comment": null
+      },
+      {
+        "name": "delivery_batches_zone_id_fkey",
+        "constrained_columns": [
+          "zone_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "delivery_zones",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "SET NULL"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": [
+      {
+        "name": "idx_delivery_batches_partner",
+        "unique": false,
+        "column_names": [
+          "delivery_partner_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_delivery_batches_status",
+        "unique": false,
+        "column_names": [
+          "status"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_delivery_batches_zone",
+        "unique": false,
+        "column_names": [
+          "zone_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "delivery_partners": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('delivery_partners_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "user_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "vehicle_type",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "vehicle_number",
+        "type": "VARCHAR(30)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "is_available",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "true",
+        "primary_key": false
+      },
+      {
+        "name": "is_verified",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "false",
+        "primary_key": false
+      },
+      {
+        "name": "rating",
+        "type": "NUMERIC(3, 2)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "total_deliveries",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "delivery_partners_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "delivery_partners_user_id_fkey",
+        "constrained_columns": [
+          "user_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "user_id"
+        ],
+        "name": "delivery_partners_user_id_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "delivery_partners_user_id_key",
+        "unique": true,
+        "column_names": [
+          "user_id"
+        ],
+        "duplicates_constraint": "delivery_partners_user_id_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "delivery_task_status_history": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('delivery_task_status_history_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "delivery_task_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "old_status",
+        "type": "VARCHAR(30)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "new_status",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "changed_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "note",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "delivery_task_status_history_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "delivery_task_status_history_changed_by_fkey",
+        "constrained_columns": [
+          "changed_by"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "SET NULL"
+        },
+        "comment": null
+      },
+      {
+        "name": "delivery_task_status_history_delivery_task_id_fkey",
+        "constrained_columns": [
+          "delivery_task_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "delivery_tasks",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": []
+  },
+  "delivery_tasks": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('delivery_tasks_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "order_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "delivery_partner_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": "'ASSIGNED'::character varying",
+        "primary_key": false
+      },
+      {
+        "name": "assigned_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "started_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "delivered_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "delivery_otp_hash",
+        "type": "VARCHAR(255)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "delivery_otp_verified_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "notes",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "delivery_tasks_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "delivery_tasks_delivery_partner_id_fkey",
+        "constrained_columns": [
+          "delivery_partner_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "delivery_partners",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "SET NULL"
+        },
+        "comment": null
+      },
+      {
+        "name": "delivery_tasks_order_id_fkey",
+        "constrained_columns": [
+          "order_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "orders",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "order_id"
+        ],
+        "name": "delivery_tasks_order_id_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "delivery_tasks_order_id_key",
+        "unique": true,
+        "column_names": [
+          "order_id"
+        ],
+        "duplicates_constraint": "delivery_tasks_order_id_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_delivery_tasks_partner",
+        "unique": false,
+        "column_names": [
+          "delivery_partner_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_delivery_tasks_status",
+        "unique": false,
+        "column_names": [
+          "status"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "delivery_zones": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": "nextval('delivery_zones_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "city",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "pincode",
+        "type": "VARCHAR(10)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "delivery_charge",
+        "type": "NUMERIC(10, 2)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "minimum_order_amount",
+        "type": "NUMERIC(10, 2)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "true",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "delivery_zones_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [],
+    "unique_constraints": [],
+    "indexes": []
+  },
+  "inventory": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('inventory_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "seller_product_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "quantity",
+        "type": "NUMERIC(10, 3)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "reserved_quantity",
+        "type": "NUMERIC(10, 3)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "low_stock_threshold",
+        "type": "NUMERIC(10, 3)",
+        "nullable": false,
+        "default": "5",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "inventory_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "inventory_seller_product_id_fkey",
+        "constrained_columns": [
+          "seller_product_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "seller_products",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "seller_product_id"
+        ],
+        "name": "inventory_seller_product_id_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "inventory_seller_product_id_key",
+        "unique": true,
+        "column_names": [
+          "seller_product_id"
+        ],
+        "duplicates_constraint": "inventory_seller_product_id_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "inventory_transactions": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('inventory_transactions_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "inventory_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "transaction_type",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "quantity",
+        "type": "NUMERIC(10, 3)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "reference_type",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "reference_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "note",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "inventory_transactions_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "inventory_transactions_created_by_fkey",
+        "constrained_columns": [
+          "created_by"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "SET NULL"
+        },
+        "comment": null
+      },
+      {
+        "name": "inventory_transactions_inventory_id_fkey",
+        "constrained_columns": [
+          "inventory_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "inventory",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": [
+      {
+        "name": "idx_inventory_transactions_inventory",
+        "unique": false,
+        "column_names": [
+          "inventory_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "notifications": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('notifications_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "user_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "notification_type",
+        "type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "title",
+        "type": "VARCHAR(255)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "message",
+        "type": "TEXT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "channel",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "is_sent",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "false",
+        "primary_key": false
+      },
+      {
+        "name": "sent_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "notifications_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "notifications_user_id_fkey",
+        "constrained_columns": [
+          "user_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": [
+      {
+        "name": "idx_notifications_user",
+        "unique": false,
+        "column_names": [
+          "user_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "order_items": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('order_items_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "order_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "seller_product_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "product_name",
+        "type": "VARCHAR(150)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "unit",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "quantity",
+        "type": "NUMERIC(10, 3)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "unit_price",
+        "type": "NUMERIC(10, 2)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "subtotal",
+        "type": "NUMERIC(12, 2)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "order_items_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "order_items_order_id_fkey",
+        "constrained_columns": [
+          "order_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "orders",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      },
+      {
+        "name": "order_items_seller_product_id_fkey",
+        "constrained_columns": [
+          "seller_product_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "seller_products",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": [
+      {
+        "name": "idx_order_items_order",
+        "unique": false,
+        "column_names": [
+          "order_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "order_status_history": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('order_status_history_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "order_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "old_status",
+        "type": "VARCHAR(30)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "new_status",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "changed_by",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "note",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "order_status_history_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "order_status_history_changed_by_fkey",
+        "constrained_columns": [
+          "changed_by"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "SET NULL"
+        },
+        "comment": null
+      },
+      {
+        "name": "order_status_history_order_id_fkey",
+        "constrained_columns": [
+          "order_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "orders",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": []
+  },
+  "orders": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('orders_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "order_number",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "customer_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "address_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": "'NEW'::character varying",
+        "primary_key": false
+      },
+      {
+        "name": "payment_method",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": "'COD'::character varying",
+        "primary_key": false
+      },
+      {
+        "name": "payment_status",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": "'PENDING'::character varying",
+        "primary_key": false
+      },
+      {
+        "name": "subtotal",
+        "type": "NUMERIC(12, 2)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "delivery_charge",
+        "type": "NUMERIC(12, 2)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "discount_amount",
+        "type": "NUMERIC(12, 2)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "total_amount",
+        "type": "NUMERIC(12, 2)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "delivery_slot_start",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "delivery_slot_end",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "customer_note",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "placed_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "accepted_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "packed_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "ready_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "out_for_delivery_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "delivered_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "cancelled_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "orders_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "orders_address_id_fkey",
+        "constrained_columns": [
+          "address_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "addresses",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      },
+      {
+        "name": "orders_customer_id_fkey",
+        "constrained_columns": [
+          "customer_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "order_number"
+        ],
+        "name": "orders_order_number_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "idx_orders_created",
+        "unique": false,
+        "column_names": [
+          "created_at"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_orders_customer",
+        "unique": false,
+        "column_names": [
+          "customer_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_orders_status",
+        "unique": false,
+        "column_names": [
+          "status"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "orders_order_number_key",
+        "unique": true,
+        "column_names": [
+          "order_number"
+        ],
+        "duplicates_constraint": "orders_order_number_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "otp_verifications": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('otp_verifications_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "phone",
+        "type": "VARCHAR(20)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "otp_hash",
+        "type": "VARCHAR(255)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "expires_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "verified_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "attempts",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "otp_verifications_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [],
+    "unique_constraints": [],
+    "indexes": []
+  },
+  "payments": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('payments_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "order_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "payment_provider",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "provider_order_id",
+        "type": "VARCHAR(255)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "provider_payment_id",
+        "type": "VARCHAR(255)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "amount",
+        "type": "NUMERIC(12, 2)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "currency",
+        "type": "VARCHAR(10)",
+        "nullable": false,
+        "default": "'INR'::character varying",
+        "primary_key": false
+      },
+      {
+        "name": "status",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": "'PENDING'::character varying",
+        "primary_key": false
+      },
+      {
+        "name": "payment_method",
+        "type": "VARCHAR(30)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "paid_at",
+        "type": "TIMESTAMP",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "payments_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "payments_order_id_fkey",
+        "constrained_columns": [
+          "order_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "orders",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": []
+  },
+  "product_images": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('product_images_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "product_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "image_url",
+        "type": "TEXT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "is_primary",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "false",
+        "primary_key": false
+      },
+      {
+        "name": "display_order",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "product_images_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "product_images_product_id_fkey",
+        "constrained_columns": [
+          "product_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "products",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": []
+  },
+  "products": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('products_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "category_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(150)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "description",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "unit",
+        "type": "VARCHAR(30)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "true",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "products_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "products_category_id_fkey",
+        "constrained_columns": [
+          "category_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "categories",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "SET NULL"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": [
+      {
+        "name": "idx_products_active",
+        "unique": false,
+        "column_names": [
+          "is_active"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_products_category",
+        "unique": false,
+        "column_names": [
+          "category_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "reviews": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('reviews_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "order_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "order_item_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "customer_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "seller_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "delivery_partner_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "product_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "product_rating",
+        "type": "SMALLINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "seller_rating",
+        "type": "SMALLINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "delivery_rating",
+        "type": "SMALLINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "comment",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "reviews_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "reviews_customer_id_fkey",
+        "constrained_columns": [
+          "customer_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      },
+      {
+        "name": "reviews_delivery_partner_id_fkey",
+        "constrained_columns": [
+          "delivery_partner_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "delivery_partners",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      },
+      {
+        "name": "reviews_order_id_fkey",
+        "constrained_columns": [
+          "order_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "orders",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      },
+      {
+        "name": "reviews_order_item_id_fkey",
+        "constrained_columns": [
+          "order_item_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "order_items",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "SET NULL"
+        },
+        "comment": null
+      },
+      {
+        "name": "reviews_product_id_fkey",
+        "constrained_columns": [
+          "product_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "products",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      },
+      {
+        "name": "reviews_seller_id_fkey",
+        "constrained_columns": [
+          "seller_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      }
+    ],
+    "unique_constraints": [],
+    "indexes": [
+      {
+        "name": "idx_reviews_customer",
+        "unique": false,
+        "column_names": [
+          "customer_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_reviews_product",
+        "unique": false,
+        "column_names": [
+          "product_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "roles": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "SMALLINT",
+        "nullable": false,
+        "default": "nextval('roles_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "description",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "roles_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "name"
+        ],
+        "name": "roles_name_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "roles_name_key",
+        "unique": true,
+        "column_names": [
+          "name"
+        ],
+        "duplicates_constraint": "roles_name_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "seller_products": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('seller_products_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "seller_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "product_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "price",
+        "type": "NUMERIC(10, 2)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "stock_quantity",
+        "type": "NUMERIC(10, 3)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "minimum_order_quantity",
+        "type": "NUMERIC(10, 3)",
+        "nullable": false,
+        "default": "1",
+        "primary_key": false
+      },
+      {
+        "name": "is_available",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "true",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "seller_products_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "seller_products_product_id_fkey",
+        "constrained_columns": [
+          "product_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "products",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      },
+      {
+        "name": "seller_products_seller_id_fkey",
+        "constrained_columns": [
+          "seller_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "seller_id",
+          "product_id"
+        ],
+        "name": "seller_products_seller_id_product_id_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "idx_seller_products_available",
+        "unique": false,
+        "column_names": [
+          "is_available"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_seller_products_product",
+        "unique": false,
+        "column_names": [
+          "product_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_seller_products_seller",
+        "unique": false,
+        "column_names": [
+          "seller_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "seller_products_seller_id_product_id_key",
+        "unique": true,
+        "column_names": [
+          "seller_id",
+          "product_id"
+        ],
+        "duplicates_constraint": "seller_products_seller_id_product_id_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "seller_profiles": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('seller_profiles_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "user_id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "business_name",
+        "type": "VARCHAR(150)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "business_type",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "description",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "address_id",
+        "type": "BIGINT",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "gst_number",
+        "type": "VARCHAR(30)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "is_verified",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "false",
+        "primary_key": false
+      },
+      {
+        "name": "rating",
+        "type": "NUMERIC(3, 2)",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "total_orders",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": "0",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "seller_profiles_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "seller_profiles_address_id_fkey",
+        "constrained_columns": [
+          "address_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "addresses",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "SET NULL"
+        },
+        "comment": null
+      },
+      {
+        "name": "seller_profiles_user_id_fkey",
+        "constrained_columns": [
+          "user_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "users",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {
+          "ondelete": "CASCADE"
+        },
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "user_id"
+        ],
+        "name": "seller_profiles_user_id_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "idx_seller_profiles_user",
+        "unique": false,
+        "column_names": [
+          "user_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_seller_profiles_verified",
+        "unique": false,
+        "column_names": [
+          "is_verified"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "seller_profiles_user_id_key",
+        "unique": true,
+        "column_names": [
+          "user_id"
+        ],
+        "duplicates_constraint": "seller_profiles_user_id_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  },
+  "users": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "nullable": false,
+        "default": "nextval('users_id_seq'::regclass)",
+        "primary_key": false
+      },
+      {
+        "name": "role_id",
+        "type": "SMALLINT",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "phone",
+        "type": "VARCHAR(20)",
+        "nullable": false,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "email",
+        "type": "VARCHAR(255)",
+        "nullable": true,
+        "default": null,
+        "primary_key": false
+      },
+      {
+        "name": "is_active",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "true",
+        "primary_key": false
+      },
+      {
+        "name": "is_verified",
+        "type": "BOOLEAN",
+        "nullable": false,
+        "default": "false",
+        "primary_key": false
+      },
+      {
+        "name": "created_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      },
+      {
+        "name": "updated_at",
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "default": "now()",
+        "primary_key": false
+      }
+    ],
+    "pk": {
+      "constrained_columns": [
+        "id"
+      ],
+      "name": "users_pkey",
+      "comment": null,
+      "dialect_options": {
+        "postgresql_include": []
+      }
+    },
+    "fks": [
+      {
+        "name": "users_role_id_fkey",
+        "constrained_columns": [
+          "role_id"
+        ],
+        "referred_schema": null,
+        "referred_table": "roles",
+        "referred_columns": [
+          "id"
+        ],
+        "options": {},
+        "comment": null
+      }
+    ],
+    "unique_constraints": [
+      {
+        "column_names": [
+          "email"
+        ],
+        "name": "users_email_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      },
+      {
+        "column_names": [
+          "phone"
+        ],
+        "name": "users_phone_key",
+        "comment": null,
+        "dialect_options": {
+          "postgresql_include": [],
+          "postgresql_nulls_not_distinct": false
+        }
+      }
+    ],
+    "indexes": [
+      {
+        "name": "idx_users_phone",
+        "unique": false,
+        "column_names": [
+          "phone"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "idx_users_role",
+        "unique": false,
+        "column_names": [
+          "role_id"
+        ],
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "users_email_key",
+        "unique": true,
+        "column_names": [
+          "email"
+        ],
+        "duplicates_constraint": "users_email_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      },
+      {
+        "name": "users_phone_key",
+        "unique": true,
+        "column_names": [
+          "phone"
+        ],
+        "duplicates_constraint": "users_phone_key",
+        "include_columns": [],
+        "dialect_options": {
+          "postgresql_include": []
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,5 @@
+.card { display: grid; gap: 8px; padding: 16px; border: 1px solid #bcd1c1; border-radius: 14px; background: linear-gradient(145deg, #f4fbf3, #fffdf5); }
+.badge { display: inline-flex; width: fit-content; padding: 6px 9px; border-radius: 999px; background: #d9efdc; color: #28673a; font-size: 12px; font-weight: 800; }
+.unavailable { color: var(--vegito-muted); font-size: 12px; }
+.trend { animation: featurePulse 2.4s ease-in-out infinite; }
+@keyframes featurePulse { 50% { transform: translateY(-2px); opacity: .82; } }

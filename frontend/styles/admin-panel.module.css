@@ -1,0 +1,7 @@
+.shell { min-height: 100vh; background: #edf1ef; }
+.dashboard { width: min(100%, 1440px); margin: 0 auto; padding: 24px 18px 72px; }
+.panel { border: 1px solid #cbd4d0; border-radius: 10px; background: #fff; box-shadow: 0 6px 18px rgba(18, 60, 53, .06); }
+.metric { min-height: 132px; padding: 18px; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { padding: 12px 14px; border-bottom: 1px solid #e2e8e4; text-align: left; font-size: 13px; }
+@media (min-width: 900px) { .dashboard { padding: 36px 28px; } }
