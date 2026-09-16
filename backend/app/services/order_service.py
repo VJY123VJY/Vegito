@@ -162,6 +162,12 @@ class OrderService:
                 discount_amount=discount_amount,
             )
 
+        # Create Seller Fulfillments (supports 1 seller today and N sellers in future)
+        from app.services.seller_fulfillment_service import SellerFulfillmentService
+        order_items_objs = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+        SellerFulfillmentService.create_fulfillments_for_order(db=db, order=order, items=order_items_objs)
+
+
         # Initial Status History
         status_history = OrderStatusHistory(
             order_id=order.id,

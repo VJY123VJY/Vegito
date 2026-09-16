@@ -26,3 +26,7 @@ class DeliveryPartner(Base):
     user: Mapped["User"] = relationship("User", back_populates="delivery_partner")
     tasks: Mapped[List["DeliveryTask"]] = relationship("DeliveryTask", back_populates="delivery_partner")
     batches: Mapped[List["DeliveryBatch"]] = relationship("DeliveryBatch", back_populates="delivery_partner")
+    locations: Mapped[List["DeliveryPartnerLocation"]] = relationship(
+        "DeliveryPartnerLocation", back_populates="delivery_partner", cascade="all, delete-orphan"
+    )
+

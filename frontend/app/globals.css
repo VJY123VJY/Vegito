@@ -82,6 +82,73 @@
 }
 
 /* =========================================================
+   DARK MODE THEME SYSTEM
+   ========================================================= */
+
+[data-theme="dark"] {
+  /* Brand */
+  --vegito-primary: #10b981;
+  --vegito-primary-dark: #059669;
+  --vegito-primary-deep: #064e3b;
+  --vegito-primary-soft: rgba(16, 185, 129, 0.16);
+
+  --vegito-accent: #f59e0b;
+  --vegito-accent-dark: #d97706;
+  --vegito-accent-soft: rgba(245, 158, 11, 0.18);
+
+  /* Deep charcoal/green dark background & surfaces */
+  --vegito-background: #0d1512;
+  --vegito-background-soft: #141f1b;
+  --vegito-surface: #182620;
+  --vegito-surface-muted: #1e3028;
+
+  /* Text */
+  --vegito-text: #f0fdf4;
+  --vegito-text-soft: #d1fae5;
+  --vegito-muted: #94a3b8;
+  --vegito-placeholder: #64748b;
+
+  /* Status */
+  --vegito-success: #34d399;
+  --vegito-success-soft: rgba(52, 211, 153, 0.16);
+
+  --vegito-warning: #fbbf24;
+  --vegito-warning-soft: rgba(251, 191, 36, 0.16);
+
+  --vegito-error: #f87171;
+  --vegito-error-soft: rgba(248, 113, 113, 0.16);
+
+  --vegito-info: #38bdf8;
+  --vegito-info-soft: rgba(56, 189, 248, 0.16);
+
+  /* Borders */
+  --vegito-border: #23382f;
+  --vegito-border-dark: #2d473b;
+
+  /* Shadows for dark mode */
+  --shadow-xs: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 7px 20px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 15px 35px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 25px 70px rgba(0, 0, 0, 0.65);
+}
+
+[data-theme="dark"] body {
+  background:
+    radial-gradient(
+      circle at 10% 0%,
+      rgba(24, 38, 32, 0.95),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 90% 15%,
+      rgba(16, 185, 129, 0.08),
+      transparent 28%
+    ),
+    var(--vegito-background);
+  color: var(--vegito-text);
+}
+
+/* =========================================================
    RESET
    ========================================================= */
 

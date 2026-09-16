@@ -5,6 +5,13 @@ from twilio.base.exceptions import TwilioRestException
 
 from app.core.exceptions import BadRequestException
 from app.services.otp_service import OtpService
+from app.config import settings
+
+
+@pytest.fixture(autouse=True)
+def disable_test_mode(monkeypatch):
+    monkeypatch.setattr(settings, "OTP_TEST_MODE", False)
+    monkeypatch.setattr(settings, "OTP_DEV_MODE", False)
 
 
 class FakeVerifications:

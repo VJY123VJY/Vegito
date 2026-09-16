@@ -37,6 +37,12 @@ from app.routers import (
     payments_router,
     admin_router,
 )
+from app.routers.location import router as location_router
+from app.routers.delivery_tracking import router as delivery_tracking_router
+from app.routers.admin_analytics import router as admin_analytics_router
+from app.routers.admin_sellers import router as admin_sellers_router
+from app.routers.admin_delivery import router as admin_delivery_router
+
 
 # ---------------------------------------------------------------------------
 # Setup structured logging
@@ -105,3 +111,9 @@ app.include_router(delivery_router, prefix=API_PREFIX)
 app.include_router(delivery_batches_router, prefix=API_PREFIX)
 app.include_router(payments_router, prefix=API_PREFIX)
 app.include_router(admin_router, prefix=API_PREFIX)
+app.include_router(location_router, prefix=API_PREFIX)
+app.include_router(delivery_tracking_router, prefix=API_PREFIX)
+app.include_router(admin_analytics_router, prefix=API_PREFIX)
+app.include_router(admin_sellers_router, prefix=API_PREFIX)
+app.include_router(admin_delivery_router, prefix=API_PREFIX)
+

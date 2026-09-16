@@ -27,3 +27,14 @@ export async function createAddress(payload: AddressInput) {
   const { data } = await api.post<ApiEnvelope<Address>>("/addresses", payload);
   return data.data;
 }
+
+export async function updateAddress(addressId: number, payload: Partial<AddressInput>) {
+  const { data } = await api.patch<ApiEnvelope<Address>>(`/addresses/${addressId}`, payload);
+  return data.data;
+}
+
+export async function deleteAddress(addressId: number) {
+  const { data } = await api.delete<ApiEnvelope<boolean>>(`/addresses/${addressId}`);
+  return data.data;
+}
+

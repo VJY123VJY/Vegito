@@ -20,7 +20,8 @@ def list_inventory(
     db: Session = Depends(get_db),
 ):
     pagination = PaginationParams(page=page, page_size=page_size)
-    items, total_count = InventoryService.list_inventory(db, pagination, low_stock_only=low_stock_only)
+    seller_id = current_user.id if current_user.role_id == 2 else None
+    items, total_count = InventoryService.list_inventory(db, pagination, low_stock_only=low_stock_only, seller_id=seller_id)
     paginated = PaginatedResponse.create(items, total_count, pagination)
     return APIResponse(data=paginated)
 

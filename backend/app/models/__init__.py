@@ -28,8 +28,11 @@ from app.models.complaint import Complaint
 from app.models.coupon import Coupon
 from app.models.coupon_usage import CouponUsage
 from app.models.notification import Notification
+from app.models.delivery_partner_location import DeliveryPartnerLocation
+from app.models.seller_order_fulfillment import SellerOrderFulfillment
 
 __all__ = [
+
     "Role",
     "User",
     "OtpVerification",
@@ -60,4 +63,6 @@ __all__ = [
     "Coupon",
     "CouponUsage",
     "Notification",
+    "DeliveryPartnerLocation",
+    "SellerOrderFulfillment",
 ]

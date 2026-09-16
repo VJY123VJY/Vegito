@@ -36,6 +36,7 @@ export type OrderDetail = Order & {
   items: OrderItem[];
   status_history: { id: number; old_status?: string | null; new_status: string; note?: string | null; created_at: string }[];
   delivery_otp?: string | null;
+  delivery_task?: { id: number; status: string; notes?: string | null; delivery_partner_id?: number | null } | null;
   delivery_slot_start?: string | null;
   delivery_slot_end?: string | null;
 };

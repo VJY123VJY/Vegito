@@ -40,6 +40,31 @@ class OtpService:
         The legacy hashed-table path remains available only without Twilio
         configuration for local development compatibility.
         """
+        is_test_mode = getattr(settings, "OTP_TEST_MODE", False) or getattr(settings, "OTP_DEV_MODE", False)
+        if is_test_mode:
+            logger.info("TEST OTP MODE ACTIVE: Generated development OTP %s for %s", settings.OTP_DEV_CODE, phone)
+            otp_code = settings.OTP_DEV_CODE
+            otp_hash = hash_otp(phone, otp_code)
+            expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+                minutes=settings.OTP_EXPIRE_MINUTES
+            )
+            verification = None
+            if db is not None:
+                db.query(OtpVerification).filter(
+                    OtpVerification.phone == phone,
+                    OtpVerification.verified_at.is_(None),
+                ).delete()
+                verification = OtpVerification(
+                    phone=phone,
+                    otp_hash=otp_hash,
+                    expires_at=expires_at,
+                    attempts=0,
+                )
+                db.add(verification)
+                db.commit()
+                db.refresh(verification)
+            return verification, otp_code
+
         if OtpService.is_twilio_configured():
             try:
                 OtpService._twilio_client().verify.v2.services(
@@ -85,6 +110,24 @@ class OtpService:
         Verifies the provided OTP against the latest active verification record.
         Raises BadRequestException if invalid, expired, or max attempts exceeded.
         """
+        is_test_mode = getattr(settings, "OTP_TEST_MODE", False) or getattr(settings, "OTP_DEV_MODE", False)
+        if is_test_mode and otp_code == getattr(settings, "OTP_DEV_CODE", "123456"):
+            logger.info("TEST OTP MODE ACTIVE: Verified dev OTP %s for %s", otp_code, phone)
+            if db is not None:
+                verification = (
+                    db.query(OtpVerification)
+                    .filter(
+                        OtpVerification.phone == phone,
+                        OtpVerification.verified_at.is_(None),
+                    )
+                    .order_by(OtpVerification.created_at.desc())
+                    .first()
+                )
+                if verification:
+                    verification.verified_at = datetime.datetime.now(datetime.timezone.utc)
+                    db.commit()
+            return True
+
         if OtpService.is_twilio_configured():
             try:
                 result = OtpService._twilio_client().verify.v2.services(

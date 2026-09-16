@@ -4,6 +4,8 @@ from app.models.user import User
 from app.models.seller_profile import SellerProfile
 from app.models.seller_product import SellerProduct
 from app.models.product import Product
+from app.models.category import Category
+from app.models.product_image import ProductImage
 from app.models.inventory import Inventory
 from app.models.order import Order
 from app.models.order_item import OrderItem
@@ -13,7 +15,7 @@ from app.schemas.seller import (
     SellerProductCreate,
     SellerProductUpdate,
 )
-from app.core.exceptions import NotFoundException, ForbiddenException, ConflictException
+from app.core.exceptions import NotFoundException, ForbiddenException, ConflictException, BadRequestException
 from app.utils.pagination import PaginationParams
 
 
@@ -29,11 +31,13 @@ class SellerService:
         return profile
 
     @staticmethod
-    def update_profile(db: Session, user: User, update_in: SellerProfileUpdate) -> SellerProfile:
+    def update_profile(
+        db: Session, user: User, profile_in: SellerProfileUpdate
+    ) -> SellerProfile:
         profile = SellerService.get_profile(db, user)
-        update_dict = update_in.model_dump(exclude_unset=True)
-        for key, value in update_dict.items():
-            setattr(profile, key, value)
+        update_data = profile_in.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(profile, field, value)
         db.commit()
         db.refresh(profile)
         return profile
@@ -42,32 +46,77 @@ class SellerService:
     def list_seller_products(db: Session, user: User) -> List[SellerProduct]:
         return (
             db.query(SellerProduct)
-            .options(joinedload(SellerProduct.product))
+            .options(joinedload(SellerProduct.product).joinedload(Product.images))
             .filter(SellerProduct.seller_id == user.id)
             .all()
         )
 
     @staticmethod
     def add_product(db: Session, user: User, product_in: SellerProductCreate) -> SellerProduct:
-        # Check if master product exists
-        master_product = db.query(Product).filter(Product.id == product_in.product_id).first()
-        if not master_product:
-            raise NotFoundException(f"Master product {product_in.product_id} does not exist")
+        target_product_id = product_in.product_id
 
+        # If product_id not provided, look up by name or create master product
+        if not target_product_id:
+            if not product_in.product_name:
+                raise BadRequestException("Either product_id or product_name must be provided")
+
+            existing_product = db.query(Product).filter(
+                Product.name.ilike(product_in.product_name.strip())
+            ).first()
+
+            if existing_product:
+                target_product_id = existing_product.id
+            else:
+                cat_id = product_in.category_id
+                if not cat_id:
+                    first_cat = db.query(Category).first()
+                    cat_id = first_cat.id if first_cat else 1
+
+                new_product = Product(
+                    category_id=cat_id,
+                    name=product_in.product_name.strip(),
+                    description=product_in.description or f"Fresh {product_in.product_name.strip()} directly from farm.",
+                    unit=product_in.unit or "1 KG",
+                    is_active=True,
+                )
+                db.add(new_product)
+                db.flush()
+                target_product_id = new_product.id
+
+                if product_in.image_url:
+                    img = ProductImage(
+                        product_id=new_product.id,
+                        image_url=product_in.image_url,
+                        is_primary=True,
+                        display_order=0,
+                    )
+                    db.add(img)
+
+        # Check if already listed by seller
         existing = (
             db.query(SellerProduct)
             .filter(
                 SellerProduct.seller_id == user.id,
-                SellerProduct.product_id == product_in.product_id,
+                SellerProduct.product_id == target_product_id,
             )
             .first()
         )
         if existing:
-            raise ConflictException("You have already added this product. Update your existing listing instead.")
+            existing.price = product_in.price
+            existing.stock_quantity = product_in.stock_quantity
+            existing.minimum_order_quantity = product_in.minimum_order_quantity
+            existing.is_available = product_in.is_available
+            db.flush()
+            inv = db.query(Inventory).filter(Inventory.seller_product_id == existing.id).first()
+            if inv:
+                inv.quantity = product_in.stock_quantity
+            db.commit()
+            db.refresh(existing)
+            return existing
 
         seller_product = SellerProduct(
             seller_id=user.id,
-            product_id=product_in.product_id,
+            product_id=target_product_id,
             price=product_in.price,
             stock_quantity=product_in.stock_quantity,
             minimum_order_quantity=product_in.minimum_order_quantity,
@@ -76,7 +125,6 @@ class SellerService:
         db.add(seller_product)
         db.flush()
 
-        # Automatically create or sync inventory row
         inventory = Inventory(
             seller_product_id=seller_product.id,
             quantity=product_in.stock_quantity,
@@ -140,3 +188,25 @@ class SellerService:
             .all()
         )
         return orders, total_count
+
+    @staticmethod
+    def delete_product(db: Session, user: User, seller_product_id: int) -> bool:
+        seller_product = (
+            db.query(SellerProduct)
+            .filter(
+                SellerProduct.id == seller_product_id,
+                SellerProduct.seller_id == user.id,
+            )
+            .first()
+        )
+        if not seller_product:
+            raise NotFoundException(f"Seller product {seller_product_id} not found or unauthorized")
+
+        # Deactivate and zero stock for customer safety while preserving order history
+        seller_product.is_available = False
+        seller_product.stock_quantity = 0
+        inv = db.query(Inventory).filter(Inventory.seller_product_id == seller_product.id).first()
+        if inv:
+            inv.quantity = 0
+        db.commit()
+        return True

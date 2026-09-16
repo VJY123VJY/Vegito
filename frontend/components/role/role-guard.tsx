@@ -18,8 +18,19 @@ export function RoleGuard({
 
   useEffect(() => {
     const role = getStoredRole();
-    if (!role || !allow.includes(role)) {
-      router.replace(redirectTo ?? getRoleRedirectPath(role));
+    if (!role) {
+      const defaultRole = allow.includes("CUSTOMER")
+        ? "customer"
+        : allow.includes("SELLER")
+        ? "seller"
+        : allow.includes("DELIVERY_PARTNER")
+        ? "delivery"
+        : "admin";
+      router.replace(redirectTo ?? `/auth/login?role=${defaultRole}`);
+      return;
+    }
+    if (!allow.includes(role)) {
+      router.replace(redirectTo ?? `/unauthorized?required=${allow.join(",")}&current=${role}`);
       return;
     }
     setReady(true);

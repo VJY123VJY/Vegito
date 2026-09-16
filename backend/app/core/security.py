@@ -17,6 +17,10 @@ def verify_secret(secret: str, hashed: str) -> bool:
         return False
 
 
+hash_password = hash_secret
+verify_password = verify_secret
+
+
 def hash_otp(phone: str, otp: str) -> str:
     """
     Hash an OTP securely using SHA-256 combined with the phone number and JWT secret.

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # OTP
     OTP_EXPIRE_MINUTES: int = 5
     OTP_DEV_MODE: bool = True
+    OTP_TEST_MODE: bool = True
     OTP_DEV_CODE: str = "123456"
     OTP_MAX_ATTEMPTS: int = 5
     TWILIO_ACCOUNT_SID: str = ""

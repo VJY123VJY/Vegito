@@ -37,7 +37,7 @@ class SellerProfileRead(BaseSchema, SellerProfileBase):
 
 
 class SellerProductBase(BaseModel):
-    product_id: int
+    product_id: Optional[int] = None
     price: Decimal = Field(..., gt=0, description="Price per unit")
     stock_quantity: Decimal = Field(Decimal("0.000"), ge=0)
     minimum_order_quantity: Decimal = Field(Decimal("1.000"), gt=0)
@@ -45,7 +45,13 @@ class SellerProductBase(BaseModel):
 
 
 class SellerProductCreate(SellerProductBase):
-    pass
+    product_name: Optional[str] = None
+    category_id: Optional[int] = None
+    unit: Optional[str] = "1 KG"
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+
+
 
 
 class SellerProductUpdate(BaseModel):

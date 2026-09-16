@@ -16,3 +16,22 @@ export async function completeDelivery(taskId: number, deliveryOtp: string, note
   const { data } = await api.post<ApiEnvelope<boolean>>(`/delivery/tasks/${taskId}/verify-otp`, { delivery_otp: deliveryOtp, notes });
   return data.data;
 }
+
+export async function postPartnerGpsLocation(payload: {
+  latitude: number;
+  longitude: number;
+  accuracy_meters?: number;
+  heading?: number;
+  speed_kmh?: number;
+}) {
+  const { data } = await api.post<ApiEnvelope<any>>("/delivery/location", payload);
+  return data.data;
+}
+
+export async function getPartnerLocationHistory(partnerId?: number, limit = 50) {
+  const { data } = await api.get<ApiEnvelope<any[]>>("/delivery/location/history", {
+    params: { partner_id: partnerId, limit },
+  });
+  return data.data;
+}
+

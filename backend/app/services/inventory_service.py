@@ -159,9 +159,14 @@ class InventoryService:
 
     @staticmethod
     def list_inventory(
-        db: Session, pagination: PaginationParams, low_stock_only: bool = False
+        db: Session,
+        pagination: PaginationParams,
+        low_stock_only: bool = False,
+        seller_id: Optional[int] = None,
     ) -> Tuple[List[InventoryRead], int]:
         query = db.query(Inventory).join(SellerProduct, Inventory.seller_product_id == SellerProduct.id)
+        if seller_id is not None:
+            query = query.filter(SellerProduct.seller_id == seller_id)
         if low_stock_only:
             query = query.filter(Inventory.quantity <= Inventory.low_stock_threshold)
 

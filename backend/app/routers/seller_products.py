@@ -55,3 +55,13 @@ def update_seller_product(
     if sp.product:
         read_obj.product = ProductRead.model_validate(sp.product)
     return APIResponse(message="Product listing updated", data=read_obj)
+
+
+@router.delete("/{seller_product_id}", response_model=APIResponse[bool], summary="Remove or deactivate seller product")
+def delete_seller_product(
+    seller_product_id: int,
+    current_user: User = Depends(require_seller),
+    db: Session = Depends(get_db),
+):
+    success = SellerService.delete_product(db, current_user, seller_product_id)
+    return APIResponse(message="Product listing removed from your store", data=success)

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -131,8 +131,155 @@ def assign_delivery_task(
     partner = db.query(DeliveryPartner).filter(DeliveryPartner.id == payload.delivery_partner_id).first()
     if not partner or not partner.is_verified or not partner.is_available:
         raise BadRequestException("Delivery partner is unavailable or not verified")
-    if task.status != "ASSIGNED":
-        raise BadRequestException("Only unassigned tasks can be assigned")
+    if task.status in ["DELIVERED", "FAILED", "CANCELLED"]:
+        raise BadRequestException(f"Cannot assign task in {task.status} status")
     task.delivery_partner_id = partner.id
+    task.assigned_at = datetime.datetime.now(datetime.timezone.utc)
     db.commit()
-    return APIResponse(message="Delivery task assigned", data=True)
+    return APIResponse(message="Delivery task assigned successfully", data=True)
+
+
+@router.get("/orders", response_model=APIResponse[Dict[str, Any]], summary="List all orders across platform")
+def list_admin_orders(
+    status: Optional[str] = Query(None),
+    q: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    from app.models.order import Order
+    from app.models.order_item import OrderItem
+    from sqlalchemy.orm import joinedload
+
+    query = db.query(Order).options(
+        joinedload(Order.customer),
+        joinedload(Order.address),
+        joinedload(Order.items),
+        joinedload(Order.delivery_task).joinedload(DeliveryTask.delivery_partner).joinedload(DeliveryPartner.user),
+    )
+    if status:
+        query = query.filter(Order.status == status)
+    if q:
+        query = query.join(User, Order.customer_id == User.id).filter(
+            (Order.order_number.ilike(f"%{q}%")) | (User.name.ilike(f"%{q}%")) | (User.phone.ilike(f"%{q}%"))
+        )
+
+    total_count = query.count()
+    orders = (
+        query.order_by(Order.placed_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    items = []
+    for o in orders:
+        partner_name = None
+        if o.delivery_task and o.delivery_task.delivery_partner and o.delivery_task.delivery_partner.user:
+            partner_name = o.delivery_task.delivery_partner.user.name
+
+        items.append({
+            "id": o.id,
+            "order_number": o.order_number,
+            "customer_name": o.customer.name if o.customer else "Customer",
+            "customer_phone": o.customer.phone if o.customer else "",
+            "address": f"{o.address.address_line1}, {o.address.city}" if o.address else None,
+            "status": o.status,
+            "payment_method": o.payment_method,
+            "payment_status": o.payment_status,
+            "total_amount": float(o.total_amount),
+            "items_count": len(o.items),
+            "placed_at": o.placed_at.isoformat() if o.placed_at else None,
+            "delivery_task_id": o.delivery_task.id if o.delivery_task else None,
+            "delivery_partner_id": o.delivery_task.delivery_partner_id if o.delivery_task else None,
+            "delivery_partner_name": partner_name,
+        })
+
+    return APIResponse(data={"items": items, "total": total_count, "page": page, "page_size": page_size})
+
+
+@router.get("/customers", response_model=APIResponse[Dict[str, Any]], summary="List platform customers")
+def list_admin_customers(
+    q: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    from app.models.customer_profile import CustomerProfile
+    from app.models.order import Order
+    from sqlalchemy import func
+
+    query = db.query(User).filter(User.role_id == 1)
+    if q:
+        query = query.filter((User.name.ilike(f"%{q}%")) | (User.phone.ilike(f"%{q}%")) | (User.email.ilike(f"%{q}%")))
+
+    total_count = query.count()
+    users = query.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    items = []
+    for u in users:
+        order_count = db.query(Order).filter(Order.customer_id == u.id).count()
+        total_spent = (
+            db.query(func.coalesce(func.sum(Order.total_amount), 0))
+            .filter(Order.customer_id == u.id, Order.payment_status == "PAID")
+            .scalar()
+        )
+        items.append({
+            "id": u.id,
+            "name": u.name or "Customer",
+            "phone": u.phone,
+            "email": u.email,
+            "is_active": u.is_active,
+            "total_orders": order_count,
+            "total_spent": float(total_spent),
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        })
+
+    return APIResponse(data={"items": items, "total": total_count, "page": page, "page_size": page_size})
+
+
+@router.get("/inventory/alerts", response_model=APIResponse[List[Dict[str, Any]]], summary="List low stock inventory alerts")
+def get_inventory_alerts(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    from app.models.seller_product import SellerProduct
+    from app.models.seller_profile import SellerProfile
+    from app.models.product import Product
+    from sqlalchemy.orm import joinedload
+
+    alerts = (
+        db.query(Inventory)
+        .join(SellerProduct, SellerProduct.id == Inventory.seller_product_id)
+        .join(Product, Product.id == SellerProduct.product_id)
+        .options(
+            joinedload(Inventory.seller_product).joinedload(SellerProduct.product),
+            joinedload(Inventory.seller_product).joinedload(SellerProduct.seller).joinedload(User.seller_profile),
+        )
+        .filter(Inventory.quantity <= Inventory.low_stock_threshold)
+        .all()
+    )
+
+    results = []
+    for inv in alerts:
+        sp = inv.seller_product
+        prod = sp.product if sp else None
+        seller_user = sp.seller if sp else None
+        prof = seller_user.seller_profile if seller_user else None
+
+        results.append({
+            "inventory_id": inv.id,
+            "seller_product_id": inv.seller_product_id,
+            "product_name": prod.name if prod else "Unknown",
+            "unit": prod.unit if prod else "kg",
+            "quantity": float(inv.quantity),
+            "low_stock_threshold": float(inv.low_stock_threshold),
+            "seller_id": sp.seller_id if sp else None,
+            "business_name": prof.business_name if prof else "Seller",
+            "seller_phone": seller_user.phone if seller_user else "",
+        })
+
+    return APIResponse(data=results)
+

@@ -6,6 +6,7 @@ from app.models.product import Product
 from app.models.product_image import ProductImage
 from app.models.seller_product import SellerProduct
 from app.models.seller_profile import SellerProfile
+from app.models.user import User
 from app.schemas.category import CategoryCreate, CategoryUpdate
 from app.schemas.product import ProductCreate, ProductUpdate, ProductRead, ProductSellerOffer, ProductImageRead
 from app.core.exceptions import NotFoundException, ConflictException
@@ -69,7 +70,7 @@ class ProductService:
         query = db.query(Product).options(
             joinedload(Product.category),
             joinedload(Product.images),
-            joinedload(Product.seller_products),
+            joinedload(Product.seller_products).joinedload(SellerProduct.seller).joinedload(User.seller_profile),
         )
 
         if active_only:
@@ -102,11 +103,22 @@ class ProductService:
                 if sp.is_available:
                     prices.append(sp.price)
                     total_stock += sp.stock_quantity
+                    b_name = (
+                        sp.seller.seller_profile.business_name
+                        if (sp.seller and sp.seller.seller_profile)
+                        else (sp.seller.name if sp.seller else "Farmer Direct")
+                    )
+                    b_rating = (
+                        sp.seller.seller_profile.rating
+                        if (sp.seller and sp.seller.seller_profile)
+                        else Decimal("4.80")
+                    )
                     offers.append(
                         ProductSellerOffer(
                             seller_product_id=sp.id,
                             seller_id=sp.seller_id,
-                            seller_business_name=sp.seller.name if sp.seller else None,
+                            seller_business_name=b_name,
+                            seller_rating=b_rating,
                             price=sp.price,
                             stock_quantity=sp.stock_quantity,
                             minimum_order_quantity=sp.minimum_order_quantity,
@@ -132,13 +144,13 @@ class ProductService:
             .options(
                 joinedload(Product.category),
                 joinedload(Product.images),
-                joinedload(Product.seller_products).joinedload(SellerProduct.seller),
+                joinedload(Product.seller_products).joinedload(SellerProduct.seller).joinedload(User.seller_profile),
             )
             .filter(Product.id == product_id)
             .first()
         )
         if not product:
-            raise NotFoundException(f"Product with id {product_id} not found")
+            raise NotFoundException(f"Product {product_id} not found")
 
         offers: List[ProductSellerOffer] = []
         prices = []
@@ -147,11 +159,22 @@ class ProductService:
             if sp.is_available:
                 prices.append(sp.price)
                 total_stock += sp.stock_quantity
+                b_name = (
+                    sp.seller.seller_profile.business_name
+                    if (sp.seller and sp.seller.seller_profile)
+                    else (sp.seller.name if sp.seller else "Farmer Direct")
+                )
+                b_rating = (
+                    sp.seller.seller_profile.rating
+                    if (sp.seller and sp.seller.seller_profile)
+                    else Decimal("4.80")
+                )
                 offers.append(
                     ProductSellerOffer(
                         seller_product_id=sp.id,
                         seller_id=sp.seller_id,
-                        seller_business_name=sp.seller.name if sp.seller else None,
+                        seller_business_name=b_name,
+                        seller_rating=b_rating,
                         price=sp.price,
                         stock_quantity=sp.stock_quantity,
                         minimum_order_quantity=sp.minimum_order_quantity,

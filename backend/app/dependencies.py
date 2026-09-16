@@ -76,5 +76,14 @@ require_seller = require_role(RoleEnum.SELLER.value, RoleEnum.ADMIN.value, RoleE
 require_delivery_partner = require_role(
     RoleEnum.DELIVERY_PARTNER.value, RoleEnum.ADMIN.value, RoleEnum.SUPER_ADMIN.value
 )
+# V1: Same person is both SELLER and DELIVERY_PARTNER.
+# This dependency allows a SELLER-role user to call delivery APIs.
+# Remove or tighten in V2 when roles are truly separate accounts.
+require_seller_or_delivery = require_role(
+    RoleEnum.SELLER.value,
+    RoleEnum.DELIVERY_PARTNER.value,
+    RoleEnum.ADMIN.value,
+    RoleEnum.SUPER_ADMIN.value,
+)
 require_admin = require_role(RoleEnum.ADMIN.value, RoleEnum.SUPER_ADMIN.value)
 require_super_admin = require_role(RoleEnum.SUPER_ADMIN.value)

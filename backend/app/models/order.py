@@ -47,3 +47,7 @@ class Order(Base):
     complaints: Mapped[List["Complaint"]] = relationship("Complaint", back_populates="order")
     reviews: Mapped[List["Review"]] = relationship("Review", back_populates="order")
     coupon_usages: Mapped[List["CouponUsage"]] = relationship("CouponUsage", back_populates="order")
+    seller_fulfillments: Mapped[List["SellerOrderFulfillment"]] = relationship(
+        "SellerOrderFulfillment", back_populates="order", cascade="all, delete-orphan"
+    )
+

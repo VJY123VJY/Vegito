@@ -3,7 +3,18 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.auth import SendOtpRequest, SendOtpResponse, VerifyOtpRequest, TokenResponse
+from app.schemas.auth import (
+    SendOtpRequest,
+    SendOtpResponse,
+    VerifyOtpRequest,
+    PasswordLoginRequest,
+    UnifiedRegisterRequest,
+    TokenResponse,
+    CustomerRegisterRequest,
+    SellerRegisterRequest,
+    DeliveryPartnerRegisterRequest,
+    RegisterResponse,
+)
 from app.schemas.user import UserRead
 from app.schemas.common import APIResponse
 from app.services.auth_service import AuthService
@@ -12,7 +23,84 @@ from app.core.constants import RoleEnum, ROLE_NAME_MAP
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-# Customer Auth
+# ── MOBILE + PASSWORD AUTHENTICATION ─────────────────────────────────────────
+@router.post(
+    "/login",
+    response_model=APIResponse[TokenResponse],
+    summary="Login with registered mobile number and password",
+)
+def login_with_password(payload: PasswordLoginRequest, db: Session = Depends(get_db)):
+    token_res = AuthService.login_with_password(db, payload.phone, payload.password, payload.role)
+    return APIResponse(message="Login successful", data=token_res)
+
+
+@router.post(
+    "/register",
+    response_model=APIResponse[RegisterResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new user account with role, mobile number, and password",
+)
+def register_user(payload: UnifiedRegisterRequest, db: Session = Depends(get_db)):
+    res = AuthService.register_unified(db, payload)
+    return APIResponse(message=res.message, data=res)
+
+
+# ── UNIFIED MOBILE OTP LOGIN (Role determined by backend) ──────────────────────
+@router.post(
+    "/send-otp",
+    response_model=APIResponse[SendOtpResponse],
+    summary="Send OTP for registered user login by mobile number",
+)
+def send_otp(payload: SendOtpRequest, db: Session = Depends(get_db)):
+    res = AuthService.send_otp_for_phone(db, payload.phone)
+    return APIResponse(message=res.message, data=res)
+
+
+@router.post(
+    "/verify-otp",
+    response_model=APIResponse[TokenResponse],
+    summary="Verify OTP and obtain JWT token (Backend resolves user role)",
+)
+def verify_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
+    token_res = AuthService.verify_otp_for_phone(db, payload.phone, payload.otp)
+    return APIResponse(message="Authentication successful", data=token_res)
+
+
+# ── ROLE-BASED REGISTRATION (Customer, Seller, Delivery Partner) ─────────────
+@router.post(
+    "/register/customer",
+    response_model=APIResponse[RegisterResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new Customer account",
+)
+def register_customer(payload: CustomerRegisterRequest, db: Session = Depends(get_db)):
+    res = AuthService.register_customer(db, payload)
+    return APIResponse(message=res.message, data=res)
+
+
+@router.post(
+    "/register/seller",
+    response_model=APIResponse[RegisterResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new Seller account",
+)
+def register_seller(payload: SellerRegisterRequest, db: Session = Depends(get_db)):
+    res = AuthService.register_seller(db, payload)
+    return APIResponse(message=res.message, data=res)
+
+
+@router.post(
+    "/register/delivery-partner",
+    response_model=APIResponse[RegisterResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new Delivery Partner account",
+)
+def register_delivery_partner(payload: DeliveryPartnerRegisterRequest, db: Session = Depends(get_db)):
+    res = AuthService.register_delivery_partner(db, payload)
+    return APIResponse(message=res.message, data=res)
+
+
+# ── LEGACY PORTAL-SPECIFIC OTP AUTH (Maintained for backward compatibility) ────
 @router.post(
     "/customer/send-otp",
     response_model=APIResponse[SendOtpResponse],
