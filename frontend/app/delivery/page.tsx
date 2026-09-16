@@ -115,7 +115,7 @@ export default function DeliveryDashboardPage() {
 
   return (
     <RoleGuard allow={["DELIVERY_PARTNER", "ADMIN", "SUPER_ADMIN"]}>
-      <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "#f4f7f3" }}>
+      <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "var(--vegito-bg, #f4f7f3)" }}>
         {/* Sidebar */}
         <DashboardSidebar
           role="delivery"

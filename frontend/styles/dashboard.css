@@ -216,3 +216,102 @@
     z-index: 45;
   }
 }
+
+/* =========================================================
+   SMOOTH THEME TRANSITION
+   ========================================================= */
+
+html {
+  transition: background-color 200ms ease;
+}
+
+html *:not(img):not(svg):not(video) {
+  transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+
+/* =========================================================
+   DARK MODE — COMPONENT-LEVEL OVERRIDES
+   Targets hardcoded inline styles via computed RGB values
+   ========================================================= */
+
+/* Dashboard root & main area */
+[data-theme="dark"] .dashboard-root {
+  background-color: var(--vegito-bg) !important;
+  color: var(--vegito-text-main) !important;
+}
+
+[data-theme="dark"] .dashboard-main {
+  background-color: var(--vegito-bg) !important;
+  color: var(--vegito-text-main) !important;
+}
+
+/* Header */
+[data-theme="dark"] .dashboard-header {
+  background-color: var(--vegito-card) !important;
+  border-bottom-color: var(--vegito-border) !important;
+  color: var(--vegito-text-main) !important;
+}
+
+/* White card backgrounds — rgb(255,255,255) = #ffffff */
+[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(255, 255, 255)"] {
+  background-color: var(--vegito-card) !important;
+  border-color: var(--vegito-border) !important;
+}
+
+[data-theme="dark"] .dashboard-root a[style*="background-color: rgb(255, 255, 255)"] {
+  background-color: var(--vegito-card) !important;
+  border-color: var(--vegito-border) !important;
+}
+
+/* Light green section bg — rgb(244,247,243) = #f4f7f3 */
+[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(244, 247, 243)"] {
+  background-color: var(--vegito-bg) !important;
+}
+
+/* Muted surface — rgb(233,246,238) = #e9f6ee */
+[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(233, 246, 238)"] {
+  background-color: var(--vegito-surface-muted) !important;
+}
+
+/* Soft surface — rgb(250,252,249) = #fafcf9 and rgb(250,250,249) = #fafaf9 */
+[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(250, 252, 249)"],
+[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(250, 250, 249)"],
+[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(249, 251, 248)"] {
+  background-color: var(--vegito-surface-muted) !important;
+}
+
+/* Text — dark green rgb(6,60,50) = #063c32 and rgb(19,34,27) = #13221b */
+[data-theme="dark"] .dashboard-root p[style*="color: rgb(6, 60, 50)"],
+[data-theme="dark"] .dashboard-root span[style*="color: rgb(6, 60, 50)"],
+[data-theme="dark"] .dashboard-root h1[style*="color: rgb(6, 60, 50)"],
+[data-theme="dark"] .dashboard-root h2[style*="color: rgb(6, 60, 50)"],
+[data-theme="dark"] .dashboard-root h3[style*="color: rgb(6, 60, 50)"],
+[data-theme="dark"] .dashboard-root div[style*="color: rgb(6, 60, 50)"] {
+  color: var(--vegito-text-main) !important;
+}
+
+[data-theme="dark"] .dashboard-root p[style*="color: rgb(19, 34, 27)"],
+[data-theme="dark"] .dashboard-root span[style*="color: rgb(19, 34, 27)"],
+[data-theme="dark"] .dashboard-root div[style*="color: rgb(19, 34, 27)"] {
+  color: var(--vegito-text-main) !important;
+}
+
+/* Muted text — rgb(98,116,106) = #62746a */
+[data-theme="dark"] .dashboard-root p[style*="color: rgb(98, 116, 106)"],
+[data-theme="dark"] .dashboard-root span[style*="color: rgb(98, 116, 106)"] {
+  color: var(--vegito-text-muted) !important;
+}
+
+/* Input / textarea / select fields */
+[data-theme="dark"] .dashboard-root input,
+[data-theme="dark"] .dashboard-root textarea,
+[data-theme="dark"] .dashboard-root select {
+  background-color: var(--vegito-surface-muted) !important;
+  color: var(--vegito-text-main) !important;
+  border-color: var(--vegito-border) !important;
+}
+
+/* Search placeholder */
+[data-theme="dark"] .dashboard-root input::placeholder {
+  color: var(--vegito-text-muted) !important;
+}

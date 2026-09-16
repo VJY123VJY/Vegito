@@ -28,7 +28,7 @@ export function DashboardShell({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="dashboard-root" style={{ display: "flex", minHeight: "100vh", backgroundColor: "#f4f7f3" }}>
+    <div className="dashboard-root" style={{ display: "flex", minHeight: "100vh" }}>
       {/* Mobile Drawer Backdrop */}
       {mobileMenuOpen && (
         <div

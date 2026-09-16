@@ -26,6 +26,9 @@ import { getProducts, ApiProduct } from "@/lib/api/products";
 import { addCartItem } from "@/lib/api/cart";
 import { isLoggedIn, getStoredRole, getStoredUserName, clearSession, getRoleRedirectPath, type AuthRole } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/client";
+import { ThemeToggle } from "@/components/common/theme-toggle";
+import { LanguageSwitcher } from "@/components/common/language-switcher";
+import { useTranslation } from "@/context/i18n-context";
 
 // Artisanal Vegetable Gallery items matching the mockup's 3x2 earthenware/ceramic plate cards
 const ARTISAN_GALLERY_ITEMS = [
@@ -94,6 +97,7 @@ const ARTISAN_GALLERY_ITEMS = [
 export function PublicHome() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [addedToast, setAddedToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
@@ -203,10 +207,11 @@ export function PublicHome() {
 
   return (
     <div
+      className="public-page"
       style={{
         minHeight: "100vh",
-        backgroundColor: "#fbf8f2",
-        color: "#222c1d",
+        backgroundColor: "var(--vegito-background, #fbf8f2)",
+        color: "var(--vegito-text, #222c1d)",
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       }}
     >
@@ -270,14 +275,14 @@ export function PublicHome() {
         >
           <div
             style={{
-              backgroundColor: "#ffffff",
+              backgroundColor: "var(--vegito-surface, #ffffff)",
               borderRadius: "24px",
               padding: "36px 32px",
               maxWidth: "440px",
               width: "100%",
               boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
               textAlign: "center",
-              border: "1px solid #ede7dc",
+              border: "1px solid var(--vegito-border, #ede7dc)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -366,9 +371,9 @@ export function PublicHome() {
       {/* ── TOP NAVBAR ─────────────────────────────────────────── */}
       <header
         style={{
-          background: "rgba(251, 248, 242, 0.95)",
+          background: "var(--vegito-surface, rgba(251, 248, 242, 0.95))",
           backdropFilter: "blur(12px)",
-          borderBottom: "1px solid #ede7dc",
+          borderBottom: "1px solid var(--vegito-border, #ede7dc)",
           position: "sticky",
           top: 0,
           zIndex: 50,
@@ -417,7 +422,7 @@ export function PublicHome() {
                   fontFamily: "'Playfair Display', Georgia, serif",
                   fontSize: "25px",
                   fontWeight: 800,
-                  color: "#242e1f",
+                  color: "var(--vegito-text, #242e1f)",
                   letterSpacing: "-0.5px",
                 }}
               >
@@ -449,19 +454,19 @@ export function PublicHome() {
             className="home-nav-links"
           >
             {[
-              { label: "Home", href: "/" },
-              { label: "Artisan Gallery", href: "#gallery" },
-              { label: "Live Harvest", href: "#harvest" },
-              { label: "Dashboards", href: "#dashboards" },
-              { label: "Why Vegito", href: "#about" },
+              { label: t("nav.home", "Home"), href: "/" },
+              { label: t("nav.gallery", "Artisan Gallery"), href: "#gallery" },
+              { label: t("nav.harvest", "Live Harvest"), href: "#harvest" },
+              { label: t("nav.dashboards", "Dashboards"), href: "#dashboards" },
+              { label: t("nav.whyVegito", "Why Vegito"), href: "#about" },
             ].map((item) => (
               <Link
-                key={item.label}
+                key={item.href}
                 href={item.href}
                 style={{
                   padding: "8px 14px",
                   borderRadius: "8px",
-                  color: "#57534e",
+                  color: "var(--vegito-text, #57534e)",
                   fontSize: "14px",
                   fontWeight: 600,
                   textDecoration: "none",
@@ -473,8 +478,11 @@ export function PublicHome() {
             ))}
           </nav>
 
-          {/* Right Role Portal Buttons */}
+          {/* Right Role Portal Buttons & Theme/Language controls */}
           <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <LanguageSwitcher />
+            <ThemeToggle />
+
             {authChecked && currentUserRole ? (
               <>
                 <Link
@@ -482,7 +490,7 @@ export function PublicHome() {
                   style={{
                     padding: "8px 18px",
                     borderRadius: "999px",
-                    background: "#2f3a27",
+                    background: "var(--vegito-primary, #2f3a27)",
                     color: "#ffffff",
                     fontSize: "13.5px",
                     fontWeight: 700,
@@ -493,7 +501,7 @@ export function PublicHome() {
                     boxShadow: "0 2px 8px rgba(47, 58, 39, 0.25)",
                   }}
                 >
-                  <span>Dashboard ({currentUserRole.replace("_", " ")})</span>
+                  <span>{t("nav.myDashboard", "Dashboard")} ({currentUserRole.replace("_", " ")})</span>
                   <ArrowRight size={14} />
                 </Link>
                 <button
@@ -506,15 +514,15 @@ export function PublicHome() {
                   style={{
                     padding: "8px 14px",
                     borderRadius: "999px",
-                    border: "1.5px solid #d6cebf",
-                    background: "#ffffff",
-                    color: "#57534e",
+                    border: "1.5px solid var(--vegito-border, #d6cebf)",
+                    background: "var(--vegito-surface, #ffffff)",
+                    color: "var(--vegito-text, #57534e)",
                     fontSize: "13px",
                     fontWeight: 600,
                     cursor: "pointer",
                   }}
                 >
-                  Logout
+                  {t("nav.logout", "Logout")}
                 </button>
               </>
             ) : (
@@ -524,23 +532,23 @@ export function PublicHome() {
                   style={{
                     padding: "8px 18px",
                     borderRadius: "999px",
-                    border: "1.5px solid #d6cebf",
-                    color: "#2f3a27",
+                    border: "1.5px solid var(--vegito-border, #d6cebf)",
+                    color: "var(--vegito-text, #2f3a27)",
                     fontSize: "13.5px",
                     fontWeight: 700,
                     textDecoration: "none",
-                    backgroundColor: "#ffffff",
+                    backgroundColor: "var(--vegito-surface, #ffffff)",
                     transition: "border-color 0.15s",
                   }}
                 >
-                  Login
+                  {t("nav.login", "Login")}
                 </Link>
                 <Link
                   href="/auth/register"
                   style={{
                     padding: "9px 22px",
                     borderRadius: "999px",
-                    background: "#2f3a27",
+                    background: "var(--vegito-primary, #2f3a27)",
                     color: "#ffffff",
                     fontSize: "13.5px",
                     fontWeight: 700,
@@ -548,7 +556,7 @@ export function PublicHome() {
                     boxShadow: "0 2px 8px rgba(47, 58, 39, 0.25)",
                   }}
                 >
-                  Get Started
+                  {t("nav.register", "Get Started")}
                 </Link>
               </>
             )}
@@ -597,7 +605,7 @@ export function PublicHome() {
               fontFamily: "'Playfair Display', Georgia, serif",
               fontSize: "clamp(36px, 4.8vw, 58px)",
               fontWeight: 800,
-              color: "#222c1d",
+              color: "var(--vegito-text, #222c1d)",
               lineHeight: 1.15,
               letterSpacing: "-1px",
               margin: "0 0 18px",
@@ -610,7 +618,7 @@ export function PublicHome() {
           <p
             style={{
               fontSize: "16.5px",
-              color: "#57534e",
+              color: "var(--vegito-muted, #57534e)",
               lineHeight: 1.65,
               margin: "0 0 28px",
               maxWidth: "500px",
@@ -629,8 +637,8 @@ export function PublicHome() {
               boxShadow: "0 4px 20px rgba(47, 58, 39, 0.08)",
               borderRadius: "999px",
               overflow: "hidden",
-              border: "1.5px solid #ded5c5",
-              background: "#ffffff",
+              border: "1.5px solid var(--vegito-border, #ded5c5)",
+              background: "var(--vegito-surface, #ffffff)",
             }}
           >
             <div
@@ -651,7 +659,7 @@ export function PublicHome() {
                   border: "none",
                   outline: "none",
                   fontSize: "14px",
-                  color: "#222c1d",
+                  color: "var(--vegito-text, #222c1d)",
                   width: "100%",
                   background: "transparent",
                 }}

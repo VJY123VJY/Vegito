@@ -120,7 +120,6 @@ export function DashboardSidebar({ role, isOpen = true, onClose }: DashboardSide
       className={`dashboard-sidebar-container ${isOpen ? "mobile-open" : ""}`}
       style={{
         width: "240px",
-        backgroundColor: "#063c32",
         color: "#ffffff",
         display: "flex",
         flexDirection: "column",

@@ -215,7 +215,7 @@ export function CustomerHome() {
 
   return (
     <RoleGuard allow={["CUSTOMER"]}>
-      <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "#f4f7f3" }}>
+      <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "var(--vegito-bg, #f4f7f3)" }}>
         {/* Feedback Toast */}
         {feedbackToast && (
           <div
@@ -285,10 +285,10 @@ export function CustomerHome() {
 
             {/* Greeting & Subtitle */}
             <div style={{ marginBottom: "20px" }}>
-              <h2 style={{ margin: "0 0 4px", fontSize: "24px", fontWeight: 800, color: "#063c32" }}>
+              <h2 style={{ margin: "0 0 4px", fontSize: "24px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
                 {getTimeGreeting(userName)} 👋
               </h2>
-              <p style={{ margin: 0, fontSize: "14px", color: "#62746a" }}>
+              <p style={{ margin: 0, fontSize: "14px", color: "var(--vegito-text-muted, #62746a)" }}>
                 Fresh vegetables, better life. Straight from local farmers to your kitchen.
               </p>
             </div>
@@ -313,8 +313,8 @@ export function CustomerHome() {
                   key={act.label}
                   href={act.href}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e1e8e2",
+                    backgroundColor: "var(--vegito-card, #ffffff)",
+                    border: "1px solid var(--vegito-border, #e1e8e2)",
                     borderRadius: "12px",
                     padding: "12px 14px",
                     textDecoration: "none",
@@ -327,7 +327,7 @@ export function CustomerHome() {
                 >
                   <span style={{ fontSize: "20px" }}>{act.icon}</span>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <p style={{ margin: 0, fontSize: "12.5px", fontWeight: 700, color: "#063c32", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <p style={{ margin: 0, fontSize: "12.5px", fontWeight: 700, color: "var(--vegito-text-main, #063c32)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {act.label}
                     </p>
                     {act.count !== null && (
@@ -344,7 +344,7 @@ export function CustomerHome() {
             {activeOrder && (
               <div
                 style={{
-                  backgroundColor: "#ffffff",
+                  backgroundColor: "var(--vegito-card, #ffffff)",
                   border: "1.5px solid #a7f3d0",
                   borderRadius: "18px",
                   padding: "20px 24px",
@@ -378,10 +378,10 @@ export function CustomerHome() {
                       <Truck size={20} />
                     </div>
                     <div>
-                      <h3 style={{ margin: 0, fontSize: "15.5px", fontWeight: 800, color: "#063c32" }}>
+                      <h3 style={{ margin: 0, fontSize: "15.5px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
                         Active Order #{activeOrder.order_number}
                       </h3>
-                      <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
+                      <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--vegito-text-muted, #62746a)" }}>
                         Placed on {new Date(activeOrder.placed_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ₹{Number(activeOrder.total_amount).toFixed(0)}
                       </p>
                     </div>
@@ -413,9 +413,9 @@ export function CustomerHome() {
                       style={{
                         padding: "6px 12px",
                         borderRadius: "8px",
-                        backgroundColor: "#f4f7f3",
+                        backgroundColor: "var(--vegito-bg, #f4f7f3)",
                         border: "1px solid #d8e5dc",
-                        color: "#063c32",
+                        color: "var(--vegito-text-main, #063c32)",
                         fontSize: "12px",
                         fontWeight: 700,
                         textDecoration: "none",
@@ -500,7 +500,7 @@ export function CustomerHome() {
             {cartItems.length > 0 && (
               <div
                 style={{
-                  backgroundColor: "#063c32",
+                  backgroundcolor: "var(--vegito-text-main, #063c32)",
                   color: "#ffffff",
                   borderRadius: "16px",
                   padding: "14px 20px",
@@ -614,8 +614,8 @@ export function CustomerHome() {
                       alignItems: "center",
                       gap: "6px",
                       padding: "10px 22px",
-                      backgroundColor: "#ffffff",
-                      color: "#063c32",
+                      backgroundColor: "var(--vegito-card, #ffffff)",
+                      color: "var(--vegito-text-main, #063c32)",
                       borderRadius: "10px",
                       fontSize: "13.5px",
                       fontWeight: 800,
@@ -671,10 +671,10 @@ export function CustomerHome() {
                 }}
               >
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#063c32" }}>
+                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
                     Vegetable Categories
                   </h3>
-                  <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
+                  <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--vegito-text-muted, #62746a)" }}>
                     Select a category to filter today&apos;s fresh harvest
                   </p>
                 </div>
@@ -824,10 +824,10 @@ export function CustomerHome() {
                   }}
                 >
                   <div>
-                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#063c32" }}>
+                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
                       Today&apos;s Farm Harvest
                     </h3>
-                    <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#62746a" }}>
+                    <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "var(--vegito-text-muted, #62746a)" }}>
                       Directly priced by verified Solapur farmers
                     </p>
                   </div>
@@ -853,9 +853,9 @@ export function CustomerHome() {
                         key={i}
                         style={{
                           height: "260px",
-                          backgroundColor: "#ffffff",
+                          backgroundColor: "var(--vegito-card, #ffffff)",
                           borderRadius: "16px",
-                          border: "1px solid #e1e8e2",
+                          border: "1px solid var(--vegito-border, #e1e8e2)",
                           animation: "pulse 1.5s infinite",
                         }}
                       />
@@ -864,16 +864,16 @@ export function CustomerHome() {
                 ) : (products.data?.items ?? []).length === 0 ? (
                   <div
                     style={{
-                      backgroundColor: "#ffffff",
+                      backgroundColor: "var(--vegito-card, #ffffff)",
                       borderRadius: "16px",
-                      border: "1px solid #e1e8e2",
+                      border: "1px solid var(--vegito-border, #e1e8e2)",
                       padding: "48px 24px",
                       textAlign: "center",
-                      color: "#62746a",
+                      color: "var(--vegito-text-muted, #62746a)",
                     }}
                   >
                     <div style={{ fontSize: "40px", marginBottom: "10px" }}>🥦</div>
-                    <p style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: 800, color: "#063c32" }}>
+                    <p style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
                       No vegetables found
                     </p>
                     <p style={{ margin: "0 0 16px", fontSize: "13px" }}>
@@ -926,9 +926,9 @@ export function CustomerHome() {
                         <div
                           key={prod.id}
                           style={{
-                            backgroundColor: "#ffffff",
+                            backgroundColor: "var(--vegito-card, #ffffff)",
                             borderRadius: "16px",
-                            border: "1px solid #e1e8e2",
+                            border: "1px solid var(--vegito-border, #e1e8e2)",
                             padding: "14px",
                             display: "flex",
                             flexDirection: "column",
@@ -970,7 +970,7 @@ export function CustomerHome() {
                           <div
                             style={{
                               height: "120px",
-                              backgroundColor: "#f4f7f3",
+                              backgroundColor: "var(--vegito-bg, #f4f7f3)",
                               borderRadius: "12px",
                               display: "flex",
                               alignItems: "center",
@@ -1002,16 +1002,16 @@ export function CustomerHome() {
                               </span>
                             </div>
 
-                            <strong style={{ fontSize: "14px", color: "#063c32", marginBottom: "2px" }}>
+                            <strong style={{ fontSize: "14px", color: "var(--vegito-text-main, #063c32)", marginBottom: "2px" }}>
                               {prod.name}
                             </strong>
-                            <span style={{ fontSize: "11.5px", color: "#62746a", marginBottom: "10px" }}>
+                            <span style={{ fontSize: "11.5px", color: "var(--vegito-text-muted, #62746a)", marginBottom: "10px" }}>
                               per {prod.unit}
                             </span>
 
                             {/* Price & Stock Badge */}
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "12px" }}>
-                              <span style={{ fontSize: "16px", fontWeight: 800, color: "#063c32" }}>
+                              <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
                                 ₹{price.toFixed(0)}
                               </span>
                               <span
@@ -1128,8 +1128,8 @@ export function CustomerHome() {
                 {/* Recent Orders Card */}
                 <div
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e1e8e2",
+                    backgroundColor: "var(--vegito-card, #ffffff)",
+                    border: "1px solid var(--vegito-border, #e1e8e2)",
                     borderRadius: "18px",
                     padding: "20px 22px",
                     boxShadow: "0 2px 8px rgba(6, 60, 50, 0.04)",
@@ -1143,7 +1143,7 @@ export function CustomerHome() {
                       marginBottom: "16px",
                     }}
                   >
-                    <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#063c32" }}>
+                    <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
                       Recent Orders
                     </h3>
                     <Link
@@ -1169,7 +1169,7 @@ export function CustomerHome() {
                           key={i}
                           style={{
                             height: "60px",
-                            backgroundColor: "#f4f7f3",
+                            backgroundColor: "var(--vegito-bg, #f4f7f3)",
                             borderRadius: "10px",
                             animation: "pulse 1.5s infinite",
                           }}
@@ -1177,9 +1177,9 @@ export function CustomerHome() {
                       ))}
                     </div>
                   ) : orderList.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "28px 12px", color: "#62746a" }}>
+                    <div style={{ textAlign: "center", padding: "28px 12px", color: "var(--vegito-text-muted, #62746a)" }}>
                       <div style={{ fontSize: "36px", marginBottom: "8px" }}>🛒</div>
-                      <p style={{ margin: "0 0 4px", fontSize: "13.5px", fontWeight: 700, color: "#063c32" }}>
+                      <p style={{ margin: "0 0 4px", fontSize: "13.5px", fontWeight: 700, color: "var(--vegito-text-main, #063c32)" }}>
                         No orders placed yet
                       </p>
                       <p style={{ margin: 0, fontSize: "12px" }}>
@@ -1194,8 +1194,8 @@ export function CustomerHome() {
                           style={{
                             padding: "12px 14px",
                             borderRadius: "12px",
-                            backgroundColor: "#fafcf9",
-                            border: "1px solid #edf2ee",
+                            backgroundColor: "var(--vegito-surface-muted, #fafcf9)",
+                            border: "1px solid var(--vegito-border, #edf2ee)",
                             display: "flex",
                             flexDirection: "column",
                             gap: "8px",
@@ -1203,7 +1203,7 @@ export function CustomerHome() {
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div>
-                              <strong style={{ fontSize: "13px", color: "#063c32" }}>
+                              <strong style={{ fontSize: "13px", color: "var(--vegito-text-main, #063c32)" }}>
                                 #{order.order_number}
                               </strong>
                               <span style={{ fontSize: "11px", color: "#8b9c92", display: "block" }}>
@@ -1222,7 +1222,7 @@ export function CustomerHome() {
                               style={{
                                 fontSize: "11.5px",
                                 fontWeight: 700,
-                                color: "#62746a",
+                                color: "var(--vegito-text-muted, #62746a)",
                                 textDecoration: "none",
                                 padding: "4px 8px",
                               }}
@@ -1238,7 +1238,7 @@ export function CustomerHome() {
                                 gap: "4px",
                                 padding: "4px 10px",
                                 borderRadius: "6px",
-                                backgroundColor: "#e9f6ee",
+                                backgroundColor: "var(--vegito-surface-muted, #e9f6ee)",
                                 color: "#16835b",
                                 border: "1px solid #c4e8d3",
                                 fontSize: "11.5px",
@@ -1258,8 +1258,8 @@ export function CustomerHome() {
                 {/* Favorites Wishlist Card */}
                 <div
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e1e8e2",
+                    backgroundColor: "var(--vegito-card, #ffffff)",
+                    border: "1px solid var(--vegito-border, #e1e8e2)",
                     borderRadius: "18px",
                     padding: "20px 22px",
                     boxShadow: "0 2px 8px rgba(6, 60, 50, 0.04)",
@@ -1275,7 +1275,7 @@ export function CustomerHome() {
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <Heart size={16} color="#dc2626" fill="#dc2626" />
-                      <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 800, color: "#063c32" }}>
+                      <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
                         My Favorites
                       </h3>
                     </div>
@@ -1288,11 +1288,11 @@ export function CustomerHome() {
                   </div>
 
                   {favoriteIds.size === 0 ? (
-                    <p style={{ margin: 0, fontSize: "12px", color: "#62746a" }}>
+                    <p style={{ margin: 0, fontSize: "12px", color: "var(--vegito-text-muted, #62746a)" }}>
                       Tap the heart icon on any vegetable card to save your favorites for 1-click re-ordering!
                     </p>
                   ) : (
-                    <p style={{ margin: 0, fontSize: "12.5px", color: "#063c32", fontWeight: 600 }}>
+                    <p style={{ margin: 0, fontSize: "12.5px", color: "var(--vegito-text-main, #063c32)", fontWeight: 600 }}>
                       You have {favoriteIds.size} {favoriteIds.size === 1 ? "vegetable" : "vegetables"} saved in your favorites.
                     </p>
                   )}
@@ -1312,8 +1312,8 @@ export function CustomerHome() {
             left: 0,
             right: 0,
             height: "64px",
-            backgroundColor: "#ffffff",
-            borderTop: "1px solid #e1e8e2",
+            backgroundColor: "var(--vegito-card, #ffffff)",
+            borderTop: "1px solid var(--vegito-border, #e1e8e2)",
             display: "none",
             alignItems: "center",
             justifyContent: "space-around",
@@ -1345,7 +1345,7 @@ export function CustomerHome() {
               flexDirection: "column",
               alignItems: "center",
               gap: "2px",
-              color: "#62746a",
+              color: "var(--vegito-text-muted, #62746a)",
               textDecoration: "none",
               fontSize: "11px",
               fontWeight: 600,
@@ -1362,7 +1362,7 @@ export function CustomerHome() {
               flexDirection: "column",
               alignItems: "center",
               gap: "2px",
-              color: "#62746a",
+              color: "var(--vegito-text-muted, #62746a)",
               textDecoration: "none",
               fontSize: "11px",
               fontWeight: 600,
@@ -1402,7 +1402,7 @@ export function CustomerHome() {
               flexDirection: "column",
               alignItems: "center",
               gap: "2px",
-              color: "#62746a",
+              color: "var(--vegito-text-muted, #62746a)",
               textDecoration: "none",
               fontSize: "11px",
               fontWeight: 600,
@@ -1419,7 +1419,7 @@ export function CustomerHome() {
               flexDirection: "column",
               alignItems: "center",
               gap: "2px",
-              color: "#62746a",
+              color: "var(--vegito-text-muted, #62746a)",
               textDecoration: "none",
               fontSize: "11px",
               fontWeight: 600,

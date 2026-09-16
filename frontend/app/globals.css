@@ -1,5 +1,6 @@
 
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap");
+@import url("../styles/dashboard.css");
 
 /* =========================================================
    VEGITO 2.0 — GLOBAL DESIGN SYSTEM
@@ -3485,4 +3486,103 @@ textarea:focus-visible {
 
     transition-duration: 0.01ms !important;
   }
+}
+
+/* =====================================================
+   DARK MODE — PUBLIC PAGE OVERRIDES
+   ===================================================== */
+
+/* Outer page wrapper — catches rgba(251,248,242) = #fbf8f2 */
+[data-theme="dark"] .public-page {
+  background-color: var(--vegito-background) !important;
+  color: var(--vegito-text) !important;
+}
+
+/* Sticky header / navbar */
+[data-theme="dark"] .public-page header {
+  background: rgba(13, 21, 18, 0.97) !important;
+  border-bottom-color: var(--vegito-border) !important;
+}
+
+/* Sections with light cream bg — rgb(251,248,242) = #fbf8f2 */
+[data-theme="dark"] .public-page section,
+[data-theme="dark"] .public-page div[style*="background-color: rgb(251, 248, 242)"],
+[data-theme="dark"] .public-page div[style*="background: rgb(251, 248, 242)"],
+[data-theme="dark"] .public-page div[style*="background-color: rgb(244, 247, 243)"],
+[data-theme="dark"] .public-page div[style*="background: rgb(244, 247, 243)"] {
+  background-color: var(--vegito-background) !important;
+}
+
+/* White card backgrounds */
+[data-theme="dark"] .public-page div[style*="background-color: rgb(255, 255, 255)"],
+[data-theme="dark"] .public-page div[style*="background: rgb(255, 255, 255)"],
+[data-theme="dark"] .public-page a[style*="background-color: rgb(255, 255, 255)"],
+[data-theme="dark"] .public-page a[style*="background: rgb(255, 255, 255)"] {
+  background-color: var(--vegito-surface) !important;
+  border-color: var(--vegito-border) !important;
+}
+
+/* Light green muted surfaces — rgb(233,246,238) = #e9f6ee, rgb(232,237,226) = #e8ede2 */
+[data-theme="dark"] .public-page div[style*="background-color: rgb(233, 246, 238)"],
+[data-theme="dark"] .public-page div[style*="background: rgb(233, 246, 238)"],
+[data-theme="dark"] .public-page div[style*="background-color: rgb(232, 237, 226)"],
+[data-theme="dark"] .public-page div[style*="background: rgb(232, 237, 226)"],
+[data-theme="dark"] .public-page div[style*="background-color: rgb(248, 250, 247)"] {
+  background-color: var(--vegito-surface-muted, #1e3028) !important;
+}
+
+/* Text — dark forest green: rgb(34,44,29) = #222c1d, rgb(36,46,31) = #242e1f */
+[data-theme="dark"] .public-page p[style*="color: rgb(34, 44, 29)"],
+[data-theme="dark"] .public-page span[style*="color: rgb(34, 44, 29)"],
+[data-theme="dark"] .public-page h1[style*="color: rgb(34, 44, 29)"],
+[data-theme="dark"] .public-page h2[style*="color: rgb(34, 44, 29)"],
+[data-theme="dark"] .public-page h3[style*="color: rgb(34, 44, 29)"],
+[data-theme="dark"] .public-page div[style*="color: rgb(34, 44, 29)"],
+[data-theme="dark"] .public-page p[style*="color: rgb(36, 46, 31)"],
+[data-theme="dark"] .public-page span[style*="color: rgb(36, 46, 31)"],
+[data-theme="dark"] .public-page h1[style*="color: rgb(36, 46, 31)"],
+[data-theme="dark"] .public-page h2[style*="color: rgb(36, 46, 31)"],
+[data-theme="dark"] .public-page h3[style*="color: rgb(36, 46, 31)"] {
+  color: var(--vegito-text) !important;
+}
+
+/* Muted / stone text: rgb(120,113,108) = #78716c, rgb(87,83,78) = #57534e */
+[data-theme="dark"] .public-page p[style*="color: rgb(120, 113, 108)"],
+[data-theme="dark"] .public-page span[style*="color: rgb(120, 113, 108)"],
+[data-theme="dark"] .public-page p[style*="color: rgb(87, 83, 78)"],
+[data-theme="dark"] .public-page span[style*="color: rgb(87, 83, 78)"],
+[data-theme="dark"] .public-page p[style*="color: rgb(68, 64, 60)"],
+[data-theme="dark"] .public-page span[style*="color: rgb(68, 64, 60)"] {
+  color: var(--vegito-muted) !important;
+}
+
+/* Bordered cards / panels */
+[data-theme="dark"] .public-page div[style*="border: 1px solid rgb(237, 231, 220)"],
+[data-theme="dark"] .public-page div[style*="border: 1px solid rgb(216, 229, 220)"],
+[data-theme="dark"] .public-page div[style*="border-color: rgb(237, 231, 220)"] {
+  border-color: var(--vegito-border) !important;
+}
+
+/* Hero section — may have gradient backgrounds */
+[data-theme="dark"] .public-page div[style*="background: linear-gradient"] {
+  background: var(--vegito-background) !important;
+}
+
+/* Input fields on public page */
+[data-theme="dark"] .public-page input,
+[data-theme="dark"] .public-page textarea {
+  background-color: var(--vegito-surface) !important;
+  color: var(--vegito-text) !important;
+  border-color: var(--vegito-border) !important;
+}
+
+[data-theme="dark"] .public-page input::placeholder {
+  color: var(--vegito-muted) !important;
+}
+
+/* Auth pages dark mode */
+[data-theme="dark"] .auth-page,
+[data-theme="dark"] form {
+  background-color: var(--vegito-surface);
+  color: var(--vegito-text);
 }
