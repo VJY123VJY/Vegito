@@ -43,7 +43,7 @@ interface NavItem {
 
 const CUSTOMER_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/customer", icon: <LayoutDashboard size={18} /> },
-  { label: "Browse Vegetables", href: "/categories", icon: <ShoppingBasket size={18} /> },
+  { label: "Browse Vegetables", href: "/products", icon: <ShoppingBasket size={18} /> },
   { label: "My Orders", href: "/customer/orders", icon: <ClipboardList size={18} /> },
   { label: "Favorites", href: "/customer/favorites", icon: <Heart size={18} /> },
   { label: "Cart", href: "/customer/cart", icon: <ShoppingCart size={18} /> },
@@ -69,7 +69,8 @@ const SELLER_ITEMS: NavItem[] = [
 const DELIVERY_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/delivery", icon: <LayoutDashboard size={18} /> },
   { label: "My Deliveries", href: "/delivery/tasks", icon: <ClipboardList size={18} /> },
-  { label: "Live Map", href: "/delivery/map", icon: <Compass size={18} /> },
+  { label: "Reviews & Ratings", href: "/delivery/reviews", icon: <MessageSquare size={18} /> },
+  { label: "Live Map", href: "/delivery/live-map", icon: <Compass size={18} /> },
   { label: "History", href: "/delivery/history", icon: <History size={18} /> },
   { label: "Profile", href: "/delivery/profile", icon: <User size={18} /> },
   { label: "Settings", href: "/delivery/settings", icon: <Settings size={18} /> },
@@ -84,6 +85,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { label: "Products", href: "/admin/products", icon: <Package size={18} /> },
   { label: "Categories", href: "/admin/categories", icon: <Layers size={18} /> },
   { label: "Inventory", href: "/admin/inventory", icon: <ShoppingBasket size={18} /> },
+  { label: "Reviews", href: "/admin/reviews", icon: <MessageSquare size={18} /> },
   { label: "Delivery Zones", href: "/admin/zones", icon: <MapPin size={18} /> },
   { label: "Coupons", href: "/admin/coupons", icon: <Tag size={18} /> },
   { label: "Complaints", href: "/admin/complaints", icon: <ShieldAlert size={18} /> },

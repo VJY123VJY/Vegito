@@ -36,9 +36,21 @@ def update_seller_order_status(
     db: Session = Depends(get_db),
 ):
     # Allowed statuses for seller
-    allowed_statuses = ["ACCEPTED", "PACKING", "READY", "REJECTED"]
+    allowed_statuses = ["ACCEPTED", "SELLER_ACCEPTED", "PACKING", "PREPARING", "READY", "READY_FOR_PICKUP", "REJECTED"]
     if payload.status not in allowed_statuses:
         raise ForbiddenException(f"Sellers are only permitted to update status to: {', '.join(allowed_statuses)}")
 
     order = OrderService.update_order_status(db, current_user, order_id, payload.status, payload.note)
-    return APIResponse(message=f"Order marked as {payload.status}", data=OrderRead.model_validate(order))
+    order_read = OrderRead.model_validate(order)
+    from app.models.delivery_task import DeliveryTask
+    task = db.query(DeliveryTask).filter(DeliveryTask.order_id == order.id).first()
+    if task:
+        order_read.delivery_task_id = task.id
+    order_read.assignment_status = "ASSIGNED" if order.delivery_partner_id else "WAITING_FOR_DELIVERY_PARTNER"
+
+    message = (
+        f"Order #{order.order_number} is packed. Delivery partner has been notified."
+        if payload.status in ["READY", "READY_FOR_PICKUP"]
+        else f"Order marked as {payload.status}"
+    )
+    return APIResponse(message=message, data=order_read)

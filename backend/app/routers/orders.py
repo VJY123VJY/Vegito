@@ -11,6 +11,35 @@ from app.services.order_service import OrderService
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
+from typing import Optional
+from app.config import settings
+
+@router.get(
+    "/delivery-fee",
+    response_model=APIResponse[dict],
+    summary="Preview distance-based delivery fee for customer address",
+)
+def get_delivery_fee(
+    address_id: int = Query(..., description="Customer address ID"),
+    seller_id: Optional[int] = Query(None, description="Seller user ID (optional)"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from app.services.delivery_pricing_service import DeliveryPricingService
+    fee, distance_km = DeliveryPricingService.calculate_delivery_distance_and_fee(
+        db, address_id=address_id, seller_id=seller_id
+    )
+    return APIResponse(
+        message="Delivery fee calculated",
+        data={
+            "address_id": address_id,
+            "distance_km": distance_km,
+            "delivery_fee": float(fee),
+            "max_allowed_km": float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 6.0)),
+        },
+    )
+
+
 @router.post(
     "",
     response_model=APIResponse[OrderDetailRead],

@@ -76,3 +76,14 @@ def update_product(
     ProductService.update_product(db, product_id, payload)
     read_obj = ProductService.get_product_by_id(db, product_id)
     return APIResponse(message="Product updated successfully", data=read_obj)
+
+
+@router.get(
+    "/{product_id}/reviews",
+    summary="Get customer reviews and average rating for a product",
+)
+def get_product_reviews_alias(product_id: int, db: Session = Depends(get_db)):
+    from app.services.review_service import ReviewService
+    summary = ReviewService.get_product_reviews(db, product_id)
+    return APIResponse(data=summary)
+

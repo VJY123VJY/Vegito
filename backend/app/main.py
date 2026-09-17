@@ -42,6 +42,7 @@ from app.routers.delivery_tracking import router as delivery_tracking_router
 from app.routers.admin_analytics import router as admin_analytics_router
 from app.routers.admin_sellers import router as admin_sellers_router
 from app.routers.admin_delivery import router as admin_delivery_router
+from app.routers.websocket_tracking import router as websocket_tracking_router
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +72,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -116,4 +118,6 @@ app.include_router(delivery_tracking_router, prefix=API_PREFIX)
 app.include_router(admin_analytics_router, prefix=API_PREFIX)
 app.include_router(admin_sellers_router, prefix=API_PREFIX)
 app.include_router(admin_delivery_router, prefix=API_PREFIX)
+app.include_router(websocket_tracking_router)
+app.include_router(websocket_tracking_router, prefix=API_PREFIX)
 

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 
@@ -58,6 +58,34 @@ const STATUS_CONFIG: Record<
     border: "#a7f3d0",
     dot: "#10b981",
     label: "Ready for Pickup",
+  },
+  READY_FOR_PICKUP: {
+    bg: "#ecfdf5",
+    text: "#047857",
+    border: "#a7f3d0",
+    dot: "#10b981",
+    label: "Ready for Pickup",
+  },
+  PICKED_UP: {
+    bg: "#eff6ff",
+    text: "#1d4ed8",
+    border: "#bfdbfe",
+    dot: "#3b82f6",
+    label: "Picked Up",
+  },
+  SELLER_ACCEPTED: {
+    bg: "#f0fdf4",
+    text: "#15803d",
+    border: "#bbf7d0",
+    dot: "#22c55e",
+    label: "Accepted",
+  },
+  PREPARING: {
+    bg: "#fefce8",
+    text: "#a16207",
+    border: "#fef08a",
+    dot: "#eab308",
+    label: "Preparing",
   },
   OUT_FOR_DELIVERY: {
     bg: "#f0f9ff",

@@ -6,9 +6,12 @@ export async function listSellerOrders(status?: string) {
   return data.data;
 }
 
-export async function updateSellerOrder(orderId: number, status: "ACCEPTED" | "PACKING" | "READY" | "REJECTED") {
+export async function updateSellerOrder(
+  orderId: number,
+  status: "ACCEPTED" | "PACKING" | "READY" | "READY_FOR_PICKUP" | "PREPARING" | "REJECTED"
+) {
   const { data } = await api.patch<ApiEnvelope<Order>>(`/seller/orders/${orderId}/status`, { status });
-  return data.data;
+  return data;
 }
 
 export async function getSellerRevenueAnalytics(range = "30d") {
@@ -112,5 +115,64 @@ export async function deleteSellerProduct(sellerProductId: number) {
   const { data } = await api.delete<ApiEnvelope<boolean>>(`/seller/products/${sellerProductId}`);
   return data.data;
 }
+
+export interface SellerEarningsData {
+  total_revenue: number;
+  net_earnings: number;
+  platform_fee: number;
+  pending_amount: number;
+  delivered_orders_count: number;
+  pending_orders_count: number;
+  commission_rate_percent: number;
+  transactions: Array<{
+    order_id: number;
+    order_number: string;
+    date: string;
+    customer_name: string;
+    total_amount: number;
+    payment_method: string;
+    payment_status: string;
+    status: string;
+  }>;
+}
+
+export async function getSellerEarnings(): Promise<SellerEarningsData> {
+  const { data } = await api.get<ApiEnvelope<SellerEarningsData>>("/seller/earnings");
+  return data.data;
+}
+
+export interface SellerReviewItem {
+  id: number;
+  order_id: number;
+  product_id?: number;
+  product_name?: string | null;
+  customer_name: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+}
+
+export async function getSellerReviews(): Promise<SellerReviewItem[]> {
+  const { data } = await api.get<ApiEnvelope<SellerReviewItem[]>>("/seller/reviews");
+  return data.data;
+}
+
+export interface SellerComplaintItem {
+  id: number;
+  order_id: number;
+  order_number: string;
+  customer_name: string;
+  complaint_type: string;
+  description: string;
+  status: string;
+  resolution?: string | null;
+  created_at: string;
+}
+
+export async function getSellerComplaints(): Promise<SellerComplaintItem[]> {
+  const { data } = await api.get<ApiEnvelope<SellerComplaintItem[]>>("/seller/complaints");
+  return data.data;
+}
+
 
 

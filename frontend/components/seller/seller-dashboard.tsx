@@ -33,13 +33,6 @@ import { TopProducts } from "@/components/dashboard/top-products";
 import { InventoryAlert } from "@/components/dashboard/inventory-alert";
 import { getErrorMessage } from "@/lib/api/client";
 
-const ORDER_STATUS_DATA = [
-  { name: "Accepted", value: 10, color: "#f97316" },
-  { name: "Packing", value: 6, color: "#3b82f6" },
-  { name: "Ready", value: 4, color: "#10b981" },
-  { name: "Delivered", value: 6, color: "#8b5cf6" },
-];
-
 export function SellerDashboard() {
   const queryClient = useQueryClient();
   const [revenueRange, setRevenueRange] = useState("30d");
@@ -87,17 +80,29 @@ export function SellerDashboard() {
 
   const businessName = profile.data?.business_name || "Farm Fresh Solapur";
   const orderItems = orders.data?.items ?? [];
-  const totalOrders = (profile.data as any)?.total_orders ?? (orderItems.length > 0 ? orderItems.length : 24);
+  const totalOrders = (profile.data as any)?.total_orders ?? orderItems.length;
   const totalRevenue = orderItems
     .filter((o) => o.status !== "CANCELLED" && o.status !== "REJECTED")
     .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
-  const totalSalesVal = totalRevenue > 0 ? totalRevenue : 13480;
+  const totalSalesVal = totalRevenue;
 
   const inventoryItems = inventory.data?.items ?? [];
-  const productsCount = inventoryItems.length > 0 ? inventoryItems.length : 18;
+  const productsCount = inventoryItems.length;
   const pendingOrders = orderItems.filter((o) =>
-    ["NEW", "ACCEPTED", "PACKING"].includes(o.status)
-  ).length || 5;
+    ["NEW", "ACCEPTED", "SELLER_ACCEPTED", "PACKING", "PREPARING"].includes(o.status)
+  ).length;
+
+  const acceptedCount = orderItems.filter((o) => ["ACCEPTED", "SELLER_ACCEPTED"].includes(o.status)).length;
+  const packingCount = orderItems.filter((o) => ["PACKING", "PREPARING"].includes(o.status)).length;
+  const readyCount = orderItems.filter((o) => ["READY", "READY_FOR_PICKUP", "PICKED_UP"].includes(o.status)).length;
+  const deliveredCount = orderItems.filter((o) => ["DELIVERED", "COMPLETED"].includes(o.status)).length;
+
+  const orderStatusData = [
+    { name: "Accepted", value: acceptedCount, color: "#f97316" },
+    { name: "Packing", value: packingCount, color: "#3b82f6" },
+    { name: "Ready", value: readyCount, color: "#10b981" },
+    { name: "Delivered", value: deliveredCount, color: "#8b5cf6" },
+  ];
 
   const lowStockAlerts = inventoryItems
     .filter((inv) => Number(inv.quantity) <= Number(inv.low_stock_threshold))
@@ -409,13 +414,13 @@ export function SellerDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={ORDER_STATUS_DATA}
+                    data={orderStatusData}
                     innerRadius={52}
                     outerRadius={75}
                     paddingAngle={3}
                     dataKey="value"
                   >
-                    {ORDER_STATUS_DATA.map((entry, index) => (
+                    {orderStatusData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -431,7 +436,7 @@ export function SellerDashboard() {
                 }}
               >
                 <div style={{ fontSize: "24px", fontWeight: 900, color: "#9a3412", lineHeight: 1 }}>
-                  26
+                  {orderItems.length}
                 </div>
                 <div style={{ fontSize: "10px", fontWeight: 700, color: "#78716c", textTransform: "uppercase" }}>
                   Orders
@@ -441,7 +446,7 @@ export function SellerDashboard() {
 
             {/* Slices Legend */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px", marginTop: "10px", fontSize: "11.5px" }}>
-              {ORDER_STATUS_DATA.map((s) => (
+              {orderStatusData.map((s) => (
                 <div key={s.name} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: s.color, flexShrink: 0 }} />
                   <span style={{ color: "#78716c" }}>{s.name}:</span>

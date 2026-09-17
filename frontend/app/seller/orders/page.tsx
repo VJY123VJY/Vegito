@@ -14,6 +14,9 @@ import {
   ShoppingBag,
   Truck,
   AlertCircle,
+  Volume2,
+  VolumeX,
+  Bell,
 } from "lucide-react";
 import {
   listSellerOrders,
@@ -24,12 +27,74 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { RoleGuard } from "@/components/role/role-guard";
 import { getErrorMessage } from "@/lib/api/client";
+import { getStoredToken } from "@/lib/api/auth";
+import { subscribeToSellerDashboard, SellerNewOrderPayload } from "@/lib/api/seller-socket";
+import {
+  playNotificationSound,
+  playNotificationSoundOnce,
+  resumeAudioContext,
+  isAudioMuted,
+  toggleAudioMute,
+  stopNotificationSound,
+} from "@/lib/audio/chime";
 
 export default function SellerOrdersPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<string>("ALL");
   const [search, setSearch] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [newOrderAlert, setNewOrderAlert] = useState<SellerNewOrderPayload | null>(null);
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const [isSoundMuted, setIsSoundMuted] = useState(false);
+  const seenOrderIds = React.useRef(new Set<number>());
+
+  React.useEffect(() => {
+    setIsSoundMuted(isAudioMuted());
+    const token = getStoredToken() || "";
+    if (!token) return;
+
+    const cleanup = subscribeToSellerDashboard(token, {
+      onNewOrder: async (notification) => {
+        if (seenOrderIds.current.has(notification.order_id)) return;
+        seenOrderIds.current.add(notification.order_id);
+
+        queryClient.invalidateQueries({ queryKey: ["seller-orders"] });
+        setNewOrderAlert(notification);
+
+        const played = await playNotificationSoundOnce(
+          notification.event_id || `order-${notification.order_id}-NEW`
+        );
+        if (!played && !isAudioMuted()) {
+          setAudioBlocked(true);
+        } else {
+          setAudioBlocked(false);
+        }
+      },
+      onPendingOrders: () => {
+        queryClient.invalidateQueries({ queryKey: ["seller-orders"] });
+      },
+    });
+
+    return () => {
+      cleanup();
+    };
+  }, [queryClient]);
+
+  const handleEnableAudio = async () => {
+    const resumed = await resumeAudioContext();
+    if (resumed) {
+      setAudioBlocked(false);
+      await playNotificationSound();
+    }
+  };
+
+  const handleToggleMute = () => {
+    const nextMuted = toggleAudioMute();
+    setIsSoundMuted(nextMuted);
+    if (nextMuted) {
+      stopNotificationSound();
+    }
+  };
 
   const profile = useQuery({
     queryKey: ["seller-profile"],
@@ -47,13 +112,14 @@ export default function SellerOrdersPage() {
       status,
     }: {
       orderId: number;
-      status: "ACCEPTED" | "PACKING" | "READY" | "REJECTED";
+      status: "ACCEPTED" | "PACKING" | "READY" | "READY_FOR_PICKUP" | "PREPARING" | "REJECTED";
     }) => updateSellerOrder(orderId, status),
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["seller-orders"] });
       queryClient.invalidateQueries({ queryKey: ["seller-revenue-analytics"] });
-      setFeedback(`Order updated to ${variables.status}`);
-      setTimeout(() => setFeedback(null), 3000);
+      const msg = data?.message || `Order updated to ${variables.status}`;
+      setFeedback(msg);
+      setTimeout(() => setFeedback(null), 4000);
     },
     onError: (err) => {
       setFeedback(getErrorMessage(err));
@@ -65,8 +131,16 @@ export default function SellerOrdersPage() {
 
   const filteredOrders = rawOrders.filter((order) => {
     // Status tab filter
-    if (activeTab !== "ALL" && order.status !== activeTab) {
-      return false;
+    if (activeTab !== "ALL") {
+      if (activeTab === "READY") {
+        if (!["READY", "READY_FOR_PICKUP"].includes(order.status)) return false;
+      } else if (activeTab === "PACKING") {
+        if (!["PACKING", "PREPARING"].includes(order.status)) return false;
+      } else if (activeTab === "ACCEPTED") {
+        if (!["ACCEPTED", "SELLER_ACCEPTED"].includes(order.status)) return false;
+      } else if (order.status !== activeTab) {
+        return false;
+      }
     }
     // Search query
     if (search.trim()) {
@@ -79,7 +153,7 @@ export default function SellerOrdersPage() {
   });
 
   const pendingCount = rawOrders.filter((o) =>
-    ["NEW", "ACCEPTED", "PACKING"].includes(o.status)
+    ["NEW", "ORDER_PLACED", "ACCEPTED", "SELLER_ACCEPTED", "PACKING", "PREPARING"].includes(o.status)
   ).length;
 
   return (
@@ -112,6 +186,109 @@ export default function SellerOrdersPage() {
             </p>
           </div>
         </div>
+
+        {/* Real-time Order Audio / Alert Banners */}
+        {audioBlocked && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "12px 18px",
+              borderRadius: "12px",
+              marginBottom: "16px",
+              backgroundColor: "#fef3c7",
+              border: "1px solid #fde68a",
+              color: "#92400e",
+              fontSize: "13.5px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <Bell size={18} color="#b45309" />
+              <span>
+                <strong>New order received</strong> — Tap button to enable live notification sounds.
+              </span>
+            </div>
+            <button
+              onClick={handleEnableAudio}
+              style={{
+                padding: "6px 14px",
+                backgroundColor: "#b45309",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "8px",
+                fontWeight: 700,
+                fontSize: "12px",
+                cursor: "pointer",
+              }}
+            >
+              Enable Sound
+            </button>
+          </div>
+        )}
+
+        {newOrderAlert && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "14px 20px",
+              borderRadius: "14px",
+              marginBottom: "18px",
+              backgroundColor: "#ecfdf5",
+              border: "2px solid #10b981",
+              color: "#065f46",
+              boxShadow: "0 4px 12px rgba(16, 185, 129, 0.15)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontSize: "22px" }}>🔔</span>
+              <div>
+                <p style={{ margin: 0, fontWeight: 800, fontSize: "14.5px", color: "#064e3b" }}>
+                  NEW ORDER RECEIVED: Order #{newOrderAlert.order_number}
+                </p>
+                <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#047857" }}>
+                  Customer: <strong>{newOrderAlert.customer_name}</strong> · Total: <strong>₹{newOrderAlert.total_amount}</strong> · {newOrderAlert.delivery_area}
+                </p>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <button
+                onClick={() => {
+                  setActiveTab("NEW");
+                  setNewOrderAlert(null);
+                }}
+                style={{
+                  padding: "6px 14px",
+                  backgroundColor: "#059669",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontWeight: 700,
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                View Order
+              </button>
+              <button
+                onClick={() => setNewOrderAlert(null)}
+                style={{
+                  padding: "6px 10px",
+                  backgroundColor: "transparent",
+                  color: "#047857",
+                  border: "1px solid #a7f3d0",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Feedback Alert */}
         {feedback && (
@@ -363,31 +540,54 @@ export default function SellerOrdersPage() {
                         </>
                       )}
 
-                      {order.status === "ACCEPTED" && (
-                        <button
-                          onClick={() =>
-                            updateStatusMutation.mutate({ orderId: order.id, status: "PACKING" })
-                          }
-                          disabled={updateStatusMutation.isPending}
-                          style={{
-                            padding: "8px 16px",
-                            borderRadius: "10px",
-                            backgroundColor: "#16835b",
-                            color: "#ffffff",
-                            fontSize: "12.5px",
-                            fontWeight: 700,
-                            border: "none",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Start Packing
-                        </button>
+                      {["ACCEPTED", "SELLER_ACCEPTED"].includes(order.status) && (
+                        <>
+                          <button
+                            onClick={() =>
+                              updateStatusMutation.mutate({ orderId: order.id, status: "PACKING" })
+                            }
+                            disabled={updateStatusMutation.isPending}
+                            style={{
+                              padding: "8px 16px",
+                              borderRadius: "10px",
+                              backgroundColor: "#16835b",
+                              color: "#ffffff",
+                              fontSize: "12.5px",
+                              fontWeight: 700,
+                              border: "none",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Start Packing
+                          </button>
+                          <button
+                            onClick={() =>
+                              updateStatusMutation.mutate({ orderId: order.id, status: "READY_FOR_PICKUP" })
+                            }
+                            disabled={updateStatusMutation.isPending}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              padding: "8px 16px",
+                              borderRadius: "10px",
+                              backgroundColor: "#059669",
+                              color: "#ffffff",
+                              fontSize: "12.5px",
+                              fontWeight: 700,
+                              border: "none",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <Package size={15} /> Order Packed
+                          </button>
+                        </>
                       )}
 
-                      {order.status === "PACKING" && (
+                      {["PACKING", "PREPARING"].includes(order.status) && (
                         <button
                           onClick={() =>
-                            updateStatusMutation.mutate({ orderId: order.id, status: "READY" })
+                            updateStatusMutation.mutate({ orderId: order.id, status: "READY_FOR_PICKUP" })
                           }
                           disabled={updateStatusMutation.isPending}
                           style={{
@@ -404,13 +604,45 @@ export default function SellerOrdersPage() {
                             cursor: "pointer",
                           }}
                         >
-                          <CheckCircle size={15} /> Mark READY for Pickup
+                          <CheckCircle size={15} /> Order Packed
                         </button>
                       )}
 
-                      {order.status === "READY" && (
-                        <span style={{ fontSize: "12.5px", color: "#16835b", fontWeight: 700 }}>
-                          ✓ Ready for Delivery Partner
+                      {["READY", "READY_FOR_PICKUP"].includes(order.status) && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "12.5px", color: "#16835b", fontWeight: 700 }}>
+                              ✓ Status: READY
+                            </span>
+                            <span style={{ fontSize: "12px", color: "#475569" }}>
+                              · Delivery Partner: <b>{(order as any).delivery_partner_id || (order as any).delivery_partner_name ? "Assigned" : "Searching for Partner..."}</b>
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span
+                              style={{
+                                padding: "6px 14px",
+                                backgroundColor: "#ecfdf5",
+                                border: "1.5px dashed #059669",
+                                borderRadius: "8px",
+                                fontSize: "14px",
+                                fontWeight: 800,
+                                color: "#065f46",
+                                letterSpacing: "2px",
+                              }}
+                            >
+                              PICKUP VERIFICATION CODE: {(order as any).pickup_otp || "------"}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: "11px", color: "#62746a" }}>
+                            Tell this code to the delivery partner when they arrive to collect the order.
+                          </span>
+                        </div>
+                      )}
+
+                      {order.status === "PICKED_UP" && (
+                        <span style={{ fontSize: "12.5px", color: "#059669", fontWeight: 700 }}>
+                          ✓ Picked Up by Delivery Partner
                         </span>
                       )}
 

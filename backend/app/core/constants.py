@@ -21,14 +21,22 @@ ROLE_NAME_MAP = {v: k.value for k, v in ROLE_ID_MAP.items()}
 
 
 class OrderStatus(str, Enum):
-    NEW = "NEW"
-    ACCEPTED = "ACCEPTED"
-    PACKING = "PACKING"
-    READY = "READY"
+    # Primary lifecycle
+    ORDER_PLACED = "ORDER_PLACED"
+    SELLER_ACCEPTED = "SELLER_ACCEPTED"
+    PREPARING = "PREPARING"
+    READY_FOR_PICKUP = "READY_FOR_PICKUP"
+    PICKED_UP = "PICKED_UP"
     OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY"
     DELIVERED = "DELIVERED"
     CANCELLED = "CANCELLED"
     REJECTED = "REJECTED"
+
+    # Backward compatibility aliases
+    NEW = "NEW"
+    ACCEPTED = "ACCEPTED"
+    PACKING = "PACKING"
+    READY = "READY"
 
 
 class PaymentMethod(str, Enum):

@@ -13,7 +13,15 @@ class Order(Base):
     order_number: Mapped[str] = mapped_column(String(30), unique=True, nullable=False, index=True)
     customer_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
     address_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("addresses.id"), nullable=False)
+    seller_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=True, index=True)
+    delivery_partner_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("delivery_partners.id"), nullable=True, index=True)
+    shop_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("seller_profiles.id"), nullable=True, index=True)
+    delivery_latitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 7), nullable=True)
+    delivery_longitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 7), nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="NEW", nullable=False, index=True)
+    pickup_otp: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    pickup_otp_created_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    pickup_otp_verified_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     payment_method: Mapped[str] = mapped_column(String(30), default="COD", nullable=False)
     payment_status: Mapped[str] = mapped_column(String(30), default="PENDING", nullable=False)
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)
@@ -36,7 +44,10 @@ class Order(Base):
     )
 
     # Relationships
-    customer: Mapped["User"] = relationship("User", back_populates="orders")
+    customer: Mapped["User"] = relationship("User", foreign_keys=[customer_id], back_populates="orders")
+    seller: Mapped[Optional["User"]] = relationship("User", foreign_keys=[seller_id])
+    delivery_partner: Mapped[Optional["DeliveryPartner"]] = relationship("DeliveryPartner", foreign_keys=[delivery_partner_id])
+    shop: Mapped[Optional["SellerProfile"]] = relationship("SellerProfile", foreign_keys=[shop_id])
     address: Mapped["Address"] = relationship("Address")
     items: Mapped[List["OrderItem"]] = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     status_history: Mapped[List["OrderStatusHistory"]] = relationship(

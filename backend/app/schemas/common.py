@@ -1,6 +1,6 @@
 from typing import TypeVar, Generic, Optional, Any
 from pydantic import BaseModel, ConfigDict
-from app.utils.pagination import PaginationMeta
+from app.utils.pagination import PaginationMeta, PaginatedResponse
 
 T = TypeVar("T")
 

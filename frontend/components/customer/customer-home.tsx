@@ -500,7 +500,7 @@ export function CustomerHome() {
             {cartItems.length > 0 && (
               <div
                 style={{
-                  backgroundcolor: "var(--vegito-text-main, #063c32)",
+                  backgroundColor: "var(--vegito-text-main, #063c32)",
                   color: "#ffffff",
                   borderRadius: "16px",
                   padding: "14px 20px",

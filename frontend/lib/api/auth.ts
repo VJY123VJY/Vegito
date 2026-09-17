@@ -158,6 +158,12 @@ export function getStoredUserName(): string {
   return localStorage.getItem("vegito.user-name") || sessionStorage.getItem("vegito.user-name") || "Customer";
 }
 
+export function setStoredUserName(name: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("vegito.user-name", name);
+  sessionStorage.setItem("vegito.user-name", name);
+}
+
 export function getStoredPhone(): string {
   if (typeof window === "undefined") return "";
   return localStorage.getItem("vegito.user-phone") || sessionStorage.getItem("vegito.user-phone") || "";
@@ -182,6 +188,8 @@ export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("vegito.access-token") || sessionStorage.getItem("vegito.access-token");
 }
+
+export const getStoredToken = getAuthToken;
 
 export function isLoggedIn(): boolean {
   if (typeof window === "undefined") return false;

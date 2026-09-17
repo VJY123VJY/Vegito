@@ -1,69 +1,126 @@
-from typing import List
-from fastapi import APIRouter, Depends, status
+from typing import List, Optional, Union
+from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.dependencies import require_customer
+from app.dependencies import require_customer, require_admin, get_current_user
 from app.models.user import User
-from app.models.review import Review
-from app.models.order import Order
-from app.models.order_item import OrderItem
-from app.schemas.review import ReviewCreate, ReviewRead
-from app.schemas.common import APIResponse
-from app.core.constants import OrderStatus
-from app.core.exceptions import NotFoundException, BadRequestException
+from app.schemas.review import (
+    ReviewCreate,
+    ReviewRead,
+    OrderReviewStatusRead,
+    EntityReviewSummary,
+    ReviewConfigRead,
+)
+from app.schemas.common import APIResponse, PaginatedResponse
+from app.services.review_service import ReviewService
+from app.config import settings
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
 
-@router.post("", response_model=APIResponse[ReviewRead], status_code=status.HTTP_201_CREATED, summary="Create review for completed order")
+@router.post(
+    "",
+    response_model=APIResponse[Union[ReviewRead, List[ReviewRead]]],
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit review for delivered order produce, seller, and delivery partner",
+)
 def create_review(
     payload: ReviewCreate,
     current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
-    # Verify order exists, belongs to this customer, and is completed
-    order = db.query(Order).filter(Order.id == payload.order_id, Order.customer_id == current_user.id).first()
-    if not order:
-        raise NotFoundException("Order not found or does not belong to you")
+    created = ReviewService.submit_order_review(db, current_user, payload)
+    data = created[0] if len(created) == 1 else created
+    return APIResponse(message="Review submitted successfully", data=data)
 
-    if order.status != OrderStatus.DELIVERED.value:
-        raise BadRequestException("You can only review orders that have been successfully delivered.")
 
-    # If product_id specified, verify customer purchased it in this order
-    if payload.product_id:
-        item = (
-            db.query(OrderItem)
-            .filter(OrderItem.order_id == order.id)
-            .first()
-        )
-        if not item:
-            raise BadRequestException("The specified product was not part of this order.")
+@router.get(
+    "/order/{order_id}",
+    response_model=APIResponse[OrderReviewStatusRead],
+    summary="Get customer's review status and existing reviews for an order",
+)
+def get_order_review_status(
+    order_id: int,
+    current_user: User = Depends(require_customer),
+    db: Session = Depends(get_db),
+):
+    status_data = ReviewService.get_order_review_status(db, current_user, order_id)
+    return APIResponse(data=status_data)
 
-    review = Review(
-        order_id=payload.order_id,
-        order_item_id=payload.order_item_id,
-        customer_id=current_user.id,
-        product_id=payload.product_id,
-        product_rating=payload.product_rating,
-        seller_rating=payload.seller_rating,
-        delivery_rating=payload.delivery_rating,
-        comment=payload.comment,
+
+@router.get(
+    "/config",
+    response_model=APIResponse[ReviewConfigRead],
+    summary="Get public review configuration such as official Google Business Review link",
+)
+def get_review_config():
+    return APIResponse(
+        data=ReviewConfigRead(google_review_url=settings.GOOGLE_REVIEW_URL)
     )
-    db.add(review)
-    db.commit()
-    db.refresh(review)
-
-    read_obj = ReviewRead.model_validate(review)
-    read_obj.customer_name = current_user.name
-    return APIResponse(message="Review submitted successfully", data=read_obj)
 
 
-@router.get("/products/{product_id}", response_model=APIResponse[List[ReviewRead]], summary="Get reviews for a product")
+@router.get(
+    "/products/{product_id}",
+    response_model=APIResponse[EntityReviewSummary],
+    summary="Get public customer reviews and average rating for a product",
+)
 def get_product_reviews(product_id: int, db: Session = Depends(get_db)):
-    reviews = db.query(Review).filter(Review.product_id == product_id).order_by(Review.created_at.desc()).all()
-    results = []
-    for r in reviews:
-        read_obj = ReviewRead.model_validate(r)
-        read_obj.customer_name = r.customer.name if r.customer else None
-        results.append(read_obj)
-    return APIResponse(data=results)
+    summary = ReviewService.get_product_reviews(db, product_id)
+    return APIResponse(data=summary)
+
+
+@router.get(
+    "/sellers/{seller_id}",
+    response_model=APIResponse[EntityReviewSummary],
+    summary="Get customer reviews and average rating for a seller/shop",
+)
+def get_seller_reviews(seller_id: int, db: Session = Depends(get_db)):
+    summary = ReviewService.get_seller_reviews(db, seller_id)
+    return APIResponse(data=summary)
+
+
+@router.get(
+    "/delivery-partners/{partner_id}",
+    response_model=APIResponse[EntityReviewSummary],
+    summary="Get customer reviews and average rating for a delivery partner",
+)
+def get_delivery_partner_reviews(partner_id: int, db: Session = Depends(get_db)):
+    summary = ReviewService.get_delivery_partner_reviews(db, partner_id)
+    return APIResponse(data=summary)
+
+
+@router.get(
+    "",
+    response_model=PaginatedResponse[ReviewRead],
+    summary="Admin review list with filtering by rating, target type, seller, partner, or product",
+)
+def list_admin_reviews(
+    rating: Optional[int] = Query(None, ge=1, le=5),
+    target_type: Optional[str] = Query(None, description="SELLER, DELIVERY_PARTNER, PRODUCT"),
+    seller_id: Optional[int] = None,
+    delivery_partner_id: Optional[int] = None,
+    product_id: Optional[int] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    offset = (page - 1) * page_size
+    items, total_count = ReviewService.list_reviews_for_admin(
+        db=db,
+        rating=rating,
+        target_type=target_type,
+        seller_id=seller_id,
+        delivery_partner_id=delivery_partner_id,
+        product_id=product_id,
+        limit=page_size,
+        offset=offset,
+    )
+    total_pages = (total_count + page_size - 1) // page_size if page_size else 1
+    return PaginatedResponse(
+        data=items,
+        total=total_count,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )

@@ -29,6 +29,8 @@ export type Order = {
   created_at: string;
   updated_at: string;
   items_count?: number | null;
+  pickup_otp?: string | null;
+  delivery_partner_id?: number | null;
 };
 
 export type OrderDetail = Order & {
@@ -39,6 +41,18 @@ export type OrderDetail = Order & {
   delivery_task?: { id: number; status: string; notes?: string | null; delivery_partner_id?: number | null } | null;
   delivery_slot_start?: string | null;
   delivery_slot_end?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_latitude?: number | null;
+  customer_longitude?: number | null;
+  delivery_latitude?: number | null;
+  delivery_longitude?: number | null;
+  shop_name?: string | null;
+  shop_address?: string | null;
+  shop_latitude?: number | null;
+  shop_longitude?: number | null;
+  delivery_partner_name?: string | null;
+  delivery_partner_phone?: string | null;
 };
 
 export type OrderCreate = {
@@ -60,7 +74,7 @@ export async function listOrders(page = 1, pageSize = 20) {
   return data.data;
 }
 
-export async function getOrder(orderId: string) {
+export async function getOrder(orderId: string | number) {
   const { data } = await api.get<ApiEnvelope<OrderDetail>>(`/orders/${orderId}`);
   return data.data;
 }

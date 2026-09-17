@@ -34,6 +34,6 @@ class User(Base):
     )
     addresses: Mapped[List["Address"]] = relationship("Address", back_populates="user")
     cart: Mapped[Optional["Cart"]] = relationship("Cart", back_populates="user", uselist=False)
-    orders: Mapped[List["Order"]] = relationship("Order", back_populates="customer")
+    orders: Mapped[List["Order"]] = relationship("Order", back_populates="customer", foreign_keys="Order.customer_id")
     favorites: Mapped[List["CustomerFavorite"]] = relationship("CustomerFavorite", back_populates="user")
     notifications: Mapped[List["Notification"]] = relationship("Notification", back_populates="user")

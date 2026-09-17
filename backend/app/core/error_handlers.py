@@ -19,6 +19,7 @@ def register_error_handlers(app: FastAPI) -> None:
                     "message": exc.message,
                     "details": exc.details,
                 },
+                "detail": exc.message,
             },
         )
 
@@ -40,6 +41,7 @@ def register_error_handlers(app: FastAPI) -> None:
                     "message": "Invalid request parameters",
                     "details": details,
                 },
+                "detail": "Invalid request parameters",
             },
         )
 
@@ -54,6 +56,7 @@ def register_error_handlers(app: FastAPI) -> None:
                     "message": exc.detail,
                     "details": None,
                 },
+                "detail": exc.detail,
             },
         )
 

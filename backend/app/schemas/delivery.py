@@ -50,6 +50,10 @@ class DeliveryOtpVerifyRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class VerifyPickupOtpRequest(BaseModel):
+    otp: str = Field(..., min_length=4, max_length=10, description="Pickup OTP given by seller or displayed in dashboard")
+
+
 class DeliveryTaskRead(BaseSchema):
     id: int
     order_id: int
@@ -59,6 +63,15 @@ class DeliveryTaskRead(BaseSchema):
     delivery_address: Optional[AddressRead] = None
     delivery_partner_id: Optional[int] = None
     status: str
+    order_status: Optional[str] = None
+    pickup_otp: Optional[str] = None
+    pickup_otp_verified_at: Optional[datetime.datetime] = None
+    shop_name: Optional[str] = None
+    shop_address: Optional[str] = None
+    shop_latitude: Optional[Decimal] = None
+    shop_longitude: Optional[Decimal] = None
+    customer_latitude: Optional[Decimal] = None
+    customer_longitude: Optional[Decimal] = None
     assigned_at: Optional[datetime.datetime] = None
     started_at: Optional[datetime.datetime] = None
     delivered_at: Optional[datetime.datetime] = None
@@ -82,5 +95,28 @@ class DeliveryBatchRead(BaseSchema):
     total_orders: int
     started_at: Optional[datetime.datetime] = None
     completed_at: Optional[datetime.datetime] = None
-    created_at: datetime.datetime
     tasks: List[DeliveryTaskRead] = []
+
+
+class DeliveryPartnerProfileRead(BaseSchema):
+    id: int
+    user_id: int
+    name: str
+    email: str
+    phone: str
+    vehicle_type: Optional[str] = None
+    vehicle_number: Optional[str] = None
+    is_available: bool = True
+    is_verified: bool = False
+    rating: Decimal = Decimal("0.00")
+    total_deliveries: int = 0
+    created_at: datetime.datetime
+
+
+class DeliveryPartnerProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    vehicle_type: Optional[str] = None
+    vehicle_number: Optional[str] = None
+    is_available: Optional[bool] = None
+

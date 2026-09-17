@@ -1,4 +1,4 @@
-﻿/**
+/**
  * partner-location-marker.tsx
  * DOM marker factory functions for Mapbox GL JS map markers.
  */
@@ -124,6 +124,58 @@ export function createCustomerMarkerElement(customerName?: string): HTMLDivEleme
       white-space: nowrap;
     `;
     label.textContent = customerName;
+    container.appendChild(label);
+  }
+
+  return container;
+}
+
+export function createShopMarkerElement(shopName?: string): HTMLDivElement {
+  const container = document.createElement("div");
+  container.className = "vegito-shop-marker";
+  container.style.cssText = `
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+  `;
+
+  const pin = document.createElement("div");
+  pin.style.cssText = `
+    width: 40px;
+    height: 40px;
+    background: #047857;
+    border: 3px solid #ffffff;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(4, 120, 87, 0.4);
+  `;
+
+  const emoji = document.createElement("div");
+  emoji.style.cssText = "transform: rotate(45deg); font-size: 18px;";
+  emoji.textContent = "🏪";
+  pin.appendChild(emoji);
+  container.appendChild(pin);
+
+  if (shopName) {
+    const label = document.createElement("div");
+    label.style.cssText = `
+      background: #ffffff;
+      color: #065f46;
+      border: 1px solid #d1fae5;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      white-space: nowrap;
+    `;
+    label.textContent = shopName;
     container.appendChild(label);
   }
 

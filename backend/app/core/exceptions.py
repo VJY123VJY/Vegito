@@ -32,8 +32,8 @@ class ForbiddenException(VegitoException):
 
 
 class BadRequestException(VegitoException):
-    def __init__(self, message: str = "Invalid request", details: Optional[Any] = None):
-        super().__init__(message=message, status_code=400, code="BAD_REQUEST", details=details)
+    def __init__(self, message: str = "Invalid request", details: Optional[Any] = None, code: str = "BAD_REQUEST"):
+        super().__init__(message=message, status_code=400, code=code, details=details)
 
 
 class ConflictException(VegitoException):

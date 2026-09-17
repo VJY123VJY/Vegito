@@ -47,6 +47,11 @@ class OrderRead(BaseSchema):
     order_number: str
     customer_id: int
     address_id: int
+    seller_id: Optional[int] = None
+    delivery_partner_id: Optional[int] = None
+    shop_id: Optional[int] = None
+    delivery_latitude: Optional[Decimal] = None
+    delivery_longitude: Optional[Decimal] = None
     status: str
     payment_method: str
     payment_status: str
@@ -67,6 +72,13 @@ class OrderRead(BaseSchema):
     created_at: datetime.datetime
     updated_at: datetime.datetime
     items_count: Optional[int] = None
+    shop_name: Optional[str] = None
+    customer_name: Optional[str] = None
+    pickup_otp: Optional[str] = None
+    pickup_otp_created_at: Optional[datetime.datetime] = None
+    pickup_otp_verified_at: Optional[datetime.datetime] = None
+    delivery_task_id: Optional[int] = None
+    assignment_status: Optional[str] = None
 
 
 class OrderDetailRead(OrderRead):
@@ -74,3 +86,11 @@ class OrderDetailRead(OrderRead):
     items: List[OrderItemRead] = []
     status_history: List[OrderStatusHistoryRead] = []
     delivery_otp: Optional[str] = None  # Returned to customer for their delivery verification
+    shop_address: Optional[str] = None
+    shop_latitude: Optional[Decimal] = None
+    shop_longitude: Optional[Decimal] = None
+    customer_phone: Optional[str] = None
+    customer_latitude: Optional[Decimal] = None
+    customer_longitude: Optional[Decimal] = None
+    delivery_partner_name: Optional[str] = None
+    delivery_partner_phone: Optional[str] = None

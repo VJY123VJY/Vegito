@@ -4,10 +4,8 @@ from decimal import Decimal, ROUND_HALF_UP
 
 
 def generate_order_number() -> str:
-    """Generates a human-friendly unique order number: VEG-YYYYMMDD-XXXX."""
-    date_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
-    random_str = f"{random.randint(1000, 9999)}"
-    return f"VEG-{date_str}-{random_str}"
+    """Generates a human-friendly unique order number: VGXXXX."""
+    return f"VG{random.randint(1000, 9999)}"
 
 
 def round_currency(amount: Decimal | float | int) -> Decimal:
