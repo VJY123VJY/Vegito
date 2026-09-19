@@ -42,6 +42,7 @@ from app.routers.delivery_tracking import router as delivery_tracking_router
 from app.routers.admin_analytics import router as admin_analytics_router
 from app.routers.admin_sellers import router as admin_sellers_router
 from app.routers.admin_delivery import router as admin_delivery_router
+from app.routers.promotions import router as promotions_router
 from app.routers.websocket_tracking import router as websocket_tracking_router
 
 
@@ -117,6 +118,7 @@ app.include_router(delivery_router, prefix=API_PREFIX)
 app.include_router(delivery_batches_router, prefix=API_PREFIX)
 app.include_router(payments_router, prefix=API_PREFIX)
 app.include_router(admin_router, prefix=API_PREFIX)
+app.include_router(promotions_router, prefix=API_PREFIX)
 app.include_router(location_router, prefix=API_PREFIX)
 app.include_router(delivery_tracking_router, prefix=API_PREFIX)
 app.include_router(admin_analytics_router, prefix=API_PREFIX)

@@ -1,5 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from typing import List
+from app.schemas.market_intelligence import MarketIntelligenceRead
+from app.schemas.market_intelligence import PriceHistoryRead
 from app.database import get_db
 from app.dependencies import require_seller
 from app.models.user import User
@@ -40,6 +43,41 @@ def set_seller_availability(
         message=f"Seller is now {status_text}",
         data=SellerProfileRead.model_validate(profile),
     )
+
+
+@router.get("/market-intelligence", response_model=APIResponse[List[MarketIntelligenceRead]], summary="Get daily market analysis for listed products")
+def get_market_intelligence(
+    current_user: User = Depends(require_seller), db: Session = Depends(get_db)
+):
+    intelligence = SellerService.get_market_intelligence(db, current_user.id)
+    return APIResponse(data=[MarketIntelligenceRead.model_validate(i) for i in intelligence])
+
+
+@router.get("/price-history/{seller_product_id}", response_model=APIResponse[List[PriceHistoryRead]], summary="Get historical prices for a product")
+def get_price_history(
+    seller_product_id: int,
+    current_user: User = Depends(require_seller),
+    db: Session = Depends(get_db)
+):
+    history = SellerService.get_price_history(db, current_user, seller_product_id)
+    return APIResponse(data=[PriceHistoryRead.model_validate(h) for h in history])
+
+
+@router.post("/publish-price", response_model=APIResponse[dict], summary="Explicitly publish a new product price")
+def publish_price(
+    payload: dict,
+    current_user: User = Depends(require_seller),
+    db: Session = Depends(get_db),
+):
+    sp_id = payload.get("seller_product_id")
+    new_price = payload.get("price")
+    if not sp_id or not new_price:
+        from app.core.exceptions import BadRequestException
+        raise BadRequestException("seller_product_id and price are required")
+
+    from decimal import Decimal
+    sp = SellerService.publish_price(db, current_user, sp_id, Decimal(str(new_price)))
+    return APIResponse(message="Price published successfully", data={"seller_product_id": sp.id, "new_price": float(sp.price)})
 
 
 @router.get("/analytics/revenue", summary="Seller revenue trends")

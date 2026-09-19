@@ -1,4 +1,7 @@
 from typing import List, Optional, Tuple
+from decimal import Decimal
+from app.models.market_intelligence import MarketIntelligence
+from app.models.price_history import PriceHistory
 from sqlalchemy.orm import Session, joinedload
 from app.models.user import User
 from app.models.seller_profile import SellerProfile
