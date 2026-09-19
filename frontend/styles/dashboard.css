@@ -1,317 +1,288 @@
-/* Vegito Professional Dashboard System */
+/* Vegito Dashboard System — Mobile-First Fixed Overlay Architecture */
 
 :root {
-  --vegito-primary: #063c32;
-  --vegito-primary-dark: #042922;
-  --vegito-primary-light: #0d5446;
+  --vegito-primary: #0a4d3c;
+  --vegito-primary-dark: #063c32;
+  --vegito-primary-light: #16835b;
   --vegito-green: #16835b;
-  --vegito-green-hover: #126b4a;
-  --vegito-light-green: #e9f6ee;
-  --vegito-bg: #f4f7f3;
+  --vegito-bg: #f8faf7;
   --vegito-card: #ffffff;
-  --vegito-border: #e1e8e2;
-  --vegito-border-subtle: #edf2ee;
-  --vegito-text-main: #13221b;
+  --vegito-border: #e8eee9;
+  --vegito-text-main: #12221e;
   --vegito-text-muted: #62746a;
-  --vegito-radius: 16px;
-  --vegito-radius-sm: 10px;
-  --vegito-radius-lg: 20px;
-  --vegito-shadow-sm: 0 1px 3px rgba(6, 60, 50, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  --vegito-shadow: 0 4px 16px rgba(6, 60, 50, 0.06);
-  --vegito-shadow-lg: 0 12px 32px rgba(6, 60, 50, 0.1);
-  --vegito-surface-muted: #fafcf9;
+  --vegito-radius: 20px;
+  --vegito-radius-sm: 12px;
+  --vegito-shadow: 0 8px 30px rgba(10, 77, 60, 0.04), 0 4px 12px rgba(0, 0, 0, 0.02);
+
+  /* Sidebar widths */
+  --sidebar-expanded-width: 260px;
+  --sidebar-collapsed-width: 72px;
 }
 
 [data-theme="dark"] {
   --vegito-primary: #10b981;
-  --vegito-primary-dark: #059669;
-  --vegito-primary-light: #34d399;
-  --vegito-green: #10b981;
-  --vegito-green-hover: #059669;
-  --vegito-light-green: rgba(16, 185, 129, 0.16);
   --vegito-bg: #0d1512;
   --vegito-card: #182620;
   --vegito-border: #23382f;
-  --vegito-border-subtle: #1e3028;
   --vegito-text-main: #f0fdf4;
   --vegito-text-muted: #94a3b8;
-  --vegito-surface-muted: #1e3028;
-  --vegito-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
-  --vegito-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
-  --vegito-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
 }
 
+/* =========================================================
+   DASHBOARD ROOT
+   Mobile: display:block so sidebar NEVER affects content width
+   Desktop: display:flex for side-by-side layout
+   ========================================================= */
 .dashboard-root {
-  display: flex;
-  min-height: 100vh;
   background-color: var(--vegito-bg);
-  color: var(--vegito-text-main);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  /* Ensure it's block on mobile to keep fixed sidebar as overlay */
+  display: block;
+  position: relative;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
-.dashboard-sidebar-container {
-  width: 260px;
-  background-color: var(--vegito-primary);
-  color: #ffffff;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  transition: width 240ms ease, transform 240ms ease;
-  z-index: 50;
-}
-
-.dashboard-sidebar-collapsed {
-  width: 78px;
-}
-
+/* =========================================================
+   CONTENT CONTAINER
+   Always full width on mobile (sidebar is an overlay)
+   ========================================================= */
 .dashboard-content-container {
-  flex: 1;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
+  /* CRITICAL: never move this with margin/transform when sidebar opens */
+  position: relative;
+  z-index: 1;
+  margin-left: 0 !important;
+  transform: none !important;
 }
 
-.dashboard-header {
-  height: 70px;
-  background-color: var(--vegito-card);
-  border-bottom: 1px solid var(--vegito-border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 32px;
-  position: sticky;
+/* =========================================================
+   SIDEBAR — ALWAYS position:fixed on mobile
+   This removes it from ALL layout flow.
+   It overlays the content without moving it.
+   ========================================================= */
+.dashboard-sidebar-container {
+  /* Always fixed on mobile — NEVER in normal flow */
+  position: fixed;
   top: 0;
-  z-index: 40;
-  box-shadow: var(--vegito-shadow-sm);
-}
-
-.dashboard-main {
-  flex: 1;
-  padding: 28px 32px 48px;
+  left: 0;
+  height: 100dvh;
+  width: min(85vw, 300px);
+  background-color: var(--vegito-primary);
+  z-index: 300;
   overflow-y: auto;
+  overflow-x: hidden;
+
+  /* Start off-screen to the LEFT */
+  transform: translateX(-110%);
+  transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Safe area for notch/status bar */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Stat Cards */
+/* Mobile: OPEN state — slide in from left */
+.dashboard-sidebar-container.mobile-open {
+  transform: translateX(0);
+}
+
+/* =========================================================
+   BACKDROP OVERLAY (mobile only)
+   Always fixed, renders behind sidebar, over content
+   ========================================================= */
+.dashboard-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 299; /* below sidebar (300), above content (1) */
+  animation: backdropFadeIn 220ms ease forwards;
+  /* Prevent touching content beneath */
+  touch-action: none;
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* =========================================================
+   SIDEBAR LABELS — transition for collapsed state
+   ========================================================= */
+.sidebar-label {
+  transition: opacity 200ms ease, max-width 200ms ease;
+  opacity: 1;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-brand-subtitle {
+  transition: opacity 200ms ease, max-height 200ms ease;
+  opacity: 1;
+  max-height: 40px;
+  overflow: hidden;
+}
+
+/* =========================================================
+   MAIN CONTENT AREA
+   ========================================================= */
+.dashboard-main {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  box-sizing: border-box;
+  padding: 20px 16px calc(90px + env(safe-area-inset-bottom, 0px));
+  text-align: left;
+}
+
+.dashboard-main button,
+.dashboard-main a,
+.dashboard-main input,
+.dashboard-main select,
+.dashboard-main textarea {
+  font-family: inherit;
+}
+
+/* Minimum touch target */
+.dashboard-main button,
+.dashboard-main a[role="button"] {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+/* =========================================================
+   STAT CARDS — mobile 2-col, desktop 4-col
+   ========================================================= */
 .stat-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 20px;
-  margin-bottom: 28px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
 }
 
 .stat-card {
   background: var(--vegito-card);
   border: 1px solid var(--vegito-border);
   border-radius: var(--vegito-radius);
-  padding: 20px 22px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  box-shadow: var(--vegito-shadow-sm);
-  transition: transform 180ms ease, box-shadow 180ms ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
+  padding: 16px;
   box-shadow: var(--vegito-shadow);
 }
 
-.stat-card-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+.stat-card-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--vegito-primary);
+  margin-top: 8px;
 }
 
-/* Tables */
-.dashboard-table-container {
-  background: var(--vegito-card);
-  border: 1px solid var(--vegito-border);
-  border-radius: var(--vegito-radius);
-  box-shadow: var(--vegito-shadow-sm);
-  overflow: hidden;
-}
-
-.dashboard-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  font-size: 13.5px;
-}
-
-.dashboard-table th {
-  background: var(--vegito-surface-muted);
-  padding: 14px 20px;
-  font-weight: 700;
-  color: var(--vegito-text-muted);
+.stat-card-label {
   font-size: 12px;
+  font-weight: 600;
+  color: var(--vegito-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--vegito-border);
+  letter-spacing: 0.05em;
 }
 
-.dashboard-table td {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--vegito-border-subtle);
-  color: var(--vegito-text-main);
-}
-
-.dashboard-table tr:last-child td {
-  border-bottom: none;
-}
-
-.dashboard-table tr:hover td {
-  background-color: var(--vegito-surface-muted);
-}
-
-/* Badges */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 9999px;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-/* Responsive Media Queries */
-@media (max-width: 1024px) {
-  .dashboard-header {
-    padding: 0 20px;
+/* =========================================================
+   DESKTOP (>= 1024px) — flex layout, sticky sidebar
+   ========================================================= */
+@media (min-width: 1024px) {
+  /* Switch root to flex for side-by-side */
+  .dashboard-root {
+    display: flex;
+    align-items: flex-start;
   }
-  .dashboard-main {
-    padding: 20px 20px 36px;
-  }
-}
 
-@media (max-width: 768px) {
+  /* On desktop, sidebar is in-flow sticky, NOT fixed */
   .dashboard-sidebar-container {
-    position: fixed;
-    left: -280px;
+    /* Override fixed positioning for desktop */
+    position: sticky !important;
     top: 0;
-    bottom: 0;
-    width: 260px;
+    left: auto;
+    height: 100vh;
+    width: var(--sidebar-expanded-width);
+    flex-shrink: 0;
+    /* No transform needed on desktop — always visible */
+    transform: none !important;
+    transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
   }
-  .dashboard-sidebar-container.mobile-open {
-    left: 0;
-    box-shadow: var(--vegito-shadow-lg);
+
+  /* Desktop: COLLAPSED state — icon-only, 72px wide */
+  .dashboard-sidebar-container.desktop-collapsed {
+    width: var(--sidebar-collapsed-width);
+    overflow: hidden;
   }
-  .dashboard-sidebar-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(6, 60, 50, 0.4);
-    backdrop-filter: blur(4px);
-    z-index: 45;
+
+  .dashboard-sidebar-container.desktop-collapsed .sidebar-label {
+    opacity: 0;
+    max-width: 0;
+    pointer-events: none;
+  }
+
+  .dashboard-sidebar-container.desktop-collapsed .sidebar-brand-subtitle {
+    opacity: 0;
+    max-height: 0;
+    pointer-events: none;
+  }
+
+  .dashboard-sidebar-container.desktop-collapsed .sidebar-nav-item {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .dashboard-sidebar-container.desktop-collapsed .sidebar-logo-row {
+    justify-content: center;
+  }
+
+  /* Content takes remaining flex space */
+  .dashboard-content-container {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+  }
+
+  /* More padding on desktop */
+  .dashboard-main {
+    padding: 28px 32px 80px;
+  }
+
+  .stat-card-grid {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
 /* =========================================================
-   SMOOTH THEME TRANSITION
+   TABLET (768px – 1023px)
    ========================================================= */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .dashboard-main {
+    padding: 24px 24px calc(90px + env(safe-area-inset-bottom, 0px));
+  }
 
-html {
-  transition: background-color 200ms ease;
-}
-
-html *:not(img):not(svg):not(video) {
-  transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+  .stat-card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* =========================================================
-   DARK MODE — COMPONENT-LEVEL OVERRIDES
-   Targets hardcoded inline styles via computed RGB values
+   MOBILE OVERFLOW PROTECTION
    ========================================================= */
-
-/* Dashboard root & main area */
-[data-theme="dark"] .dashboard-root {
-  background-color: var(--vegito-bg) !important;
-  color: var(--vegito-text-main) !important;
-}
-
-[data-theme="dark"] .dashboard-main {
-  background-color: var(--vegito-bg) !important;
-  color: var(--vegito-text-main) !important;
-}
-
-/* Header */
-[data-theme="dark"] .dashboard-header {
-  background-color: var(--vegito-card) !important;
-  border-bottom-color: var(--vegito-border) !important;
-  color: var(--vegito-text-main) !important;
-}
-
-/* White card backgrounds — rgb(255,255,255) = #ffffff */
-[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(255, 255, 255)"] {
-  background-color: var(--vegito-card) !important;
-  border-color: var(--vegito-border) !important;
-}
-
-[data-theme="dark"] .dashboard-root a[style*="background-color: rgb(255, 255, 255)"] {
-  background-color: var(--vegito-card) !important;
-  border-color: var(--vegito-border) !important;
-}
-
-/* Light green section bg — rgb(244,247,243) = #f4f7f3 */
-[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(244, 247, 243)"] {
-  background-color: var(--vegito-bg) !important;
-}
-
-/* Muted surface — rgb(233,246,238) = #e9f6ee */
-[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(233, 246, 238)"] {
-  background-color: var(--vegito-surface-muted) !important;
-}
-
-/* Soft surface — rgb(250,252,249) = #fafcf9 and rgb(250,250,249) = #fafaf9 */
-[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(250, 252, 249)"],
-[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(250, 250, 249)"],
-[data-theme="dark"] .dashboard-root div[style*="background-color: rgb(249, 251, 248)"] {
-  background-color: var(--vegito-surface-muted) !important;
-}
-
-/* Text — dark green rgb(6,60,50) = #063c32 and rgb(19,34,27) = #13221b */
-[data-theme="dark"] .dashboard-root p[style*="color: rgb(6, 60, 50)"],
-[data-theme="dark"] .dashboard-root span[style*="color: rgb(6, 60, 50)"],
-[data-theme="dark"] .dashboard-root h1[style*="color: rgb(6, 60, 50)"],
-[data-theme="dark"] .dashboard-root h2[style*="color: rgb(6, 60, 50)"],
-[data-theme="dark"] .dashboard-root h3[style*="color: rgb(6, 60, 50)"],
-[data-theme="dark"] .dashboard-root div[style*="color: rgb(6, 60, 50)"] {
-  color: var(--vegito-text-main) !important;
-}
-
-[data-theme="dark"] .dashboard-root p[style*="color: rgb(19, 34, 27)"],
-[data-theme="dark"] .dashboard-root span[style*="color: rgb(19, 34, 27)"],
-[data-theme="dark"] .dashboard-root div[style*="color: rgb(19, 34, 27)"] {
-  color: var(--vegito-text-main) !important;
-}
-
-/* Muted text — rgb(98,116,106) = #62746a */
-[data-theme="dark"] .dashboard-root p[style*="color: rgb(98, 116, 106)"],
-[data-theme="dark"] .dashboard-root span[style*="color: rgb(98, 116, 106)"] {
-  color: var(--vegito-text-muted) !important;
-}
-
-/* Input / textarea / select fields */
-[data-theme="dark"] .dashboard-root input,
-[data-theme="dark"] .dashboard-root textarea,
-[data-theme="dark"] .dashboard-root select {
-  background-color: var(--vegito-surface-muted) !important;
-  color: var(--vegito-text-main) !important;
-  border-color: var(--vegito-border) !important;
-}
-
-/* Search placeholder */
-[data-theme="dark"] .dashboard-root input::placeholder {
-  color: var(--vegito-text-muted) !important;
+@media (max-width: 1023px) {
+  .dashboard-content-container,
+  .dashboard-main {
+    min-width: 0;
+    max-width: 100vw;
+    overflow-x: clip;
+  }
 }

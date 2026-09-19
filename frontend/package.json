@@ -7,9 +7,20 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "cap:sync": "cap sync android",
+    "cap:open:android": "cap open android",
+    "android:debug": "cap sync android && cd android && gradlew.bat assembleDebug",
+    "android:bundle": "cap sync android && cd android && gradlew.bat bundleRelease"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/push-notifications": "^8.1.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "@hookform/resolvers": "3.9.1",
     "@tanstack/react-query": "5.56.2",
     "@tanstack/react-query-devtools": "5.56.2",
@@ -30,6 +41,7 @@
     "zustand": "5.0.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@types/node": "22.10.1",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",

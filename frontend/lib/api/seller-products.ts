@@ -57,6 +57,7 @@ export type SellerProfile = {
   business_name: string;
   description?: string | null;
   is_verified?: boolean;
+  is_available?: boolean;
   is_active?: boolean;
 };
 
@@ -68,7 +69,28 @@ export async function getSellerProfile(): Promise<SellerProfile> {
 export async function updateSellerProfile(payload: {
   business_name?: string;
   description?: string;
+  is_available?: boolean;
 }): Promise<SellerProfile> {
   const { data } = await api.patch<ApiEnvelope<SellerProfile>>("/seller/profile", payload);
+  return data.data;
+}
+
+export async function setSellerAvailability(is_available: boolean): Promise<SellerProfile> {
+  const { data } = await api.patch<ApiEnvelope<SellerProfile>>("/seller/availability", { is_available });
+  return data.data;
+}
+
+export async function getPublicSellerAvailability(): Promise<{
+  seller_id: number | null;
+  shop_name: string;
+  is_available: boolean;
+  is_online: boolean;
+}> {
+  const { data } = await api.get<ApiEnvelope<{
+    seller_id: number | null;
+    shop_name: string;
+    is_available: boolean;
+    is_online: boolean;
+  }>>("/orders/seller-availability");
   return data.data;
 }

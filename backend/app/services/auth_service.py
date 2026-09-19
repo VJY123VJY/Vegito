@@ -423,5 +423,6 @@ class AuthService:
                 ),
             )
         else:
-            raise BadRequestException(f"Invalid role '{payload.role}'. Must be CUSTOMER, SELLER, or DELIVERY.")
-
+            raise BadRequestException(
+                f"Invalid role '{payload.role}'. Must be CUSTOMER, SELLER, or DELIVERY_PARTNER."
+            )

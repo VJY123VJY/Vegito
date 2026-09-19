@@ -26,8 +26,13 @@ class DeliveryTrackingService:
         db: Session, partner_user: User, location_in: DeliveryLocationCreate
     ) -> DeliveryLocationRead:
         partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == partner_user.id).first()
+        # In V1 the shop owner is also the delivery person.  Creating this
+        # existing profile row is safe and lets a seller report their own GPS;
+        # it does not assign a separate courier.
         if not partner:
-            raise ForbiddenException("User is not registered as a delivery partner.")
+            partner = DeliveryPartner(user_id=partner_user.id, is_available=True)
+            db.add(partner)
+            db.flush()
 
         lat = location_in.latitude
         lng = location_in.longitude

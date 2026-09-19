@@ -1,3 +1,5 @@
+import os
+
 from functools import lru_cache
 from typing import List, Union
 from pydantic import field_validator
@@ -42,14 +44,15 @@ class Settings(BaseSettings):
     TWILIO_VERIFY_SERVICE_SID: str = ""
 
     # Delivery Assignment Radius & Pricing Bands (KM -> INR)
-    DELIVERY_ASSIGNMENT_RADIUS_KM: float = 6.0
+    DELIVERY_ASSIGNMENT_RADIUS_KM: float = 15.0
     MIN_DELIVERY_RADIUS_KM: float = 0.0
-    DELIVERY_MAX_DISTANCE_KM: float = 6.0
+    DELIVERY_MAX_DISTANCE_KM: float = 15.0
     DELIVERY_FEE_0_TO_1_KM: float = 20.0
     DELIVERY_FEE_1_TO_3_KM: float = 30.0
     DELIVERY_FEE_3_TO_5_KM: float = 40.0
     DELIVERY_FEE_5_TO_6_KM: float = 50.0
     DELIVERY_FEE_5_TO_7_KM: float = 50.0
+    DELIVERY_FEE_5_TO_15_KM: float = 50.0
 
     # Google Business Profile Review URL
     GOOGLE_REVIEW_URL: str = "https://g.page/r/vegito-solapur/review"

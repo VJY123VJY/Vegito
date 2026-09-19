@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 from app.schemas.common import BaseSchema
 
@@ -82,7 +82,10 @@ class UnifiedRegisterRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
     phone: str = Field(..., description="10-digit mobile number")
     password: str = Field(..., min_length=4, max_length=128)
-    role: str = Field(..., description="CUSTOMER, SELLER, or DELIVERY_PARTNER")
+    # Privileged roles are intentionally excluded from public registration.
+    role: Literal["CUSTOMER", "SELLER", "DELIVERY_PARTNER", "DELIVERY"] = Field(
+        ..., description="CUSTOMER, SELLER, or DELIVERY_PARTNER"
+    )
     email: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = "Solapur"
@@ -100,4 +103,3 @@ class RegisterResponse(BaseModel):
     user_id: int
     phone: str
     role: str
-

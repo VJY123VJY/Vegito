@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { DashboardHeader } from "./dashboard-header";
+import { BottomNavigation } from "../navigation/bottom-navigation";
+
+const STORAGE_KEY = "vegito-sidebar-collapsed";
 
 interface DashboardShellProps {
-  role: "customer" | "seller" | "delivery" | "admin";
+  role: "customer" | "seller" | "delivery" | "admin" | "farmer";
   userName?: string;
   userRole?: string;
   greeting?: string;
@@ -25,34 +28,56 @@ export function DashboardShell({
   onSearchChange,
   children,
 }: DashboardShellProps) {
+  // Mobile drawer state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Desktop collapse state (persisted)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Read persisted desktop preference
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored !== null) setSidebarCollapsed(stored === "true");
+    } catch { /* SSR / privacy mode */ }
+  }, []);
+
+  // Escape key closes mobile drawer
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileMenuOpen]);
+
+  // Lock body scroll while drawer is open (prevents background scroll on Android)
+  useEffect(() => {
+    document.body.style.overflow = mobileMenuOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileMenuOpen]);
+
+  const handleCollapseToggle = useCallback(() => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem(STORAGE_KEY, String(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
+  const toggleMobileMenu = useCallback(() => setMobileMenuOpen(p => !p), []);
 
   return (
-    <div className="dashboard-root" style={{ display: "flex", minHeight: "100vh" }}>
-      {/* Mobile Drawer Backdrop */}
-      {mobileMenuOpen && (
-        <div
-          onClick={() => setMobileMenuOpen(false)}
-          className="dashboard-sidebar-backdrop md:hidden"
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(6, 60, 50, 0.4)",
-            backdropFilter: "blur(4px)",
-            zIndex: 45,
-          }}
-        />
-      )}
+    <div className="dashboard-root">
 
-      {/* Sidebar */}
-      <DashboardSidebar
-        role={role}
-        isOpen={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-      />
-
-      {/* Main Content */}
-      <div className="dashboard-content-container" style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+      {/* ═══════════════════════════════════════════════════════
+          MAIN CONTENT — always full-width on mobile.
+          Rendered FIRST so it is the visual base layer.
+          The sidebar is rendered AFTER (higher in z-order)
+          but NEVER affects this container's width/position.
+          ═══════════════════════════════════════════════════════ */}
+      <div className="dashboard-content-container">
         <DashboardHeader
           role={role}
           userName={userName}
@@ -61,12 +86,44 @@ export function DashboardShell({
           subtitle={subtitle}
           searchPlaceholder={searchPlaceholder}
           onSearchChange={onSearchChange}
-          onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+          onMenuToggle={toggleMobileMenu}
+          mobileMenuOpen={mobileMenuOpen}
+          onCollapseToggle={handleCollapseToggle}
+          sidebarCollapsed={sidebarCollapsed}
         />
-        <main className="dashboard-main" style={{ flex: 1, padding: "28px 32px 48px", overflowY: "auto" }}>
+
+        <main className="dashboard-main">
           {children}
         </main>
+
+        {/* Role-aware bottom nav (mobile only, via CSS) */}
+        <BottomNavigation onMoreClick={toggleMobileMenu} />
       </div>
+
+      {/* ═══════════════════════════════════════════════════════
+          SIDEBAR + BACKDROP — rendered AFTER content so they
+          layer on top. Both are position:fixed on mobile.
+          On desktop (via CSS), sidebar becomes position:sticky
+          inside the flex root.
+          ═══════════════════════════════════════════════════════ */}
+
+      {/* Backdrop — only shown when drawer is open */}
+      {mobileMenuOpen && (
+        <div
+          className="dashboard-sidebar-backdrop"
+          onClick={closeMobileMenu}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar drawer */}
+      <DashboardSidebar
+        role={role}
+        isOpen={mobileMenuOpen}
+        collapsed={sidebarCollapsed}
+        onClose={closeMobileMenu}
+        onCollapseToggle={handleCollapseToggle}
+      />
     </div>
   );
 }

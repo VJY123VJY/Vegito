@@ -20,6 +20,7 @@ class SellerProfile(Base):
     longitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 7), nullable=True)
     gst_number: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     rating: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal("0.00"), nullable=False)
     total_orders: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now(), nullable=False)

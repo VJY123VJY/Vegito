@@ -102,6 +102,27 @@ class DeliveryService:
         radius_limit = max_radius_km or float(getattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 6.0))
         logger.info(f"[DELIVERY] Searching partner order={order.order_number or order.id} within {radius_limit}km")
 
+        # V1 has one person in both roles.  Always assign that seller's own
+        # delivery profile first; do not search or assign an unrelated courier.
+        if order.seller_id:
+            seller_profile = db.query(SellerProfile).filter(
+                SellerProfile.user_id == order.seller_id
+            ).first()
+            # Seller availability is delivery availability in V1.  Keep READY
+            # orders intact while offline; they can be assigned after going online.
+            if seller_profile and not seller_profile.is_available:
+                return None, None
+            seller_partner = DeliveryService.get_delivery_partner(
+                db, db.query(User).filter(User.id == order.seller_id).one()
+            )
+            order.delivery_partner_id = seller_partner.id
+            task = db.query(DeliveryTask).filter(DeliveryTask.order_id == order.id).first()
+            if task:
+                task.delivery_partner_id = seller_partner.id
+                task.status = DeliveryTaskStatus.ASSIGNED.value
+            db.flush()
+            return seller_partner, Decimal("0")
+
         # 1. Determine Seller Shop coordinates
         shop_lat = 17.6805  # Default Solapur center
         shop_lng = 75.9064
@@ -642,3 +663,54 @@ class DeliveryService:
         db.commit()
         db.refresh(zone)
         return zone
+
+    @staticmethod
+    def assign_pending_ready_orders(db: Session, partner_id: Optional[int] = None) -> List[Order]:
+        """
+        Scans for orders in READY / READY_FOR_PICKUP that have no delivery partner assigned yet,
+        and triggers find_and_assign_nearest_partner for each.
+        If assigned, dispatches the real-time notification to the delivery dashboard.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        from app.models.delivery_task_status_history import DeliveryTaskStatusHistory
+
+        pending_orders = (
+            db.query(Order)
+            .filter(
+                Order.status.in_([OrderStatus.READY.value, OrderStatus.READY_FOR_PICKUP.value]),
+                Order.delivery_partner_id.is_(None),
+            )
+            .order_by(Order.ready_at.asc())
+            .all()
+        )
+
+        assigned_orders = []
+        for order in pending_orders:
+            assigned_partner, dist_km = DeliveryService.find_and_assign_nearest_partner(
+                db, order, max_radius_km=float(getattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 15.0))
+            )
+            if assigned_partner:
+                assigned_orders.append(order)
+                try:
+                    from app.routers.websocket_tracking import dispatch_order_packed_notification
+                    shop_name = order.shop.business_name if order.shop else "Vegito Shop"
+                    payload = {
+                        "type": "ORDER_PACKED",
+                        "event": "DELIVERY_ASSIGNED",
+                        "event_id": f"DELIVERY_ASSIGNED_{order.id}",
+                        "order_id": order.id,
+                        "order_number": order.order_number,
+                        "status": order.status,
+                        "delivery_partner_id": assigned_partner.id,
+                        "shop_name": shop_name,
+                        "total_amount": float(order.total_amount),
+                        "message": f"Order #{order.order_number} is ready for pickup!",
+                    }
+                    dispatch_order_packed_notification(payload, partner_id=assigned_partner.id)
+                except Exception as e:
+                    logger.warning(f"[DELIVERY] Failed to dispatch assigned event: {e}")
+
+        if assigned_orders:
+            db.commit()
+        return assigned_orders

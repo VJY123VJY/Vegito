@@ -104,12 +104,23 @@ class OrderService:
         # Determine seller & shop info for order record
         first_seller_id = cart_items[0].seller_product.seller_id if (cart_items and cart_items[0].seller_product) else None
         shop_id = None
+        sp_prof = None
         if first_seller_id:
             sp_prof = db.query(SellerProfile).filter(SellerProfile.user_id == first_seller_id).first()
             if sp_prof:
                 shop_id = sp_prof.id
+        if not sp_prof:
+            sp_prof = db.query(SellerProfile).first()
 
-        # Centralized Server-Side Distance-Based Delivery Fee (1–7 KM, >7 KM blocked)
+        # Enforce seller availability: block checkout if seller is OFFLINE
+        if sp_prof and not sp_prof.is_available:
+            raise BadRequestException(
+                message="Seller is currently offline. Please try again later.",
+                code="SELLER_OFFLINE",
+                details={"message": "Seller is currently offline. Please try again later."}
+            )
+
+        # Centralized Server-Side Distance-Based Delivery Fee (1–15 KM, >15 KM blocked)
         from app.services.delivery_pricing_service import DeliveryPricingService
         delivery_charge, delivery_distance_km = DeliveryPricingService.calculate_delivery_distance_and_fee(
             db=db,

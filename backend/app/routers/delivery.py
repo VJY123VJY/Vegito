@@ -12,6 +12,7 @@ from app.schemas.delivery import (
     DeliveryZoneRead,
     DeliveryPartnerProfileRead,
     DeliveryPartnerProfileUpdate,
+    DeliveryPartnerAvailabilityUpdate,
 )
 from app.models.delivery_partner import DeliveryPartner
 from app.schemas.common import APIResponse
@@ -174,8 +175,51 @@ def update_delivery_profile(
     db.commit()
     db.refresh(partner)
 
+    # If partner became online, immediately assign any pending ready orders
+    if partner.is_available:
+        DeliveryService.assign_pending_ready_orders(db, partner.id)
+
     return APIResponse(
         message="Profile updated successfully",
+        data=DeliveryPartnerProfileRead(
+            id=partner.id,
+            user_id=current_user.id,
+            name=current_user.name or "Delivery Partner",
+            email=current_user.email or "",
+            phone=current_user.phone or "",
+            vehicle_type=partner.vehicle_type,
+            vehicle_number=partner.vehicle_number,
+            is_available=partner.is_available,
+            is_verified=partner.is_verified,
+            rating=partner.rating,
+            total_deliveries=partner.total_deliveries,
+            created_at=partner.created_at,
+        ),
+    )
+
+
+@router.patch("/availability", response_model=APIResponse[DeliveryPartnerProfileRead], summary="Toggle delivery partner availability (online/offline)")
+def set_delivery_availability(
+    payload: DeliveryPartnerAvailabilityUpdate,
+    current_user: User = Depends(require_delivery_partner),
+    db: Session = Depends(get_db),
+):
+    partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == current_user.id).first()
+    if not partner:
+        partner = DeliveryPartner(user_id=current_user.id, is_available=True, is_verified=True)
+        db.add(partner)
+        db.flush()
+
+    partner.is_available = payload.is_available
+    db.commit()
+    db.refresh(partner)
+
+    if partner.is_available:
+        DeliveryService.assign_pending_ready_orders(db, partner.id)
+
+    status_text = "online" if partner.is_available else "offline"
+    return APIResponse(
+        message=f"Delivery partner is now {status_text}",
         data=DeliveryPartnerProfileRead(
             id=partner.id,
             user_id=current_user.id,

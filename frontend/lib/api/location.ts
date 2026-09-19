@@ -1,4 +1,4 @@
-import { api, type ApiEnvelope } from "./client";
+import { api, getApiBaseUrl, type ApiEnvelope } from "./client";
 
 export type LocationUpdate = {
   task_id: number;
@@ -79,7 +79,7 @@ export function subscribeToLocation(
   onData: (data: LocationData) => void,
   onError?: () => void,
 ): () => void {
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1")
+  const apiBase = getApiBaseUrl()
     .replace(/^http/, "ws");
   const wsUrl = `${apiBase}/location/ws/track/${taskId}`;
   const ws = new WebSocket(wsUrl);
@@ -128,7 +128,7 @@ export function watchDeliveryBoyGps(
     return () => {};
   }
 
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1")
+  const apiBase = getApiBaseUrl()
     .replace(/^http/, "ws")
     .replace(/\/api\/v1$/, ""); // ws://host:port
 
@@ -243,7 +243,7 @@ export function subscribeToOrderTracking(
 ): () => void {
   if (typeof window === "undefined") return () => {};
 
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1")
+  const apiBase = getApiBaseUrl()
     .replace(/^http/, "ws")
     .replace(/\/api\/v1$/, "");
 

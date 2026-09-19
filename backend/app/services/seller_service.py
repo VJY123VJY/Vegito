@@ -43,6 +43,14 @@ class SellerService:
         return profile
 
     @staticmethod
+    def set_availability(db: Session, user: User, is_available: bool) -> SellerProfile:
+        profile = SellerService.get_profile(db, user)
+        profile.is_available = is_available
+        db.commit()
+        db.refresh(profile)
+        return profile
+
+    @staticmethod
     def list_seller_products(db: Session, user: User) -> List[SellerProduct]:
         return (
             db.query(SellerProduct)

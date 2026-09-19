@@ -9,7 +9,6 @@ import {
   ClipboardList,
   Heart,
   ShoppingCart,
-  Wallet,
   MapPin,
   User,
   Bell,
@@ -29,10 +28,15 @@ import {
   Compass,
   History,
   ShieldAlert,
+  ChevronLeft,
+  ChevronRight,
+  Wheat,
+  HandshakeIcon,
+  BarChart3,
 } from "lucide-react";
 import { clearSession } from "@/lib/api/auth";
 
-type RoleType = "customer" | "seller" | "delivery" | "admin";
+type RoleType = "customer" | "seller" | "delivery" | "admin" | "farmer";
 
 interface NavItem {
   label: string;
@@ -94,20 +98,43 @@ const ADMIN_ITEMS: NavItem[] = [
   { label: "Settings", href: "/admin/settings", icon: <Settings size={18} /> },
 ];
 
+const FARMER_ITEMS: NavItem[] = [
+  { label: "Dashboard", href: "/farmer", icon: <LayoutDashboard size={18} /> },
+  { label: "Products", href: "/farmer/products", icon: <Wheat size={18} /> },
+  { label: "Requests", href: "/farmer/requests", icon: <HandshakeIcon size={18} /> },
+  { label: "Deals", href: "/farmer/deals", icon: <Tag size={18} /> },
+  { label: "Inventory", href: "/farmer/inventory", icon: <Layers size={18} /> },
+  { label: "Analytics", href: "/farmer/analytics", icon: <BarChart3 size={18} /> },
+  { label: "Profile", href: "/farmer/profile", icon: <User size={18} /> },
+];
+
 const ROLE_CONFIG: Record<RoleType, { title: string; items: NavItem[]; authRoute: string }> = {
   customer: { title: "Customer Portal", items: CUSTOMER_ITEMS, authRoute: "/auth/login" },
   seller: { title: "Seller Central", items: SELLER_ITEMS, authRoute: "/auth/login" },
   delivery: { title: "Delivery Fleet", items: DELIVERY_ITEMS, authRoute: "/auth/login" },
   admin: { title: "Operations Admin", items: ADMIN_ITEMS, authRoute: "/auth/login" },
+  farmer: { title: "Farmer Market", items: FARMER_ITEMS, authRoute: "/auth/login" },
 };
 
 interface DashboardSidebarProps {
   role: RoleType;
+  /** Mobile: whether the drawer is open */
   isOpen?: boolean;
+  /** Desktop: whether the sidebar is collapsed to icon-only */
+  collapsed?: boolean;
+  /** Called when a nav link is clicked (closes mobile drawer) */
   onClose?: () => void;
+  /** Called when the desktop collapse toggle is clicked */
+  onCollapseToggle?: () => void;
 }
 
-export function DashboardSidebar({ role, isOpen = true, onClose }: DashboardSidebarProps) {
+export function DashboardSidebar({
+  role,
+  isOpen = false,
+  collapsed = false,
+  onClose,
+  onCollapseToggle,
+}: DashboardSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const config = ROLE_CONFIG[role] || ROLE_CONFIG.customer;
@@ -117,38 +144,39 @@ export function DashboardSidebar({ role, isOpen = true, onClose }: DashboardSide
     router.push("/auth/login");
   }
 
+  // Build className for the aside element
+  const asideClass = [
+    "dashboard-sidebar-container",
+    isOpen ? "mobile-open" : "",
+    collapsed ? "desktop-collapsed" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <aside
-      className={`dashboard-sidebar-container ${isOpen ? "mobile-open" : ""}`}
-      style={{
-        width: "240px",
-        color: "#ffffff",
-        display: "flex",
-        flexDirection: "column",
-        height: "100vh",
-        position: "sticky",
-        top: 0,
-        overflowY: "auto",
-        borderRight: "1px solid rgba(255, 255, 255, 0.08)",
-        flexShrink: 0,
-      }}
-    >
-      {/* Brand Header */}
+    <aside className={asideClass} role="navigation" aria-label={`${config.title} navigation`}>
+      {/* ── Brand Header ── */}
       <div
         style={{
-          padding: "24px 20px 18px",
+          padding: collapsed ? "20px 0" : "20px 16px 16px",
           borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+          transition: "padding 250ms ease",
         }}
       >
         <Link
-          href={config.items[0].href}
+          href={config.items[0]?.href ?? "/"}
           style={{
             display: "flex",
             alignItems: "center",
             gap: "10px",
             textDecoration: "none",
+            justifyContent: collapsed ? "center" : "flex-start",
+            transition: "justify-content 250ms ease",
           }}
+          className="sidebar-logo-row"
+          onClick={onClose}
         >
+          {/* Icon — always visible */}
           <div
             style={{
               width: "36px",
@@ -159,30 +187,37 @@ export function DashboardSidebar({ role, isOpen = true, onClose }: DashboardSide
               alignItems: "center",
               justifyContent: "center",
               fontSize: "18px",
+              flexShrink: 0,
               boxShadow: "0 2px 8px rgba(22, 131, 91, 0.4)",
             }}
           >
             🥬
           </div>
-          <div>
+
+          {/* Brand name + subtitle — hidden when collapsed */}
+          <div className="sidebar-label">
             <span
               style={{
-                fontSize: "20px",
+                fontSize: "19px",
                 fontWeight: 800,
                 letterSpacing: "-0.5px",
                 color: "#ffffff",
+                display: "block",
+                lineHeight: 1.1,
               }}
             >
               Vegito
             </span>
             <span
+              className="sidebar-brand-subtitle"
               style={{
                 display: "block",
-                fontSize: "10.5px",
+                fontSize: "10px",
                 color: "rgba(255, 255, 255, 0.55)",
                 fontWeight: 600,
                 textTransform: "uppercase",
-                letterSpacing: "0.06em",
+                letterSpacing: "0.07em",
+                lineHeight: 1.2,
               }}
             >
               {config.title}
@@ -191,35 +226,65 @@ export function DashboardSidebar({ role, isOpen = true, onClose }: DashboardSide
         </Link>
       </div>
 
-      {/* Navigation List */}
-      <nav style={{ flex: 1, padding: "16px 12px", display: "flex", flexDirection: "column", gap: "3px" }}>
+      {/* ── Navigation List ── */}
+      <nav
+        style={{
+          flex: 1,
+          padding: collapsed ? "12px 8px" : "12px 10px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "2px",
+          transition: "padding 250ms ease",
+        }}
+      >
         {config.items.map((item) => {
-          const isActive = pathname === item.href || (item.href !== `/${role}` && pathname?.startsWith(item.href));
+          const isActive =
+            pathname === item.href ||
+            (item.href !== `/${role}` && pathname?.startsWith(item.href));
+
           return (
             <Link
               key={item.href}
               href={item.href}
               onClick={onClose}
+              title={collapsed ? item.label : undefined}
+              aria-current={isActive ? "page" : undefined}
+              className="sidebar-nav-item"
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "12px",
-                padding: "9px 14px",
+                gap: collapsed ? "0" : "11px",
+                padding: collapsed ? "10px 0" : "9px 12px",
                 borderRadius: "10px",
+                justifyContent: collapsed ? "center" : "flex-start",
                 color: isActive ? "#ffffff" : "rgba(255, 255, 255, 0.72)",
-                backgroundColor: isActive ? "rgba(22, 131, 91, 0.35)" : "transparent",
-                borderLeft: isActive ? "3px solid #16835b" : "3px solid transparent",
+                backgroundColor: isActive ? "rgba(22, 131, 91, 0.38)" : "transparent",
+                borderLeft: collapsed
+                  ? "none"
+                  : isActive
+                  ? "3px solid #16835b"
+                  : "3px solid transparent",
                 fontWeight: isActive ? 700 : 500,
                 fontSize: "13.5px",
                 textDecoration: "none",
-                transition: "all 140ms ease",
+                transition: "all 160ms ease",
+                minHeight: "44px",
               }}
             >
-              <span style={{ color: isActive ? "#6ee7b7" : "rgba(255, 255, 255, 0.65)" }}>
+              <span
+                style={{
+                  color: isActive ? "#6ee7b7" : "rgba(255, 255, 255, 0.65)",
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
                 {item.icon}
               </span>
-              <span style={{ flex: 1 }}>{item.label}</span>
-              {item.badge !== undefined && (
+              <span className="sidebar-label" style={{ flex: 1 }}>
+                {item.label}
+              </span>
+              {!collapsed && item.badge !== undefined && (
                 <span
                   style={{
                     backgroundColor: "#16835b",
@@ -238,56 +303,138 @@ export function DashboardSidebar({ role, isOpen = true, onClose }: DashboardSide
         })}
       </nav>
 
-      {/* Botanical watermark decoration at bottom of sidebar */}
-      <div
-        style={{
-          padding: "10px 18px",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          opacity: 0.35,
-          userSelect: "none",
-        }}
-      >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#34d399" }}>
-          <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
-          <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
-        </svg>
-        <span style={{ fontSize: "10.5px", letterSpacing: "1.2px", color: "#a7f3d0", fontWeight: 700, textTransform: "uppercase" }}>
-          Solapur Organic
-        </span>
-      </div>
+      {/* ── Botanical watermark ── */}
+      {!collapsed && (
+        <div
+          style={{
+            padding: "8px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            opacity: 0.3,
+            userSelect: "none",
+          }}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ color: "#34d399" }}
+          >
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+          </svg>
+          <span
+            style={{
+              fontSize: "10px",
+              letterSpacing: "1.2px",
+              color: "#a7f3d0",
+              fontWeight: 700,
+              textTransform: "uppercase",
+            }}
+          >
+            Solapur Organic
+          </span>
+        </div>
+      )}
 
-      {/* Logout Footer */}
+      {/* ── Desktop Collapse Toggle ── */}
+      {onCollapseToggle && (
+        <div
+          style={{
+            padding: collapsed ? "12px 0" : "12px",
+            borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+            display: "flex",
+            justifyContent: collapsed ? "center" : "flex-end",
+          }}
+        >
+          <button
+            onClick={onCollapseToggle}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              padding: "8px",
+              minWidth: "44px",
+              minHeight: "44px",
+              borderRadius: "10px",
+              color: "rgba(255, 255, 255, 0.55)",
+              backgroundColor: "transparent",
+              border: "1px solid rgba(255,255,255,0.12)",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 160ms ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)";
+              e.currentTarget.style.color = "#ffffff";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "rgba(255, 255, 255, 0.55)";
+            }}
+          >
+            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            {!collapsed && (
+              <span className="sidebar-label" style={{ fontSize: "12px" }}>
+                Collapse
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ── Logout Footer ── */}
       <div
         style={{
-          padding: "16px 12px",
+          padding: collapsed ? "12px 0" : "12px",
           borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+          display: "flex",
+          justifyContent: collapsed ? "center" : "flex-start",
         }}
       >
         <button
           onClick={handleLogout}
+          title="Logout"
+          aria-label="Logout"
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "12px",
-            width: "100%",
-            padding: "10px 14px",
+            justifyContent: collapsed ? "center" : "flex-start",
+            gap: collapsed ? "0" : "11px",
+            width: collapsed ? "44px" : "100%",
+            minHeight: "44px",
+            padding: collapsed ? "10px" : "10px 12px",
             borderRadius: "10px",
-            color: "rgba(255, 255, 255, 0.6)",
+            color: "rgba(255, 255, 255, 0.55)",
             backgroundColor: "transparent",
             border: "none",
             fontSize: "13.5px",
             fontWeight: 600,
             cursor: "pointer",
             textAlign: "left",
-            transition: "color 140ms ease, background-color 140ms ease",
+            transition: "color 160ms ease, background-color 160ms ease",
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#f87171")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255, 255, 255, 0.6)")}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "#f87171";
+            e.currentTarget.style.backgroundColor = "rgba(248, 113, 113, 0.08)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "rgba(255, 255, 255, 0.55)";
+            e.currentTarget.style.backgroundColor = "transparent";
+          }}
         >
-          <LogOut size={18} />
-          Logout
+          <LogOut size={18} style={{ flexShrink: 0 }} />
+          <span className="sidebar-label">Logout</span>
         </button>
       </div>
     </aside>

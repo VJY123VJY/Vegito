@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import require_delivery_partner, get_current_user, require_admin
+from app.dependencies import require_seller_or_delivery, get_current_user, require_admin
 from app.models.user import User
 from app.models.delivery_partner import DeliveryPartner
 from app.schemas.delivery_location import (
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/delivery", tags=["Delivery GPS Tracking"])
 )
 def submit_location(
     payload: DeliveryLocationCreate,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     """

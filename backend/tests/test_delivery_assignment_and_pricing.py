@@ -45,13 +45,13 @@ def test_distance_based_delivery_pricing_bands_and_over_limit(client: TestClient
     addr_tier2 = Address(user_id=cust_user.id, address_line1="Colony 1.5km", city="Solapur", state="MH", pincode="413002", latitude=Decimal("17.6900"), longitude=Decimal("75.9064"))
 
     # Address 3: ~3.9 km away (Tier 3: 3-5 km -> ₹40.00)
-    addr_tier3 = Address(user_id=cust_user.id, address_line1="Outer Ring 3.9km", city="Solapur", state="MH", pincode="413003", latitude=Decimal("17.6985"), longitude=Decimal("75.9064"))
+    addr_tier3 = Address(user_id=cust_user.id, address_line1="Outer Ring 3.9km", city="Solapur", state="MH", pincode="413003", latitude=Decimal("17.7156"), longitude=Decimal("75.9064"))
 
     # Address 4: ~5.5 km away (Tier 4: 5-6 km -> ₹50.00)
-    addr_tier4 = Address(user_id=cust_user.id, address_line1="Suburb 5.5km", city="Solapur", state="MH", pincode="413004", latitude=Decimal("17.7120"), longitude=Decimal("75.9064"))
+    addr_tier4 = Address(user_id=cust_user.id, address_line1="Suburb 5.5km", city="Solapur", state="MH", pincode="413004", latitude=Decimal("17.7300"), longitude=Decimal("75.9064"))
 
-    # Address 5: 12.0 km away (> 6 km -> BLOCKED)
-    addr_outside = Address(user_id=cust_user.id, address_line1="Highway Bypass 12km", city="Solapur", state="MH", pincode="413008", latitude=Decimal("17.8000"), longitude=Decimal("75.9064"))
+    # Address 5: 18.0 km away (> 15 km -> BLOCKED)
+    addr_outside = Address(user_id=cust_user.id, address_line1="Highway Bypass 18km", city="Solapur", state="MH", pincode="413008", latitude=Decimal("17.8500"), longitude=Decimal("75.9064"))
 
     db.add_all([addr_tier1, addr_tier2, addr_tier3, addr_tier4, addr_outside])
     db.commit()
@@ -73,10 +73,10 @@ def test_distance_based_delivery_pricing_bands_and_over_limit(client: TestClient
     assert 5.0 < dist4 <= 6.0
     assert fee4 == Decimal("50.00")
 
-    # Address outside 6 km must raise exception
+    # Address outside 15 km must raise exception
     with pytest.raises(Exception) as exc_info:
         DeliveryPricingService.calculate_delivery_distance_and_fee(db, addr_outside.id, seller_user.id)
-    assert "This address is outside our delivery range. Please select an address within 6 km." in str(exc_info.value)
+    assert "outside our 15 KM delivery area" in str(exc_info.value)
 
     # Test HTTP Endpoint GET /orders/delivery-fee
     cust_token = create_access_token({"sub": str(cust_user.id), "role": "CUSTOMER", "role_id": 1})
@@ -88,7 +88,7 @@ def test_distance_based_delivery_pricing_bands_and_over_limit(client: TestClient
 
     res_out = client.get(f"/api/v1/orders/delivery-fee?address_id={addr_outside.id}&seller_id={seller_user.id}", headers=headers)
     assert res_out.status_code == 400
-    assert "This address is outside our delivery range. Please select an address within 6 km." in res_out.json()["detail"]
+    assert "outside our 15 KM delivery area" in res_out.text
 
 
 def test_checkout_blocks_outside_area_and_accepts_valid_address(client: TestClient, db):
@@ -115,7 +115,7 @@ def test_checkout_blocks_outside_area_and_accepts_valid_address(client: TestClie
     db.add(sp)
 
     addr_valid = Address(user_id=cust_user.id, address_line1="Close Address 1.2km", city="Solapur", state="MH", pincode="413001", latitude=Decimal("17.6910"), longitude=Decimal("75.9064"))
-    addr_far = Address(user_id=cust_user.id, address_line1="Far Beyond 9km", city="Solapur", state="MH", pincode="413005", latitude=Decimal("17.7700"), longitude=Decimal("75.9064"))
+    addr_far = Address(user_id=cust_user.id, address_line1="Far Beyond 18km", city="Solapur", state="MH", pincode="413005", latitude=Decimal("17.8500"), longitude=Decimal("75.9064"))
     db.add_all([addr_valid, addr_far])
     db.commit()
 
@@ -126,14 +126,14 @@ def test_checkout_blocks_outside_area_and_accepts_valid_address(client: TestClie
     add_res = client.post("/api/v1/cart/items", json={"seller_product_id": sp.id, "quantity": 2}, headers=headers)
     assert add_res.status_code == 201
 
-    # Attempt Checkout with Far Address (> 7km) -> MUST FAIL with 400
+    # Attempt Checkout with Far Address (> 15km) -> MUST FAIL with 400
     bad_res = client.post(
         "/api/v1/orders",
         json={"address_id": addr_far.id, "payment_method": "COD"},
         headers=headers,
     )
     assert bad_res.status_code == 400
-    assert "This address is outside our delivery range. Please select an address within 6 km." in bad_res.json()["detail"]
+    assert "outside our 15 KM delivery area" in bad_res.text
 
     # Checkout with Valid Address (approx 1.2 km -> ₹30 fee) -> MUST SUCCEED
     ok_res = client.post(

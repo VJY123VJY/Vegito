@@ -24,12 +24,18 @@ class SellerProfileUpdate(BaseModel):
     description: Optional[str] = None
     address_id: Optional[int] = None
     gst_number: Optional[str] = Field(None, max_length=30)
+    is_available: Optional[bool] = None
+
+
+class SellerAvailabilityUpdate(BaseModel):
+    is_available: bool
 
 
 class SellerProfileRead(BaseSchema, SellerProfileBase):
     id: int
     user_id: int
     is_verified: bool
+    is_available: bool = True
     rating: Decimal
     total_orders: int
     created_at: datetime.datetime

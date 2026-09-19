@@ -13,6 +13,9 @@ import {
   CheckCircle,
   Plus,
   Sparkles,
+  Bell,
+  Volume2,
+  Power,
 } from "lucide-react";
 import {
   PieChart,
@@ -22,7 +25,7 @@ import {
   Tooltip as RechartsTooltip,
 } from "recharts";
 import { AddProductModal } from "./add-product-modal";
-import { getSellerProfile } from "@/lib/api/seller-products";
+import { getSellerProfile, setSellerAvailability } from "@/lib/api/seller-products";
 import { listSellerOrders, updateSellerOrder, getSellerRevenueAnalytics, getSellerProductAnalytics } from "@/lib/api/seller";
 import { listInventory } from "@/lib/api/inventory";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
@@ -32,17 +35,73 @@ import { RevenueChart } from "@/components/charts/revenue-chart";
 import { TopProducts } from "@/components/dashboard/top-products";
 import { InventoryAlert } from "@/components/dashboard/inventory-alert";
 import { getErrorMessage } from "@/lib/api/client";
+import { getStoredToken } from "@/lib/api/auth";
+import { subscribeToSellerDashboard, type SellerNewOrderPayload } from "@/lib/api/seller-socket";
+import { playNotificationSoundOnce, isAudioMuted, resumeAudioContext, playNotificationSound } from "@/lib/audio/chime";
 
 export function SellerDashboard() {
   const queryClient = useQueryClient();
   const [revenueRange, setRevenueRange] = useState("30d");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newOrderAlert, setNewOrderAlert] = useState<SellerNewOrderPayload | null>(null);
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const seenOrderIds = React.useRef(new Set<number>());
 
   // Seller profile (scoped to current seller)
   const profile = useQuery({
     queryKey: ["seller-profile"],
     queryFn: getSellerProfile,
   });
+
+  const isOnline = profile.data?.is_available !== false;
+
+  const toggleAvailabilityMutation = useMutation({
+    mutationFn: (newAvailable: boolean) => setSellerAvailability(newAvailable),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["seller-profile"], data);
+      queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
+    },
+  });
+
+  React.useEffect(() => {
+    const token = getStoredToken() || "";
+    if (!token) return;
+
+    const cleanup = subscribeToSellerDashboard(token, {
+      onNewOrder: async (notification) => {
+        if (seenOrderIds.current.has(notification.order_id)) return;
+        seenOrderIds.current.add(notification.order_id);
+
+        queryClient.invalidateQueries({ queryKey: ["seller-orders"] });
+        queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
+        setNewOrderAlert(notification);
+
+        const played = await playNotificationSoundOnce(
+          notification.event_id || `order-${notification.order_id}-NEW`
+        );
+        if (!played && !isAudioMuted()) {
+          setAudioBlocked(true);
+        } else {
+          setAudioBlocked(false);
+        }
+      },
+      onPendingOrders: () => {
+        queryClient.invalidateQueries({ queryKey: ["seller-orders"] });
+      },
+    });
+
+    return () => {
+      cleanup();
+    };
+  }, [queryClient]);
+
+  const handleEnableAudio = async () => {
+    const resumed = await resumeAudioContext();
+    if (resumed) {
+      setAudioBlocked(false);
+      await playNotificationSound();
+    }
+  };
 
   // Seller orders (scoped to current seller)
   const orders = useQuery({
@@ -164,6 +223,170 @@ export function SellerDashboard() {
           <Plus size={18} /> Add Vegetable Product
         </button>
       </div>
+
+      {/* Seller Availability Control Card */}
+      <div
+        style={{
+          backgroundColor: "#ffffff",
+          borderRadius: "16px",
+          border: isOnline ? "1.5px solid #bbf7d0" : "1.5px solid #fecaca",
+          padding: "16px 20px",
+          marginBottom: "20px",
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "16px",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <div
+            style={{
+              width: "14px",
+              height: "14px",
+              borderRadius: "50%",
+              backgroundColor: isOnline ? "#16a34a" : "#dc2626",
+              boxShadow: isOnline ? "0 0 0 4px rgba(22, 163, 74, 0.2)" : "0 0 0 4px rgba(220, 38, 38, 0.2)",
+            }}
+          />
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", color: "#62746a" }}>
+                Seller Availability
+              </span>
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 800,
+                  padding: "2px 10px",
+                  borderRadius: "999px",
+                  backgroundColor: isOnline ? "#f0fdf4" : "#fef2f2",
+                  color: isOnline ? "#15803d" : "#b91c1c",
+                  border: isOnline ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                }}
+              >
+                {isOnline ? "🟢 ONLINE" : "🔴 OFFLINE"}
+              </span>
+            </div>
+            <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#475569" }}>
+              {isOnline
+                ? "Your shop is open and accepting new customer orders in Solapur (within 15 KM)."
+                : "Your shop is offline. Customers cannot place new orders and will see you are unavailable."}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          disabled={toggleAvailabilityMutation.isPending}
+          onClick={() => toggleAvailabilityMutation.mutate(!isOnline)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "10px 18px",
+            borderRadius: "12px",
+            fontSize: "13.5px",
+            fontWeight: 800,
+            cursor: "pointer",
+            border: isOnline ? "1px solid #fca5a5" : "none",
+            backgroundColor: isOnline ? "#fff1f2" : "#15803d",
+            color: isOnline ? "#b91c1c" : "#ffffff",
+            boxShadow: isOnline ? "none" : "0 2px 8px rgba(21, 128, 61, 0.25)",
+            transition: "all 0.2s",
+          }}
+        >
+          <Power size={16} />
+          {toggleAvailabilityMutation.isPending
+            ? "Updating..."
+            : isOnline
+            ? "🔴 Switch to OFFLINE"
+            : "🟢 Switch to ONLINE"}
+        </button>
+      </div>
+
+      {/* New Order Realtime Notification Banner (~3s chime played) */}
+      {newOrderAlert && (
+        <div
+          style={{
+            backgroundColor: "#f0fdf4",
+            border: "2px solid #22c55e",
+            borderRadius: "16px",
+            padding: "16px 20px",
+            marginBottom: "20px",
+            boxShadow: "0 4px 12px rgba(34, 197, 94, 0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "12px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <Bell size={24} color="#15803d" />
+            <div>
+              <strong style={{ fontSize: "15px", color: "#14532d" }}>
+                🔔 New Order Received! #{newOrderAlert.order_number}
+              </strong>
+              <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#166534" }}>
+                Customer: <b>{newOrderAlert.customer_name}</b> • Total: ₹{Number(newOrderAlert.total_amount).toFixed(2)} • Area: {newOrderAlert.delivery_area}
+              </p>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              onClick={() => setNewOrderAlert(null)}
+              style={{
+                backgroundColor: "#ffffff",
+                border: "1px solid #86efac",
+                color: "#15803d",
+                padding: "6px 14px",
+                borderRadius: "8px",
+                fontSize: "12.5px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {audioBlocked && (
+        <div
+          style={{
+            backgroundColor: "#fffbeb",
+            border: "1px solid #fde68a",
+            borderRadius: "12px",
+            padding: "10px 16px",
+            marginBottom: "16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+          }}
+        >
+          <span style={{ fontSize: "13px", color: "#92400e" }}>
+            🔊 Browser blocked order alert ringtone. Click below to enable audio.
+          </span>
+          <button
+            onClick={handleEnableAudio}
+            style={{
+              backgroundColor: "#d97706",
+              color: "#ffffff",
+              border: "none",
+              padding: "6px 12px",
+              borderRadius: "8px",
+              fontSize: "12px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Enable Audio Chime
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards (Matching Seller Dashboard Mockup Screen 2) */}
       <div

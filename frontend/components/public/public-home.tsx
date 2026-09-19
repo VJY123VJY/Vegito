@@ -8,7 +8,7 @@ import {
   Search,
   ShoppingCart,
   Truck,
-  Shield,
+  ShieldCheck,
   Leaf,
   Store,
   Bike,
@@ -215,6 +215,75 @@ export function PublicHome() {
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       }}
     >
+      {/* ── MOBILE ANDROID WELCOME (PREMIUM REDESIGN) ─────────────────
+          A polished, native-feeling splash screen for the Android app. */}
+      <section className="mobile-welcome-screen" aria-labelledby="mobile-welcome-title">
+        <div className="mobile-welcome-top">
+          <div className="mobile-welcome-brand">
+            <div className="mobile-logo-group">
+              <Leaf className="mobile-logo-leaf" size={28} fill="currentColor" />
+              <span className="mobile-logo-text">Vegito</span>
+            </div>
+            <span className="mobile-tagline">Fresh Produce. Better Tomorrow.</span>
+          </div>
+
+          <div className="mobile-hero-container">
+            {/* Subtle background blobs */}
+            <div className="mobile-hero-blob" />
+            <img
+              src="https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=800&auto=format&fit=crop&q=80"
+              alt="Fresh vegetables in crate"
+              className="mobile-hero-img"
+            />
+          </div>
+
+          <div className="mobile-content-group">
+            <h1 id="mobile-welcome-title" className="mobile-title">
+              Your Freshness<br />Our Priority
+            </h1>
+            <p className="mobile-description">
+              Get fresh, quality vegetables and fruits delivered to your doorstep.
+            </p>
+          </div>
+
+          <div className="mobile-features-grid">
+            <div className="mobile-feature-item">
+              <div className="mobile-feature-icon">
+                <Leaf size={20} />
+              </div>
+              <span>Fresh &<br />Healthy</span>
+            </div>
+            <div className="mobile-feature-item">
+              <div className="mobile-feature-icon">
+                <Truck size={20} />
+              </div>
+              <span>Fast<br />Delivery</span>
+            </div>
+            <div className="mobile-feature-item">
+              <div className="mobile-feature-icon">
+                <ShieldCheck size={20} />
+              </div>
+              <span>Trusted<br />Quality</span>
+            </div>
+          </div>
+
+          <div className="mobile-progress-dots">
+            <span className="dot active" />
+            <span className="dot" />
+            <span className="dot" />
+          </div>
+        </div>
+
+        <div className="mobile-welcome-footer">
+          <Link className="mobile-cta-btn" href="/auth/login">
+            Get Started <ArrowRight size={18} />
+          </Link>
+          <p className="mobile-login-hint">
+            Already have an account? <Link href="/auth/login">Login</Link>
+          </p>
+        </div>
+      </section>
+
       {/* ── TOAST NOTIFICATION ──────────────────────────────────── */}
       {addedToast && (
         <div
@@ -1920,6 +1989,194 @@ export function PublicHome() {
 
       {/* Responsive adjustments */}
       <style>{`
+        .mobile-welcome-screen { display: none; }
+
+        @media (max-width: 640px) {
+          .mobile-welcome-screen {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            background: #ffffff;
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            padding: calc(env(safe-area-inset-top) + 20px) 24px calc(env(safe-area-inset-bottom) + 24px);
+            overflow-y: auto;
+          }
+
+          .mobile-welcome-top {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+
+          .mobile-welcome-brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 24px;
+          }
+
+          .mobile-logo-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #176b3a;
+          }
+
+          .mobile-logo-text {
+            font-size: 34px;
+            font-weight: 800;
+            letter-spacing: -1.5px;
+            font-family: "Plus Jakarta Sans", sans-serif;
+          }
+
+          .mobile-tagline {
+            font-size: 14px;
+            color: #62746a;
+            font-weight: 500;
+          }
+
+          .mobile-hero-container {
+            position: relative;
+            width: 100%;
+            max-width: 320px;
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+          }
+
+          .mobile-hero-img {
+            width: 100%;
+            height: auto;
+            object-fit: contain;
+            position: relative;
+            z-index: 2;
+          }
+
+          .mobile-hero-blob {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background: #e9f6ee;
+            border-radius: 50%;
+            filter: blur(40px);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1;
+          }
+
+          .mobile-content-group {
+            text-align: center;
+            margin-bottom: 24px;
+          }
+
+          .mobile-title {
+            font-size: 28px !important;
+            line-height: 1.1 !important;
+            font-weight: 800 !important;
+            color: #063c32;
+            margin-bottom: 12px;
+          }
+
+          .mobile-description {
+            font-size: 15px;
+            color: #62746a;
+            max-width: 280px;
+            line-height: 1.5;
+          }
+
+          .mobile-features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            width: 100%;
+            gap: 12px;
+            margin-bottom: 24px;
+          }
+
+          .mobile-feature-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 8px;
+          }
+
+          .mobile-feature-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #f0fdf4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #16a34a;
+            border: 1px solid #dcfce7;
+          }
+
+          .mobile-feature-item span {
+            font-size: 11px;
+            font-weight: 600;
+            color: #12221e;
+            line-height: 1.2;
+          }
+
+          .mobile-progress-dots {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+          }
+
+          .mobile-progress-dots .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e2e8f0;
+          }
+
+          .mobile-progress-dots .dot.active {
+            background: #16a34a;
+          }
+
+          .mobile-welcome-footer {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+          }
+
+          .mobile-cta-btn {
+            width: 100%;
+            height: 54px;
+            background: #176b3a;
+            color: #ffffff;
+            border-radius: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            text-decoration: none;
+            box-shadow: 0 10px 20px rgba(23, 107, 58, 0.2);
+          }
+
+          .mobile-login-hint {
+            font-size: 13px;
+            color: #62746a;
+            text-align: center;
+          }
+
+          .mobile-login-hint a {
+            color: #176b3a;
+            font-weight: 700;
+            text-decoration: none;
+          }
+        }
+
         @media (max-width: 1024px) {
           .home-hero-grid {
             grid-template-columns: 1fr !important;

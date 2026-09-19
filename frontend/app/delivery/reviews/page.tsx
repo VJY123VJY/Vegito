@@ -14,8 +14,7 @@ import {
   AlertCircle,
   RefreshCw,
 } from "lucide-react";
-import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { RoleGuard } from "@/components/role/role-guard";
 import { getDeliveryPartnerReviews } from "@/lib/api/reviews";
 import { getStoredUserName } from "@/lib/api/auth";
@@ -23,7 +22,6 @@ import { getErrorMessage } from "@/lib/api/client";
 
 export default function DeliveryReviewsPage() {
   const [partnerName, setPartnerName] = useState("Delivery Partner");
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     setPartnerName(getStoredUserName() || "Delivery Partner");
@@ -41,27 +39,14 @@ export default function DeliveryReviewsPage() {
 
   return (
     <RoleGuard allow={["DELIVERY_PARTNER", "ADMIN", "SUPER_ADMIN"]}>
-      <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "var(--vegito-bg, #f4f7f3)" }}>
-        {/* Sidebar */}
-        <DashboardSidebar
-          role="delivery"
-          isOpen={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-        />
-
-        {/* Main Area */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <DashboardHeader
-            role="delivery"
-            userName={partnerName}
-            userRole="Delivery Partner"
-            greeting={`Reviews & Ratings 🌟`}
-            subtitle="Customer feedback for your doorstep deliveries"
-            searchPlaceholder="Search reviews..."
-            onMenuToggle={() => setMobileOpen(!mobileOpen)}
-          />
-
-          <main style={{ flex: 1, padding: "24px 28px 48px", overflowY: "auto" }}>
+      <DashboardShell
+        role="delivery"
+        userName={partnerName}
+        userRole="Delivery Partner"
+        greeting="Reviews & Ratings 🌟"
+        subtitle="Customer feedback for your doorstep deliveries"
+        searchPlaceholder="Search reviews..."
+      >
             <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
               {/* Header Title & Rating Overview */}
               <div
@@ -356,9 +341,7 @@ export default function DeliveryReviewsPage() {
                 </div>
               )}
             </div>
-          </main>
-        </div>
-      </div>
+      </DashboardShell>
     </RoleGuard>
   );
 }

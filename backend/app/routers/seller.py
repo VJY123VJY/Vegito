@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import require_seller
 from app.models.user import User
-from app.schemas.seller import SellerProfileRead, SellerProfileUpdate
+from app.schemas.seller import SellerProfileRead, SellerProfileUpdate, SellerAvailabilityUpdate
 from app.schemas.common import APIResponse
 from app.services.seller_service import SellerService
 
@@ -26,6 +26,20 @@ def update_seller_profile(
 ):
     profile = SellerService.update_profile(db, current_user, payload)
     return APIResponse(message="Profile updated successfully", data=SellerProfileRead.model_validate(profile))
+
+
+@router.patch("/availability", response_model=APIResponse[SellerProfileRead], summary="Toggle seller availability (online/offline)")
+def set_seller_availability(
+    payload: SellerAvailabilityUpdate,
+    current_user: User = Depends(require_seller),
+    db: Session = Depends(get_db),
+):
+    profile = SellerService.set_availability(db, current_user, payload.is_available)
+    status_text = "online" if payload.is_available else "offline"
+    return APIResponse(
+        message=f"Seller is now {status_text}",
+        data=SellerProfileRead.model_validate(profile),
+    )
 
 
 @router.get("/analytics/revenue", summary="Seller revenue trends")

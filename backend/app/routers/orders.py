@@ -26,17 +26,56 @@ def get_delivery_fee(
     db: Session = Depends(get_db),
 ):
     from app.services.delivery_pricing_service import DeliveryPricingService
+    from app.models.seller_profile import SellerProfile
+
     fee, distance_km = DeliveryPricingService.calculate_delivery_distance_and_fee(
         db, address_id=address_id, seller_id=seller_id
     )
+
+    shop_prof = None
+    if seller_id:
+        shop_prof = db.query(SellerProfile).filter(SellerProfile.user_id == seller_id).first()
+    if not shop_prof:
+        shop_prof = db.query(SellerProfile).first()
+    seller_online = bool(shop_prof.is_available) if shop_prof else True
+
     return APIResponse(
         message="Delivery fee calculated",
         data={
             "address_id": address_id,
             "distance_km": distance_km,
             "delivery_fee": float(fee),
-            "max_allowed_km": float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 6.0)),
+            "max_allowed_km": float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 15.0)),
+            "seller_online": seller_online,
+            "is_deliverable": distance_km <= float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 15.0)),
         },
+    )
+
+
+@router.get(
+    "/seller-availability",
+    response_model=APIResponse[dict],
+    summary="Get current seller availability for customer checkout",
+)
+def get_seller_availability(
+    seller_id: Optional[int] = Query(None, description="Seller user ID (optional)"),
+    db: Session = Depends(get_db),
+):
+    from app.models.seller_profile import SellerProfile
+    shop_prof = None
+    if seller_id:
+        shop_prof = db.query(SellerProfile).filter(SellerProfile.user_id == seller_id).first()
+    if not shop_prof:
+        shop_prof = db.query(SellerProfile).first()
+    is_available = bool(shop_prof.is_available) if shop_prof else True
+    shop_name = shop_prof.business_name if shop_prof else "Vegito Shop"
+    return APIResponse(
+        data={
+            "seller_id": shop_prof.user_id if shop_prof else None,
+            "shop_name": shop_name,
+            "is_available": is_available,
+            "is_online": is_available,
+        }
     )
 
 

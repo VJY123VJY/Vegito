@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Vegito</string>
+    <string name="title_activity_main">Vegito</string>
+    <string name="package_name">com.vegito.app</string>
+    <string name="custom_url_scheme">com.vegito.app</string>
+</resources>

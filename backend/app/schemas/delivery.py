@@ -120,3 +120,7 @@ class DeliveryPartnerProfileUpdate(BaseModel):
     vehicle_number: Optional[str] = None
     is_available: Optional[bool] = None
 
+
+class DeliveryPartnerAvailabilityUpdate(BaseModel):
+    is_available: bool
+

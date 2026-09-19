@@ -1,16 +1,14 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, Search, Menu, ShoppingCart, LogOut } from "lucide-react";
+import { Bell, Search, Menu, X, PanelLeftClose, PanelLeft } from "lucide-react";
 import { clearSession } from "@/lib/api/auth";
 import { ThemeToggle } from "@/components/common/theme-toggle";
-import { LanguageSwitcher } from "@/components/common/language-switcher";
 import { useTranslation } from "@/context/i18n-context";
 
 interface DashboardHeaderProps {
-  role?: "customer" | "seller" | "delivery" | "admin";
+  role?: "customer" | "seller" | "delivery" | "admin" | "farmer";
   greeting?: string;
   subtitle?: string;
   userName?: string;
@@ -18,34 +16,22 @@ interface DashboardHeaderProps {
   searchPlaceholder?: string;
   cartItemCount?: number;
   onSearchChange?: (val: string) => void;
+  /** Mobile: toggle the drawer open/closed */
   onMenuToggle?: () => void;
+  /** Whether the mobile menu is currently open (for aria-label) */
+  mobileMenuOpen?: boolean;
+  /** Desktop: toggle sidebar collapsed/expanded */
+  onCollapseToggle?: () => void;
+  /** Whether the desktop sidebar is currently collapsed */
+  sidebarCollapsed?: boolean;
 }
 
 const ROLE_BADGES: Record<string, { label: string; bg: string; border: string; color: string }> = {
-  customer: {
-    label: "👤 Customer",
-    bg: "#ecfdf5",
-    border: "#a7f3d0",
-    color: "#065f46",
-  },
-  seller: {
-    label: "🏪 Seller",
-    bg: "#fff7ed",
-    border: "#fed7aa",
-    color: "#c2410c",
-  },
-  delivery: {
-    label: "🚚 Delivery",
-    bg: "#eff6ff",
-    border: "#bfdbfe",
-    color: "#1d4ed8",
-  },
-  admin: {
-    label: "🛡️ Admin",
-    bg: "#f5f3ff",
-    border: "#ddd6fe",
-    color: "#6d28d9",
-  },
+  customer: { label: "👤 Customer", bg: "#ecfdf5", border: "#a7f3d0", color: "#065f46" },
+  seller:   { label: "🏪 Seller",   bg: "#fff7ed", border: "#fed7aa", color: "#c2410c" },
+  delivery: { label: "🚚 Delivery", bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8" },
+  admin:    { label: "🛡️ Admin",    bg: "#f5f3ff", border: "#ddd6fe", color: "#6d28d9" },
+  farmer:   { label: "🌾 Farmer",   bg: "#fefce8", border: "#fde68a", color: "#92400e" },
 };
 
 export function DashboardHeader({
@@ -58,8 +44,10 @@ export function DashboardHeader({
   cartItemCount,
   onSearchChange,
   onMenuToggle,
+  mobileMenuOpen = false,
+  onCollapseToggle,
+  sidebarCollapsed = false,
 }: DashboardHeaderProps) {
-  const router = useRouter();
   const { t } = useTranslation();
   const initial = userName.trim().charAt(0).toUpperCase() || "V";
   const badge = role ? ROLE_BADGES[role] : null;
@@ -67,111 +55,172 @@ export function DashboardHeader({
   const defaultSearchPlaceholder =
     searchPlaceholder ||
     (role === "customer"
-      ? t("customer.searchVeg", "Search fresh vegetables, tomatoes, greens...")
+      ? t("customer.searchVeg", "Search vegetables, fruits...")
       : t("common.search", "Search") + "...");
-
-  const handleLogout = () => {
-    clearSession();
-    router.push("/auth/login");
-  };
 
   return (
     <header
       className="dashboard-header"
       style={{
-        height: "70px",
-        backgroundColor: "var(--vegito-card, #ffffff)",
-        borderBottom: "1px solid var(--vegito-border, #e1e8e2)",
+        height: "auto",
+        minHeight: "64px",
+        backgroundColor: "rgba(255, 255, 255, 0.97)",
+        backdropFilter: "blur(20px)",
+        borderBottom: "1px solid var(--vegito-border)",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 28px",
+        flexDirection: "column",
+        padding: "calc(var(--safe-top, 0px) + 10px) 16px 10px",
         position: "sticky",
         top: 0,
-        zIndex: 40,
-        gap: "16px",
-        color: "var(--vegito-text, #13221b)",
+        zIndex: 90,
+        gap: "10px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-        {onMenuToggle && (
-          <button
-            onClick={onMenuToggle}
-            aria-label="Toggle Navigation Menu"
-            style={{
-              background: "transparent",
-              border: "none",
-              padding: "6px",
-              cursor: "pointer",
-              color: "var(--vegito-text-main, #063c32)",
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            <Menu size={22} />
-          </button>
-        )}
+      {/* ── Top Row: Toggle + Title + Actions ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%" }}>
 
-        {/* Role Badge Pill from Mockup */}
-        {badge && (
-          <span
+        {/* Desktop: Collapse/Expand toggle */}
+        {onCollapseToggle && (
+          <button
+            onClick={onCollapseToggle}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="dashboard-desktop-toggle"
             style={{
-              display: "inline-flex",
+              display: "none", /* shown via CSS media query below */
               alignItems: "center",
-              gap: "6px",
-              padding: "5px 13px",
-              borderRadius: "999px",
-              backgroundColor: badge.bg,
-              border: `1.5px solid ${badge.border}`,
-              color: badge.color,
-              fontSize: "12.5px",
-              fontWeight: 800,
-              letterSpacing: "0.2px",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+              justifyContent: "center",
+              width: "44px",
+              height: "44px",
+              borderRadius: "12px",
+              background: "#f0f4f1",
+              border: "none",
+              color: "var(--vegito-primary)",
+              cursor: "pointer",
               flexShrink: 0,
             }}
           >
-            {badge.label}
-          </span>
+            {sidebarCollapsed ? <PanelLeft size={20} /> : <PanelLeftClose size={20} />}
+          </button>
         )}
 
-        {greeting && (
-          <div className="hidden sm:block">
-            <h1
-              style={{
-                margin: 0,
-                fontSize: "15px",
-                fontWeight: 800,
-                color: "var(--vegito-text-main, #063c32)",
-                lineHeight: 1.2,
-              }}
-            >
-              {greeting}
-            </h1>
-            {subtitle && (
-              <p style={{ margin: 0, fontSize: "11px", color: "var(--vegito-text-muted, #62746a)" }}>
-                {subtitle}
-              </p>
-            )}
-          </div>
+        {/* Mobile: Hamburger/Close toggle */}
+        {onMenuToggle && (
+          <button
+            onClick={onMenuToggle}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            className="dashboard-mobile-toggle"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "44px",
+              height: "44px",
+              borderRadius: "12px",
+              background: "#f0f4f1",
+              border: "none",
+              color: "var(--vegito-primary)",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
         )}
+
+        {/* Brand text */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "17px",
+              fontWeight: 800,
+              color: "var(--vegito-primary)",
+              lineHeight: 1.1,
+            }}
+          >
+            Vegito
+          </h2>
+          {badge && (
+            <span style={{ fontSize: "11px", fontWeight: 600, color: badge.color, opacity: 0.8 }}>
+              {badge.label.split(" ").slice(1).join(" ")}
+            </span>
+          )}
+        </div>
+
+        {/* Right Actions */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          <ThemeToggle />
+
+          {/* Notification bell */}
+          <button
+            aria-label="Notifications"
+            style={{
+              position: "relative",
+              width: "44px",
+              height: "44px",
+              borderRadius: "12px",
+              border: "1.5px solid var(--vegito-border)",
+              background: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: "#6b7280",
+            }}
+          >
+            <Bell size={18} />
+            <span
+              style={{
+                position: "absolute",
+                top: "9px",
+                right: "9px",
+                width: "7px",
+                height: "7px",
+                borderRadius: "50%",
+                background: "#ef4444",
+                border: "1.5px solid #fff",
+              }}
+            />
+          </button>
+
+          {/* Avatar */}
+          <div
+            style={{
+              width: "38px",
+              height: "38px",
+              borderRadius: "12px",
+              backgroundColor: "var(--vegito-primary)",
+              color: "#ffffff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 800,
+              fontSize: "14px",
+              flexShrink: 0,
+              boxShadow: "0 4px 10px rgba(10, 77, 60, 0.2)",
+            }}
+          >
+            {initial}
+          </div>
+        </div>
       </div>
 
-      {/* Center search bar */}
+      {/* ── Search Bar ── */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: "10px",
-          flex: 1,
-          maxWidth: "460px",
-          backgroundColor: "var(--vegito-bg, #f4f7f3)",
-          border: "1px solid var(--vegito-border, #e1e8e2)",
-          borderRadius: "12px",
-          padding: "8px 14px",
+          backgroundColor: "#f1f5f2",
+          borderRadius: "14px",
+          padding: "10px 16px",
+          width: "100%",
+          boxSizing: "border-box",
         }}
       >
-        <Search size={16} color="var(--vegito-muted, #62746a)" />
+        <Search size={16} color="#62746a" style={{ flexShrink: 0 }} />
         <input
           type="text"
           placeholder={defaultSearchPlaceholder}
@@ -180,157 +229,25 @@ export function DashboardHeader({
             border: "none",
             outline: "none",
             background: "transparent",
-            fontSize: "13px",
-            color: "var(--vegito-text, #13221b)",
+            fontSize: "14px",
+            color: "var(--vegito-text-main)",
             width: "100%",
+            fontWeight: 500,
           }}
         />
       </div>
 
-      {/* Right controls */}
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-        {/* Language Selector */}
-        <LanguageSwitcher />
-
-        {/* Theme Toggle (☀️ Light / 🌙 Dark) */}
-        <ThemeToggle />
-
-        {/* Cart Icon (if customer) */}
-        {cartItemCount !== undefined && (
-          <Link
-            href="/customer/cart"
-            aria-label="Shopping Cart"
-            style={{
-              position: "relative",
-              width: "36px",
-              height: "36px",
-              borderRadius: "50%",
-              border: "1px solid var(--vegito-border, #e1e8e2)",
-              background: "var(--vegito-surface, #ffffff)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              color: "var(--vegito-text, #063c32)",
-              textDecoration: "none",
-            }}
-          >
-            <ShoppingCart size={17} />
-            {cartItemCount > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: "-4px",
-                  right: "-4px",
-                  minWidth: "18px",
-                  height: "18px",
-                  borderRadius: "9px",
-                  backgroundColor: "var(--vegito-primary, #16835b)",
-                  color: "#ffffff",
-                  fontSize: "11px",
-                  fontWeight: 800,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "0 4px",
-                  border: "2px solid var(--vegito-card, #ffffff)",
-                }}
-              >
-                {cartItemCount}
-              </span>
-            )}
-          </Link>
-        )}
-
-        {/* Notification Bell */}
-        <button
-          aria-label="Notifications"
-          style={{
-            position: "relative",
-            width: "36px",
-            height: "36px",
-            borderRadius: "50%",
-            border: "1px solid var(--vegito-border, #e1e8e2)",
-            background: "var(--vegito-surface, #ffffff)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            color: "var(--vegito-text, #063c32)",
-          }}
-        >
-          <Bell size={17} />
-          <span
-            style={{
-              position: "absolute",
-              top: "7px",
-              right: "7px",
-              width: "7px",
-              height: "7px",
-              borderRadius: "50%",
-              backgroundColor: "var(--vegito-primary, #16835b)",
-              border: "1.5px solid var(--vegito-card, #ffffff)",
-            }}
-          />
-        </button>
-
-        {/* Profile */}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div
-            style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "12px",
-              backgroundColor: "var(--vegito-primary, #063c32)",
-              color: "#ffffff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 800,
-              fontSize: "14px",
-            }}
-          >
-            {initial}
-          </div>
-          <div className="hidden md:block" style={{ lineHeight: 1.25 }}>
-            <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "var(--vegito-text, #13221b)" }}>
-              {userName}
-            </p>
-            <p style={{ margin: 0, fontSize: "11px", color: "var(--vegito-muted, #62746a)", fontWeight: 500 }}>
-              {userRole}
-            </p>
-          </div>
-
-          <button
-            onClick={handleLogout}
-            title={t("auth.logout", "Log Out")}
-            aria-label={t("auth.logout", "Log Out")}
-            style={{
-              padding: "7px",
-              borderRadius: "8px",
-              border: "1px solid var(--vegito-border, #e2e8f0)",
-              background: "var(--vegito-surface, #ffffff)",
-              color: "var(--vegito-muted, #64748b)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginLeft: "4px",
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = "#dc2626";
-              e.currentTarget.style.borderColor = "#fca5a5";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = "var(--vegito-muted, #64748b)";
-              e.currentTarget.style.borderColor = "var(--vegito-border, #e2e8f0)";
-            }}
-          >
-            <LogOut size={16} />
-          </button>
-        </div>
-      </div>
+      {/* Inline styles for responsive toggle visibility */}
+      <style>{`
+        @media (min-width: 1024px) {
+          .dashboard-desktop-toggle { display: flex !important; }
+          .dashboard-mobile-toggle  { display: none  !important; }
+        }
+        @media (max-width: 1023px) {
+          .dashboard-desktop-toggle { display: none  !important; }
+          .dashboard-mobile-toggle  { display: flex  !important; }
+        }
+      `}</style>
     </header>
   );
 }

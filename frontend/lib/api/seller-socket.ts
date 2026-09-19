@@ -35,7 +35,9 @@ export function subscribeToSellerDashboard(
     return () => {};
   }
 
-  const rawBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+  // Use the platform-aware URL (LAN IP on Android, web URL on browser)
+  const { getApiBaseUrl } = require("./client");
+  const rawBase = getApiBaseUrl() as string;
   const wsBase = rawBase.replace(/^http/, "ws").replace(/\/api\/v1\/?$/, "");
   const wsUrl = `${wsBase}/ws/seller-dashboard?token=${encodeURIComponent(token)}`;
 

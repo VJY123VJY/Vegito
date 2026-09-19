@@ -236,7 +236,7 @@ async def delivery_partner_ws(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        # 2. Check role (Delivery Partner, Admin, or Seller acting as delivery)
+        # 2. Check role (Delivery Partner, Admin, or the order's Seller acting as delivery)
         is_admin = current_user.role_id in [4, 5]
         partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == current_user.id).first()
 
@@ -247,9 +247,28 @@ async def delivery_partner_ws(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
+        if order.status != OrderStatus.OUT_FOR_DELIVERY.value:
+            await websocket.send_text(json.dumps({"error": "GPS sharing is only allowed while the order is out for delivery"}))
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
         # 4. Check order assignment
         if not is_admin:
+            is_v1_seller = current_user.role_id == 2 and order.seller_id == current_user.id
+            if is_v1_seller and not partner:
+                # The V1 seller may share their own GPS, never another user's.
+                partner = DeliveryPartner(user_id=current_user.id, is_available=True)
+                db.add(partner)
+                db.flush()
+            if not is_v1_seller and not partner:
+                await websocket.send_text(json.dumps({"error": "Forbidden: Delivery partner access required"}))
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
             if order.delivery_partner_id and partner and order.delivery_partner_id != partner.id:
+                await websocket.send_text(json.dumps({"error": "Forbidden: Not assigned to this order"}))
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+            if not is_v1_seller and (not partner or order.delivery_partner_id != partner.id):
                 await websocket.send_text(json.dumps({"error": "Forbidden: Not assigned to this order"}))
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                 return
@@ -386,17 +405,15 @@ async def customer_tracking_ws(
         if cached_location:
             await websocket.send_text(json.dumps(cached_location))
         else:
-            # Send shop coordinates or city center as starting point
-            initial_lat = float(order.delivery_latitude) if order.delivery_latitude else 17.6805
-            initial_lng = float(order.delivery_longitude) if order.delivery_longitude else 75.9064
+            # Never substitute the customer's address (or a city default) for
+            # the courier's GPS.  Doing so made the customer marker appear live
+            # before the seller had granted location permission.
             await websocket.send_text(json.dumps({
                 "type": "initial_state",
                 "order_id": order_id,
                 "status": order.status,
-                "latitude": initial_lat,
-                "longitude": initial_lng,
                 "partner_name": order.delivery_partner.user.name if (order.delivery_partner and order.delivery_partner.user) else None,
-                "message": "Waiting for delivery partner GPS update...",
+                "message": "Live location temporarily unavailable.",
                 "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
             }))
 
@@ -613,4 +630,3 @@ async def seller_dashboard_notifications_ws(
             GENERAL_SELLER_SUBSCRIBERS.remove(websocket)
         if should_close:
             db.close()
-

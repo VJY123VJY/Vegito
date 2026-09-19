@@ -30,8 +30,7 @@ import { listOrders, getOrder, reorder, Order } from "@/lib/api/orders";
 import { getProducts, ApiProduct } from "@/lib/api/products";
 import { listFavorites, addFavorite, removeFavorite } from "@/lib/api/favorites";
 import { getStoredUserName } from "@/lib/api/auth";
-import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { CustomerLocationMap } from "@/components/map/customer-location-map";
@@ -70,7 +69,6 @@ const ACTIVE_STATUSES = ["PENDING", "NEW", "ACCEPTED", "CONFIRMED", "PACKING", "
 export function CustomerHome() {
   const queryClient = useQueryClient();
   const [userName, setUserName] = useState("Customer");
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -215,15 +213,23 @@ export function CustomerHome() {
 
   return (
     <RoleGuard allow={["CUSTOMER"]}>
-      <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "var(--vegito-bg, #f4f7f3)" }}>
-        {/* Feedback Toast */}
+      <DashboardShell
+        role="customer"
+        userName={userName}
+        userRole="Customer"
+        greeting={getTimeGreeting(userName)}
+        subtitle="Fresh vegetables, straight from Solapur farms"
+        searchPlaceholder="Search fresh vegetables, tomatoes, greens..."
+        onSearchChange={(q) => setSearchQuery(q)}
+      >
+        {/* Feedback Toast — position:fixed, overlays everything */}
         {feedbackToast && (
           <div
             style={{
               position: "fixed",
               bottom: "84px",
               right: "24px",
-              zIndex: 100,
+              zIndex: 500,
               backgroundColor: feedbackToast.type === "success" ? "#063c32" : "#dc2626",
               color: "#ffffff",
               padding: "12px 20px",
@@ -254,30 +260,7 @@ export function CustomerHome() {
           </div>
         )}
 
-        {/* Sidebar */}
-        <DashboardSidebar
-          role="customer"
-          isOpen={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-        />
-
-        {/* Main Content Column */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          {/* Top Header */}
-          <DashboardHeader
-            role="customer"
-            userName={userName}
-            userRole="Customer"
-            greeting={getTimeGreeting(userName)}
-            subtitle="Fresh vegetables, straight from Solapur farms"
-            searchPlaceholder="Search fresh vegetables, tomatoes, greens..."
-            cartItemCount={cartItemCount}
-            onSearchChange={(q) => setSearchQuery(q)}
-            onMenuToggle={() => setMobileOpen(!mobileOpen)}
-          />
-
-          <main style={{ flex: 1, padding: "24px 28px 100px", overflowY: "auto" }}>
-            {/* Delivery Address Selector */}
+        {/* Delivery Address Selector */}
             <AddressSelector
               selectedAddressId={selectedAddressId}
               onSelectAddress={(addr) => setSelectedAddressId(addr.id)}
@@ -1442,7 +1425,7 @@ export function CustomerHome() {
             }
           }
         `}</style>
-      </div>
+      </DashboardShell>
     </RoleGuard>
   );
 }

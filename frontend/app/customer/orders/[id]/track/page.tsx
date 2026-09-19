@@ -93,23 +93,15 @@ export default function CustomerOrderTrackPage() {
   const isPickedUp = order.status === "PICKED_UP";
 
   // Coordinates
-  const shopCoords: LatLng = {
-    lat: order.shop_latitude ? Number(order.shop_latitude) : 17.6805,
-    lng: order.shop_longitude ? Number(order.shop_longitude) : 75.9064,
-  };
+  const shopCoords: LatLng | null = order.shop_latitude != null && order.shop_longitude != null
+    ? { lat: Number(order.shop_latitude), lng: Number(order.shop_longitude) }
+    : null;
 
-  const customerCoords: LatLng = {
-    lat: order.customer_latitude
-      ? Number(order.customer_latitude)
-      : order.delivery_latitude
-      ? Number(order.delivery_latitude)
-      : 17.686,
-    lng: order.customer_longitude
-      ? Number(order.customer_longitude)
-      : order.delivery_longitude
-      ? Number(order.delivery_longitude)
-      : 75.912,
-  };
+  const customerCoords: LatLng | null = order.customer_latitude != null && order.customer_longitude != null
+    ? { lat: Number(order.customer_latitude), lng: Number(order.customer_longitude) }
+    : order.delivery_latitude != null && order.delivery_longitude != null
+    ? { lat: Number(order.delivery_latitude), lng: Number(order.delivery_longitude) }
+    : null;
 
   const partnerName = order.delivery_partner_name || "Delivery Partner";
   const shopName = order.shop_name || "Vegito Fresh Farm";

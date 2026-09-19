@@ -72,18 +72,18 @@ class DeliveryPricingService:
         shop_lat, shop_lng = DeliveryPricingService.get_seller_shop_coordinates(db, seller_id)
         distance_km, is_mapbox = MapboxService.get_route_distance_km(shop_lat, shop_lng, cust_lat, cust_lng)
 
-        max_radius = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 6.0))
+        max_radius = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 15.0))
         if distance_km > max_radius:
             logger.warning(
                 f"[DELIVERY_PRICING] Distance {distance_km} km exceeds maximum limit of {max_radius} km. Checkout blocked."
             )
             raise BadRequestException(
-                message="This address is outside our delivery range. Please select an address within 6 km.",
+                message="Sorry, this delivery address is outside our 15 KM delivery area.",
                 code="DELIVERY_OUT_OF_RANGE",
                 details={
                     "distance": distance_km,
                     "max_distance": max_radius,
-                    "message": "This address is outside our delivery range. Please select an address within 6 km.",
+                    "message": "Sorry, this delivery address is outside our 15 KM delivery area.",
                 },
             )
 
@@ -95,7 +95,7 @@ class DeliveryPricingService:
         elif distance_km <= 5.0:
             fee = getattr(settings, "DELIVERY_FEE_3_TO_5_KM", 40.0)
         else:
-            fee = getattr(settings, "DELIVERY_FEE_5_TO_6_KM", getattr(settings, "DELIVERY_FEE_5_TO_7_KM", 50.0))
+            fee = getattr(settings, "DELIVERY_FEE_5_TO_15_KM", getattr(settings, "DELIVERY_FEE_5_TO_6_KM", 50.0))
 
         delivery_charge = Decimal(str(fee)).quantize(Decimal("0.01"))
         logger.info(

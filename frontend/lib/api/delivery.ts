@@ -104,6 +104,11 @@ export async function updateDeliveryProfile(payload: {
   return data.data;
 }
 
+export async function setDeliveryAvailability(is_available: boolean): Promise<DeliveryProfileData> {
+  const { data } = await api.patch<ApiEnvelope<DeliveryProfileData>>("/delivery/availability", { is_available });
+  return data.data;
+}
+
 
 export async function getPartnerLocationHistory(partnerId?: number, limit = 50) {
   const { data } = await api.get<ApiEnvelope<any[]>>("/delivery/location/history", {

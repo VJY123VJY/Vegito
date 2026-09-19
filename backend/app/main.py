@@ -72,7 +72,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
+    # Capacitor WebViews may use capacitor://localhost (older/native schemes),
+    # while the current Android scheme is https://localhost. Keep both local
+    # origins narrowly scoped; production origins remain controlled by CORS_ORIGINS.
+    allow_origin_regex=r"^(?:https?|capacitor)://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -84,7 +87,8 @@ app.add_middleware(
 register_error_handlers(app)
 
 # ---------------------------------------------------------------------------
-# Health routes (no prefix — root level)
+# Health routes are available both at the legacy root URL and under the public
+# API prefix used by mobile clients and deployment health checks.
 # ---------------------------------------------------------------------------
 app.include_router(health_router)
 
@@ -93,6 +97,7 @@ app.include_router(health_router)
 # ---------------------------------------------------------------------------
 API_PREFIX = settings.API_V1_STR
 
+app.include_router(health_router, prefix=API_PREFIX)
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(customers_router, prefix=API_PREFIX)
 app.include_router(addresses_router, prefix=API_PREFIX)
@@ -120,4 +125,3 @@ app.include_router(admin_sellers_router, prefix=API_PREFIX)
 app.include_router(admin_delivery_router, prefix=API_PREFIX)
 app.include_router(websocket_tracking_router)
 app.include_router(websocket_tracking_router, prefix=API_PREFIX)
-

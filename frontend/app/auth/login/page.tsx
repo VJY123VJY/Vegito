@@ -175,7 +175,9 @@ function LoginContent() {
 
     setLoading(true);
     try {
+      console.log("[VEGITO AUTH] Sending OTP request for:", cleanPhone);
       const res = await sendLoginOtp(cleanPhone);
+      console.log("[VEGITO AUTH] OTP response received");
       setOtpStage("otp");
       setResendTimer(30);
       if (res.dev_otp) {
@@ -185,6 +187,7 @@ function LoginContent() {
         setInfoMsg("OTP sent successfully to your mobile number.");
       }
     } catch (err) {
+      console.error("[VEGITO AUTH] Error in sendLoginOtp:", err);
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
@@ -203,7 +206,9 @@ function LoginContent() {
 
     setLoading(true);
     try {
+      console.log("[VEGITO AUTH] Verifying OTP:", cleanOtp);
       const tokenRes = await verifyLoginOtp(phone.replace(/\D/g, ""), cleanOtp);
+      console.log("[VEGITO AUTH] OTP verification success. Role:", tokenRes.role);
       // Verify role match
       if (
         meta.authRole !== "SUPER_ADMIN" &&

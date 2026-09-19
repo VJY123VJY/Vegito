@@ -10,6 +10,8 @@ import {
   startDeliveryOrder,
   verifyPickupOtp,
   subscribeToDeliveryDashboard,
+  getDeliveryProfile,
+  setDeliveryAvailability,
   type DeliveryTask,
   type DeliveryPackedPayload,
 } from "@/lib/api/delivery";
@@ -24,8 +26,7 @@ import {
   toggleAudioMute,
   resumeAudioContext,
 } from "@/lib/audio/chime";
-import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { MapboxTrackingMap, type LatLng } from "@/components/map/mapbox-tracking-map";
@@ -48,18 +49,35 @@ import {
   ShieldCheck,
   Check,
   Star,
+  Power,
 } from "lucide-react";
 import { getDeliveryPartnerReviews } from "@/lib/api/reviews";
 
 export default function DeliveryDashboardPage() {
   const client = useQueryClient();
   const [partnerName, setPartnerName] = useState("Delivery Partner");
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [currentGps, setCurrentGps] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [wsStreaming, setWsStreaming] = useState(false);
   const [otp, setOtp] = useState<Record<number, string>>({});
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+
+  // Delivery Partner Profile & Availability Query
+  const profileQuery = useQuery({
+    queryKey: ["delivery-profile"],
+    queryFn: getDeliveryProfile,
+  });
+
+  const isOnline = profileQuery.data?.is_available !== false;
+
+  const toggleAvailabilityMutation = useMutation({
+    mutationFn: (newAvailable: boolean) => setDeliveryAvailability(newAvailable),
+    onSuccess: (data) => {
+      client.setQueryData(["delivery-profile"], data);
+      client.invalidateQueries({ queryKey: ["delivery-profile"] });
+      client.invalidateQueries({ queryKey: ["delivery-tasks"] });
+    },
+  });
 
   // New states for real-time Order Packed OTP & Ringtone
   const [pickupNotification, setPickupNotification] = useState<DeliveryPackedPayload | null>(null);
@@ -253,27 +271,14 @@ export default function DeliveryDashboardPage() {
 
   return (
     <RoleGuard allow={["DELIVERY_PARTNER", "ADMIN", "SUPER_ADMIN"]}>
-      <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "var(--vegito-bg, #f4f7f3)" }}>
-        {/* Sidebar */}
-        <DashboardSidebar
-          role="delivery"
-          isOpen={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-        />
-
-        {/* Main Area */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <DashboardHeader
-            role="delivery"
-            userName={partnerName}
-            userRole="Delivery Partner"
-            greeting={`Hello, ${partnerName}! 🚴`}
-            subtitle="Live GPS Tracking & Doorstep Dispatch Fleet"
-            searchPlaceholder="Search assigned deliveries..."
-            onMenuToggle={() => setMobileOpen(!mobileOpen)}
-          />
-
-          <main style={{ flex: 1, padding: "24px 28px 48px", overflowY: "auto" }}>
+      <DashboardShell
+        role="delivery"
+        userName={partnerName}
+        userRole="Delivery Partner"
+        greeting={`Hello, ${partnerName}! 🚴`}
+        subtitle="Live GPS Tracking & Doorstep Dispatch Fleet"
+        searchPlaceholder="Search assigned deliveries..."
+      >
             {/* Header Greeting */}
             <div style={{ marginBottom: "20px" }}>
               <h2 style={{ margin: "0 0 4px", fontSize: "22px", fontWeight: 800, color: "#1e3a8a" }}>
@@ -282,6 +287,87 @@ export default function DeliveryDashboardPage() {
               <p style={{ margin: 0, fontSize: "13.5px", color: "#62746a" }}>
                 Accept dispatches, navigate driving routes with Mapbox, and complete with doorstep OTP.
               </p>
+            </div>
+
+            {/* Delivery Partner Availability Card */}
+            <div
+              style={{
+                backgroundColor: "#ffffff",
+                borderRadius: "16px",
+                border: isOnline ? "1.5px solid #bbf7d0" : "1.5px solid #fecaca",
+                padding: "16px 20px",
+                marginBottom: "20px",
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "16px",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                <div
+                  style={{
+                    width: "14px",
+                    height: "14px",
+                    borderRadius: "50%",
+                    backgroundColor: isOnline ? "#16a34a" : "#dc2626",
+                    boxShadow: isOnline ? "0 0 0 4px rgba(22, 163, 74, 0.2)" : "0 0 0 4px rgba(220, 38, 38, 0.2)",
+                  }}
+                />
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", color: "#62746a" }}>
+                      Delivery Availability
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 800,
+                        padding: "2px 10px",
+                        borderRadius: "999px",
+                        backgroundColor: isOnline ? "#f0fdf4" : "#fef2f2",
+                        color: isOnline ? "#15803d" : "#b91c1c",
+                        border: isOnline ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                      }}
+                    >
+                      {isOnline ? "🟢 ONLINE" : "🔴 OFFLINE"}
+                    </span>
+                  </div>
+                  <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#475569" }}>
+                    {isOnline
+                      ? "You are active and available for new delivery task dispatches in Solapur."
+                      : "You are currently offline. New delivery tasks will not be assigned to you until you go online."}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={toggleAvailabilityMutation.isPending}
+                onClick={() => toggleAvailabilityMutation.mutate(!isOnline)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "10px 18px",
+                  borderRadius: "12px",
+                  fontSize: "13.5px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  border: isOnline ? "1px solid #fca5a5" : "none",
+                  backgroundColor: isOnline ? "#fff1f2" : "#15803d",
+                  color: isOnline ? "#b91c1c" : "#ffffff",
+                  boxShadow: isOnline ? "none" : "0 2px 8px rgba(21, 128, 61, 0.25)",
+                  transition: "all 0.2s",
+                }}
+              >
+                <Power size={16} />
+                {toggleAvailabilityMutation.isPending
+                  ? "Updating..."
+                  : isOnline
+                  ? "🔴 Switch to OFFLINE"
+                  : "🟢 Switch to ONLINE"}
+              </button>
             </div>
 
             {/* GPS Alert if Permission Denied */}
@@ -1138,9 +1224,7 @@ export default function DeliveryDashboardPage() {
                 </p>
               )}
             </div>
-          </main>
-        </div>
-      </div>
+      </DashboardShell>
     </RoleGuard>
   );
 }

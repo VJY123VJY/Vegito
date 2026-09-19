@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listDeliveryTasks, updateDeliveryTask, completeDelivery } from "@/lib/api/delivery";
-import { startLocationTracking } from "@/lib/api/location";
+import { watchDeliveryBoyGps } from "@/lib/api/location";
+import { getStoredToken } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/client";
 import dynamic from "next/dynamic";
 import { Phone, MapPin, Navigation, CheckCircle2, AlertTriangle, Truck } from "lucide-react";
@@ -43,9 +44,15 @@ function ActiveDeliveryCard({ task }: { task: DeliveryTask }) {
   useEffect(() => {
     if (task.status !== "STARTED") return;
     setGpsActive(true);
-    const stop = startLocationTracking(
-      task.id,
-      (coords) => setGpsPos({ lat: coords.latitude, lng: coords.longitude }),
+    const token = getStoredToken();
+    if (!token) {
+      setGpsError("Sign in again to share live location.");
+      return;
+    }
+    const stop = watchDeliveryBoyGps(
+      task.order_id,
+      token,
+      (coords) => setGpsPos({ lat: coords.lat, lng: coords.lng }),
       () => setGpsError("GPS unavailable — check location permissions"),
     );
     return stop;

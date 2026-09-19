@@ -1,85 +1,110 @@
 
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;700&display=swap");
 @import url("../styles/dashboard.css");
 
 /* =========================================================
-   VEGITO 2.0 — GLOBAL DESIGN SYSTEM
-   Fresh Produce Marketplace
+   VEGITO PREMIUM DESIGN SYSTEM
    ========================================================= */
 
 :root {
-  /* Brand */
-  --vegito-primary: #123c35;
-  --vegito-primary-dark: #082b28;
-  --vegito-primary-deep: #061f1d;
-  --vegito-primary-soft: #dcebe5;
-
+  /* Brand - Natural & Premium */
+  --vegito-primary: #0a4d3c;
+  --vegito-primary-dark: #063c32;
+  --vegito-primary-light: #16835b;
   --vegito-accent: #e2724f;
-  --vegito-accent-dark: #c95738;
-  --vegito-accent-soft: #f8ddd3;
 
-  /* Background */
-  --vegito-background: #f5f2ea;
-  --vegito-background-soft: #eeebe2;
-  --vegito-surface: #fffefa;
-  --vegito-surface-muted: #f8f7f2;
+  /* Neutral scale */
+  --vegito-bg: #f8faf7;
+  --vegito-surface: #ffffff;
+  --vegito-border: #e8eee9;
+  --vegito-text-main: #12221e;
+  --vegito-text-muted: #62746a;
 
-  /* Text */
-  --vegito-text: #142e2b;
-  --vegito-text-soft: #35514b;
-  --vegito-muted: #6b7771;
-  --vegito-placeholder: #98a19c;
-
-  /* Status */
-  --vegito-success: #3d7d53;
-  --vegito-success-soft: #e0efe3;
-
-  --vegito-warning: #ca862c;
-  --vegito-warning-soft: #f7ecd5;
-
-  --vegito-error: #b94a40;
-  --vegito-error-soft: #f7dfdc;
-
-  --vegito-info: #477b9c;
-  --vegito-info-soft: #dfeef5;
-
-  /* Borders */
-  --vegito-border: #d9ded7;
-  --vegito-border-dark: #c5cdc5;
-
-  /* Radius */
-  --radius-xs: 6px;
-  --radius-sm: 10px;
-  --radius-md: 15px;
-  --radius-lg: 22px;
-  --radius-xl: 30px;
-  --radius-pill: 999px;
+  /* Elevation */
+  --shadow-premium: 0 8px 30px rgba(10, 77, 60, 0.04), 0 4px 12px rgba(0, 0, 0, 0.02);
+  --shadow-active: 0 12px 40px rgba(10, 77, 60, 0.08);
 
   /* Spacing */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
-  --space-16: 64px;
+  --space-unit: 4px;
+  --radius-premium: 20px;
+}
 
-  /* Shadows */
-  --shadow-xs: 0 2px 8px rgba(18, 60, 53, 0.05);
-  --shadow-sm: 0 7px 20px rgba(18, 60, 53, 0.07);
-  --shadow-md: 0 15px 35px rgba(18, 60, 53, 0.10);
-  --shadow-lg: 0 25px 70px rgba(18, 60, 53, 0.14);
+html,
+body {
+  font-family: "Plus Jakarta Sans", "Inter", sans-serif;
+  background-color: var(--vegito-bg);
+  color: var(--vegito-text-main);
+  overflow-x: hidden;
+  height: auto;
+  min-height: 100%;
+  -webkit-overflow-scrolling: touch;
+}
 
-  /* Animation */
-  --transition-fast: 140ms ease;
-  --transition: 220ms ease;
-  --transition-slow: 360ms ease;
+/* Premium Typography Scale */
+h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+h3 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+p { font-size: 15px; line-height: 1.6; }
 
-  /* Layout */
-  --container: 1200px;
+button, input, select, textarea { font-family: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+
+/* Premium Component Classes */
+.vegito-card {
+  background: var(--vegito-surface);
+  border-radius: var(--radius-premium);
+  border: 1px solid var(--vegito-border);
+  box-shadow: var(--shadow-premium);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.vegito-button-primary {
+  background: var(--vegito-primary);
+  color: white;
+  height: 52px;
+  border-radius: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  box-shadow: 0 10px 20px rgba(10, 77, 60, 0.15);
+}
+
+.vegito-input {
+  background: #ffffff;
+  border: 1.5px solid var(--vegito-border);
+  border-radius: 14px;
+  height: 52px;
+  padding: 0 18px;
+  font-size: 16px;
+  transition: border-color 0.2s ease;
+}
+.vegito-input:focus {
+  border-color: var(--vegito-primary-light);
+  outline: none;
+}
+
+/* Capacitor / Android Specific Polish */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (max-width: 768px) {
+  .customer-header {
+    padding: calc(16px + var(--safe-top)) 20px 16px;
+    background: rgba(248, 250, 247, 0.9);
+    backdrop-filter: blur(20px);
+  }
+
+  .bottom-nav {
+    height: calc(72px + var(--safe-bottom));
+    padding-bottom: var(--safe-bottom);
+    background: rgba(255, 255, 255, 0.95);
+    border-top: 1px solid var(--vegito-border);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.03);
+  }
 }
 
 /* =========================================================
@@ -159,16 +184,19 @@
   box-sizing: border-box;
 }
 
-html {
+html,
+body {
   min-height: 100%;
   background: var(--vegito-background);
   scroll-behavior: smooth;
+  overflow-x: hidden;
+  overflow-y: auto;
+  height: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 body {
-  min-height: 100vh;
   margin: 0;
-
   color: var(--vegito-text);
 
   background:
@@ -1855,6 +1883,30 @@ textarea:focus-visible {
   backdrop-filter: blur(18px);
 }
 
+/* Capacitor/WebView touch handling: keep auth controls above decorative
+   layers and allow taps without the 300ms gesture ambiguity. */
+.auth-page button,
+.auth-page a,
+.auth-page input,
+.auth-page select,
+.auth-page textarea {
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+@media (max-width: 640px) {
+  .auth-page {
+    min-height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    place-items: start center;
+    padding-top: calc(16px + env(safe-area-inset-top));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+}
+
 .auth-page h1 {
   margin: 8px 0 12px;
 
@@ -3486,6 +3538,134 @@ textarea:focus-visible {
 
     transition-duration: 0.01ms !important;
   }
+}
+
+/* =====================================================
+   CAPACITOR / MOBILE APP POLISH (ZOMATO STYLE)
+   Ensures 360–430px viewports feel like a native application.
+   ===================================================== */
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+}
+
+@media (max-width: 768px) {
+  /* Public landing page: keep the long page scrollable in Android WebView and
+     let the large desktop header reflow instead of trapping content off-screen. */
+  .public-page {
+    min-height: 100dvh !important;
+    overflow: visible !important;
+    touch-action: pan-y;
+  }
+  .public-page > header > div {
+    height: auto !important;
+    min-height: 64px;
+    padding: 8px 14px !important;
+    gap: 8px !important;
+    flex-wrap: wrap;
+    align-content: center;
+  }
+  .public-page > header > div > a:first-child { flex: 1 1 auto; min-width: 150px; }
+  .public-page .home-nav-links {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .public-page .home-nav-links::-webkit-scrollbar { display: none; }
+  .public-page > header > div > div:last-child { flex: 0 1 auto; max-width: 100%; gap: 6px !important; }
+  .public-page > header a, .public-page > header button { min-height: 42px; }
+
+  /* Capacitor WebView: use the page scroll instead of a nested flex scroller. */
+  .dashboard-main { overflow-y: visible !important; height: auto !important; }
+
+  /* Mobile Typography */
+  h1 { font-size: 24px !important; line-height: 1.2 !important; font-weight: 800 !important; }
+  h2 { font-size: 20px !important; line-height: 1.25 !important; font-weight: 700 !important; }
+  h3 { font-size: 17px !important; line-height: 1.3 !important; font-weight: 700 !important; }
+  p, span, div { font-size: 14px; line-height: 1.5; }
+  small { font-size: 12px; }
+
+  /* Touch Targets */
+  button, a, .clickable {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .app-shell {
+    padding-bottom: calc(85px + var(--safe-bottom)) !important;
+  }
+
+  .content-section {
+    width: 100% !important;
+    padding: 16px !important;
+    margin: 0 !important;
+  }
+
+  /* Force Tables into Native Cards */
+  .data-table-wrapper {
+    border: none !important;
+    overflow: visible !important;
+  }
+  .data-table, .data-table thead, .data-table tbody, .data-table th, .data-table td, .data-table tr {
+    display: block !important;
+    width: 100% !important;
+  }
+  .data-table thead {
+    display: none !important;
+  }
+  .data-table tr {
+    background: var(--vegito-surface) !important;
+    border: 1px solid var(--vegito-border) !important;
+    border-radius: 16px !important;
+    margin-bottom: 12px !important;
+    padding: 16px !important;
+    box-shadow: var(--shadow-sm) !important;
+  }
+  .data-table td {
+    padding: 6px 0 !important;
+    border: none !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    text-align: right !important;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    font-weight: 700 !important;
+    color: var(--vegito-muted) !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    text-align: left !important;
+    flex: 1 !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .content-section, .simple-page { padding-left: 12px; padding-right: 12px; }
+  .product-grid, .results-grid { gap: 8px; }
+  .product-info { padding: 9px 8px 10px; }
+  .product-name { font-size: 12.5px; }
 }
 
 /* =====================================================
