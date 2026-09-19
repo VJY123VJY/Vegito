@@ -76,33 +76,62 @@ app = FastAPI(
 # CORS Middleware
 # ---------------------------------------------------------------------------
 
-# Existing origins from application settings
-configured_origins = list(settings.CORS_ORIGINS or [])
+# Read CORS origins from application settings.
+configured_origins = settings.CORS_ORIGINS or []
 
-# Production frontend origins
+# Support both:
+#   CORS_ORIGINS=["http://localhost:3000", ...]
+# and:
+#   CORS_ORIGINS="http://localhost:3000,http://localhost:3001"
+if isinstance(configured_origins, str):
+    configured_origins = [
+        origin.strip()
+        for origin in configured_origins.split(",")
+        if origin.strip()
+    ]
+else:
+    configured_origins = list(configured_origins)
+
+
+# Production frontend domains
 production_origins = [
     "https://vegito-eqf3.vercel.app",
     "https://vegito-iota.vercel.app",
 
-    # Current Vercel deployment shown in browser
+    # Current Vercel frontend deployment
     "https://vegito-eqf3-3520zel2w-vijaydhavan04-1868s-projects.vercel.app",
 ]
 
-# Combine and remove duplicates
-cors_origins = list(dict.fromkeys(configured_origins + production_origins))
+
+# Combine configured origins with production origins
+# and remove duplicates.
+cors_origins = list(
+    dict.fromkeys(
+        configured_origins + production_origins
+    )
+)
 
 
 app.add_middleware(
     CORSMiddleware,
+
+    # Explicitly allowed origins
     allow_origins=cors_origins,
 
-    # Local development + Capacitor
+    # Supports:
+    # - localhost
+    # - 127.0.0.1
+    # - private LAN IPs
+    # - Capacitor
+    # - Vercel deployments / preview URLs
     allow_origin_regex=(
         r"^(https?|capacitor)://"
-        r"(localhost|127\.0\.0\.1|"
+        r"(localhost|"
+        r"127\.0\.0\.1|"
         r"10\.\d+\.\d+\.\d+|"
         r"192\.168\.\d+\.\d+|"
-        r"172\.(?:1[6-9]|2\d|3[0-1])\.\d+)"
+        r"172\.(?:1[6-9]|2\d|3[0-1])\.\d+|"
+        r"[a-zA-Z0-9-]+\.vercel\.app)"
         r"(?::[0-9]+)?$"
     ),
 
@@ -134,16 +163,23 @@ app.include_router(health_router)
 API_PREFIX = settings.API_V1_STR
 
 app.include_router(health_router, prefix=API_PREFIX)
+
 app.include_router(auth_router, prefix=API_PREFIX)
+
 app.include_router(customers_router, prefix=API_PREFIX)
 app.include_router(addresses_router, prefix=API_PREFIX)
+
 app.include_router(categories_router, prefix=API_PREFIX)
 app.include_router(products_router, prefix=API_PREFIX)
+
 app.include_router(cart_router, prefix=API_PREFIX)
+
 app.include_router(orders_router, prefix=API_PREFIX)
+
 app.include_router(favorites_router, prefix=API_PREFIX)
 app.include_router(reviews_router, prefix=API_PREFIX)
 app.include_router(complaints_router, prefix=API_PREFIX)
+
 app.include_router(coupons_router, prefix=API_PREFIX)
 app.include_router(notifications_router, prefix=API_PREFIX)
 
@@ -174,7 +210,10 @@ app.include_router(admin_delivery_router, prefix=API_PREFIX)
 # WebSocket tracking
 # ---------------------------------------------------------------------------
 
+# Legacy WebSocket route
 app.include_router(websocket_tracking_router)
+
+# API v1 WebSocket route
 app.include_router(
     websocket_tracking_router,
     prefix=API_PREFIX,
