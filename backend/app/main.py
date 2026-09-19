@@ -72,10 +72,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
-    # Capacitor WebViews may use capacitor://localhost (older/native schemes),
-    # while the current Android scheme is https://localhost. Keep both local
-    # origins narrowly scoped; production origins remain controlled by CORS_ORIGINS.
-    allow_origin_regex=r"^(?:https?|capacitor)://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
+    # Capacitor WebViews use http://localhost, https://localhost, or capacitor://localhost.
+    # Also support local private network IPs (10.*, 192.168.*, 172.16-31.*) for development.
+    allow_origin_regex=r"^(?:https?|capacitor)://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:[0-9]+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

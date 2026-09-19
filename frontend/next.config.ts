@@ -2,6 +2,11 @@
 const nextConfig = {
   output: "export",
   reactStrictMode: true,
+  // Keep static Android builds reliable on Windows environments where the
+  // separate webpack build worker cannot be spawned.
+  experimental: {
+    webpackBuildWorker: false,
+  },
   images: {
     unoptimized: true,
     remotePatterns: [

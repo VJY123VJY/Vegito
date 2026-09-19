@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     GOOGLE_REVIEW_URL: str = "https://g.page/r/vegito-solapur/review"
 
     # CORS
-    CORS_ORIGINS: Union[str, List[str]] = "http://localhost:3000,http://localhost:5173"
+    CORS_ORIGINS: Union[str, List[str]] = "http://localhost:3000,http://localhost:5173,capacitor://localhost,https://localhost,http://localhost"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

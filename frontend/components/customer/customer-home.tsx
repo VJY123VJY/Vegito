@@ -891,17 +891,26 @@ export function CustomerHome() {
                     }}
                   >
                     {products.data?.items.map((prod) => {
-                      const offer = prod.seller_products?.[0];
-                      const sellerProductId = offer?.seller_product_id || prod.id;
-                      const sellerName = offer?.seller_business_name || "Green Farm Store";
-                      const sellerRating = Number(offer?.seller_rating || 4.8).toFixed(1);
-                      const price = offer?.price ? Number(offer.price) : Number(prod.min_price || 40);
-                      const isAvailable = offer?.is_available !== false && prod.is_in_stock;
+                      // Marketplace Logic: Find best active offer (lowest price with stock)
+                      const activeOffers = (prod.seller_products || []).filter(
+                        (o) => o.is_available && Number(o.stock_quantity) > 0
+                      );
+
+                      const bestOffer = activeOffers.length > 0
+                        ? activeOffers.reduce((prev, curr) => (Number(curr.price) < Number(prev.price) ? curr : prev))
+                        : prod.seller_products?.[0]; // Fallback to first if none in stock
+
+                      const sellerProductId = bestOffer?.seller_product_id || prod.id;
+                      const sellerName = bestOffer?.seller_business_name || "Vegito Direct";
+                      const sellerRating = Number(bestOffer?.seller_rating || 4.8).toFixed(1);
+                      const price = bestOffer?.price ? Number(bestOffer.price) : Number(prod.min_price || 40);
+                      const isAvailable = activeOffers.length > 0 && prod.is_in_stock;
                       const isFav = favoriteIds.has(prod.id);
+                      const otherSellersCount = activeOffers.length - 1;
 
                       // Find existing cart item if any
                       const cartItem = cartItems.find(
-                        (ci) => ci.seller_product_id === sellerProductId || ci.product_id === prod.id
+                        (ci) => ci.seller_product_id === sellerProductId
                       );
                       const cartQty = cartItem?.quantity || 0;
 
@@ -993,10 +1002,17 @@ export function CustomerHome() {
                             </span>
 
                             {/* Price & Stock Badge */}
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "12px" }}>
-                              <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
-                                ₹{price.toFixed(0)}
-                              </span>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "8px" }}>
+                              <div style={{ display: "flex", flexDirection: "column" }}>
+                                <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
+                                  ₹{Number(price).toFixed(0)}
+                                </span>
+                                {otherSellersCount > 0 && (
+                                  <span style={{ fontSize: "10px", color: "#16835b", fontWeight: 600 }}>
+                                    +{otherSellersCount} more sellers
+                                  </span>
+                                )}
+                              </div>
                               <span
                                 style={{
                                   fontSize: "10.5px",
@@ -1282,9 +1298,6 @@ export function CustomerHome() {
                 </div>
               </div>
             </div>
-          </main>
-        </div>
-
         {/* Fixed Mobile Bottom Navigation Bar (Hidden on desktop) */}
         <nav
           className="customer-mobile-bottom-nav"

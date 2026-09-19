@@ -61,47 +61,54 @@ class SellerService:
 
     @staticmethod
     def add_product(db: Session, user: User, product_in: SellerProductCreate) -> SellerProduct:
+        # One transaction owns the canonical product (when needed), seller offer,
+        # and authoritative inventory row. Nothing is published on a partial write.
         target_product_id = product_in.product_id
+        if target_product_id:
+            product = db.query(Product).filter(Product.id == target_product_id, Product.is_active == True).first()
+            if not product:
+                raise NotFoundException("Product not found or inactive")
 
-        # If product_id not provided, look up by name or create master product
-        if not target_product_id:
-            if not product_in.product_name:
-                raise BadRequestException("Either product_id or product_name must be provided")
+        try:
+            # If product_id not provided, look up by name or create master product.
+            if not target_product_id:
+                if not product_in.product_name:
+                    raise BadRequestException("Either product_id or product_name must be provided")
 
-            existing_product = db.query(Product).filter(
-                Product.name.ilike(product_in.product_name.strip())
-            ).first()
+                existing_product = db.query(Product).filter(
+                    Product.name.ilike(product_in.product_name.strip())
+                ).first()
 
-            if existing_product:
-                target_product_id = existing_product.id
-            else:
-                cat_id = product_in.category_id
-                if not cat_id:
-                    first_cat = db.query(Category).first()
-                    cat_id = first_cat.id if first_cat else 1
+                if existing_product:
+                    target_product_id = existing_product.id
+                else:
+                    if not product_in.category_id:
+                        raise BadRequestException("A valid category is required when creating a product")
+                    category = db.query(Category).filter(
+                        Category.id == product_in.category_id, Category.is_active == True
+                    ).first()
+                    if not category:
+                        raise BadRequestException("Selected category is invalid or inactive")
 
-                new_product = Product(
-                    category_id=cat_id,
-                    name=product_in.product_name.strip(),
-                    description=product_in.description or f"Fresh {product_in.product_name.strip()} directly from farm.",
-                    unit=product_in.unit or "1 KG",
-                    is_active=True,
-                )
-                db.add(new_product)
-                db.flush()
-                target_product_id = new_product.id
-
-                if product_in.image_url:
-                    img = ProductImage(
-                        product_id=new_product.id,
-                        image_url=product_in.image_url,
-                        is_primary=True,
-                        display_order=0,
+                    new_product = Product(
+                        category_id=category.id,
+                        name=product_in.product_name.strip(),
+                        description=product_in.description,
+                        unit=product_in.unit or "1 KG",
+                        is_active=True,
                     )
-                    db.add(img)
+                    db.add(new_product)
+                    db.flush()
+                    target_product_id = new_product.id
 
-        # Check if already listed by seller
-        existing = (
+                    if product_in.image_url:
+                        db.add(ProductImage(
+                            product_id=new_product.id, image_url=product_in.image_url,
+                            is_primary=True, display_order=0,
+                        ))
+
+            # Seller identity always comes from the authenticated user.
+            existing = (
             db.query(SellerProduct)
             .filter(
                 SellerProduct.seller_id == user.id,
@@ -109,20 +116,21 @@ class SellerService:
             )
             .first()
         )
-        if existing:
-            existing.price = product_in.price
-            existing.stock_quantity = product_in.stock_quantity
-            existing.minimum_order_quantity = product_in.minimum_order_quantity
-            existing.is_available = product_in.is_available
-            db.flush()
-            inv = db.query(Inventory).filter(Inventory.seller_product_id == existing.id).first()
-            if inv:
-                inv.quantity = product_in.stock_quantity
-            db.commit()
-            db.refresh(existing)
-            return existing
+            if existing:
+                existing.price = product_in.price
+                existing.stock_quantity = product_in.stock_quantity
+                existing.minimum_order_quantity = product_in.minimum_order_quantity
+                existing.is_available = product_in.is_available
+                inv = db.query(Inventory).filter(Inventory.seller_product_id == existing.id).first()
+                if inv:
+                    inv.quantity = product_in.stock_quantity
+                else:
+                    db.add(Inventory(seller_product_id=existing.id, quantity=product_in.stock_quantity, reserved_quantity=0, low_stock_threshold=5))
+                db.commit()
+                db.refresh(existing)
+                return existing
 
-        seller_product = SellerProduct(
+            seller_product = SellerProduct(
             seller_id=user.id,
             product_id=target_product_id,
             price=product_in.price,
@@ -130,19 +138,22 @@ class SellerService:
             minimum_order_quantity=product_in.minimum_order_quantity,
             is_available=product_in.is_available,
         )
-        db.add(seller_product)
-        db.flush()
+            db.add(seller_product)
+            db.flush()
 
-        inventory = Inventory(
+            inventory = Inventory(
             seller_product_id=seller_product.id,
             quantity=product_in.stock_quantity,
             reserved_quantity=0,
             low_stock_threshold=5,
         )
-        db.add(inventory)
-        db.commit()
-        db.refresh(seller_product)
-        return seller_product
+            db.add(inventory)
+            db.commit()
+            db.refresh(seller_product)
+            return seller_product
+        except Exception:
+            db.rollback()
+            raise
 
     @staticmethod
     def update_product(
@@ -172,6 +183,61 @@ class SellerService:
         db.commit()
         db.refresh(seller_product)
         return seller_product
+
+    @staticmethod
+    def publish_price(db: Session, user: User, seller_product_id: int, new_price: Decimal) -> SellerProduct:
+        seller_product = (
+            db.query(SellerProduct)
+            .filter(
+                SellerProduct.id == seller_product_id,
+                SellerProduct.seller_id == user.id,
+            )
+            .first()
+        )
+        if not seller_product:
+            raise NotFoundException(f"Seller product {seller_product_id} not found or unauthorized")
+
+        # Record to PriceHistory before updating
+        db.add(PriceHistory(
+            seller_product_id=seller_product.id,
+            price=seller_product.price
+        ))
+
+        seller_product.price = new_price
+        db.commit()
+        db.refresh(seller_product)
+        return seller_product
+
+    @staticmethod
+    def get_market_intelligence(db: Session, seller_id: int) -> List[MarketIntelligence]:
+        # Get market intelligence for all products this seller lists
+        product_ids = db.query(SellerProduct.product_id).filter(SellerProduct.seller_id == seller_id).all()
+        ids = [p[0] for p in product_ids]
+
+        return (
+            db.query(MarketIntelligence)
+            .options(joinedload(MarketIntelligence.product))
+            .filter(MarketIntelligence.product_id.in_(ids))
+            .order_by(MarketIntelligence.timestamp.desc())
+            .all()
+        )
+
+    @staticmethod
+    def get_price_history(db: Session, user: User, seller_product_id: int) -> List[PriceHistory]:
+        # Verify ownership
+        exists = db.query(SellerProduct).filter(
+            SellerProduct.id == seller_product_id,
+            SellerProduct.seller_id == user.id
+        ).first()
+        if not exists:
+            raise NotFoundException("Seller product not found")
+
+        return (
+            db.query(PriceHistory)
+            .filter(PriceHistory.seller_product_id == seller_product_id)
+            .order_by(PriceHistory.created_at.desc())
+            .all()
+        )
 
     @staticmethod
     def list_orders(

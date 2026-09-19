@@ -1,10 +1,12 @@
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, func
+from decimal import Decimal
 from app.models.category import Category
 from app.models.product import Product
 from app.models.product_image import ProductImage
 from app.models.seller_product import SellerProduct
+from app.models.inventory import Inventory
 from app.models.seller_profile import SellerProfile
 from app.models.user import User
 from app.schemas.category import CategoryCreate, CategoryUpdate
@@ -66,11 +68,17 @@ class ProductService:
         search: Optional[str] = None,
         category_id: Optional[int] = None,
         active_only: bool = True,
+        marketplace_only: bool = True,
     ) -> Tuple[List[ProductRead], int]:
+        """
+        Lists canonical products with aggregated seller offers.
+        If marketplace_only is True, only returns products with at least one active offer.
+        """
         query = db.query(Product).options(
             joinedload(Product.category),
             joinedload(Product.images),
             joinedload(Product.seller_products).joinedload(SellerProduct.seller).joinedload(User.seller_profile),
+            joinedload(Product.seller_products).joinedload(SellerProduct.inventory),
         )
 
         if active_only:
@@ -85,9 +93,14 @@ class ProductService:
                 )
             )
 
-        total_count = query.count()
+        # Filter for products that have at least one seller offering it
+        if marketplace_only:
+            query = query.join(SellerProduct).filter(SellerProduct.is_available == True)
+
+        total_count = query.distinct(Product.id).count()
         products = (
-            query.order_by(Product.name.asc())
+            query.distinct(Product.id)
+            .order_by(Product.name.asc())
             .offset(pagination.offset)
             .limit(pagination.limit)
             .all()
@@ -100,9 +113,14 @@ class ProductService:
             prices = []
             total_stock = 0
             for sp in p.seller_products:
-                if sp.is_available:
+                # Seller offers, not master products, define marketplace price and
+                # stock. Inventory is authoritative when it exists.
+                profile = sp.seller.seller_profile if sp.seller else None
+                if sp.is_available and (profile is None or profile.is_available):
+                    inventory = sp.inventory
+                    available_stock = max(Decimal("0"), inventory.quantity - inventory.reserved_quantity) if inventory else sp.stock_quantity
                     prices.append(sp.price)
-                    total_stock += sp.stock_quantity
+                    total_stock += available_stock
                     b_name = (
                         sp.seller.seller_profile.business_name
                         if (sp.seller and sp.seller.seller_profile)
@@ -120,7 +138,7 @@ class ProductService:
                             seller_business_name=b_name,
                             seller_rating=b_rating,
                             price=sp.price,
-                            stock_quantity=sp.stock_quantity,
+                            stock_quantity=available_stock,
                             minimum_order_quantity=sp.minimum_order_quantity,
                             is_available=sp.is_available,
                         )
@@ -156,9 +174,12 @@ class ProductService:
         prices = []
         total_stock = 0
         for sp in product.seller_products:
-            if sp.is_available:
+            profile = sp.seller.seller_profile if sp.seller else None
+            if sp.is_available and (profile is None or profile.is_available):
+                inventory = sp.inventory
+                available_stock = max(Decimal("0"), inventory.quantity - inventory.reserved_quantity) if inventory else sp.stock_quantity
                 prices.append(sp.price)
-                total_stock += sp.stock_quantity
+                total_stock += available_stock
                 b_name = (
                     sp.seller.seller_profile.business_name
                     if (sp.seller and sp.seller.seller_profile)
@@ -176,7 +197,7 @@ class ProductService:
                         seller_business_name=b_name,
                         seller_rating=b_rating,
                         price=sp.price,
-                        stock_quantity=sp.stock_quantity,
+                        stock_quantity=available_stock,
                         minimum_order_quantity=sp.minimum_order_quantity,
                         is_available=sp.is_available,
                     )

@@ -11,7 +11,10 @@ function AvailabilityToggle({ product }: { product: SellerProduct }) {
   const client = useQueryClient();
   const toggle = useMutation({
     mutationFn: () => updateSellerProduct(product.id, { is_available: !product.is_available }),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["seller-products"] }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["seller-products"] });
+      client.invalidateQueries({ queryKey: ["products"] });
+    },
   });
   return (
     <button onClick={() => toggle.mutate()} disabled={toggle.isPending}
@@ -28,7 +31,11 @@ function EditRow({ product, onDone }: { product: SellerProduct; onDone: () => vo
   const [stock, setStock] = useState(String(product.stock_quantity));
   const update = useMutation({
     mutationFn: () => updateSellerProduct(product.id, { price: Number(price), stock_quantity: Number(stock) }),
-    onSuccess: () => { client.invalidateQueries({ queryKey: ["seller-products"] }); onDone(); },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["seller-products"] });
+      client.invalidateQueries({ queryKey: ["products"] });
+      onDone();
+    },
   });
   return (
     <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -61,7 +68,11 @@ function AddProductForm({ onDone }: { onDone: () => void }) {
 
   const add = useMutation({
     mutationFn: () => addSellerProduct({ product_id: Number(productId), price: Number(price), stock_quantity: Number(stock), is_available: true }),
-    onSuccess: () => { client.invalidateQueries({ queryKey: ["seller-products"] }); onDone(); },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["seller-products"] });
+      client.invalidateQueries({ queryKey: ["products"] });
+      onDone();
+    },
     onError: (e) => setError(getErrorMessage(e)),
   });
 

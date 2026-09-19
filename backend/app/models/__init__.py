@@ -65,4 +65,8 @@ __all__ = [
     "Notification",
     "DeliveryPartnerLocation",
     "SellerOrderFulfillment",
+    "PriceHistory",
+    "MarketIntelligence",
+    "Promotion",
+    "PromotionItem",
 ]

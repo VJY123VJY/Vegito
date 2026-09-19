@@ -7,6 +7,7 @@ from app.models.cart_item import CartItem
 from app.models.seller_product import SellerProduct
 from app.models.product import Product
 from app.models.product_image import ProductImage
+from app.models.inventory import Inventory
 from app.schemas.cart import CartRead, CartItemRead
 from app.core.exceptions import NotFoundException, BadRequestException
 from app.utils.helpers import round_currency
@@ -101,9 +102,14 @@ class CartService:
         if quantity <= 0:
             raise BadRequestException("Quantity must be greater than zero.")
 
-        if quantity > seller_product.stock_quantity:
+        inventory = db.query(Inventory).filter(Inventory.seller_product_id == seller_product.id).first()
+        available_stock = (
+            inventory.quantity - inventory.reserved_quantity
+            if inventory else seller_product.stock_quantity
+        )
+        if quantity > available_stock:
             raise BadRequestException(
-                f"Requested quantity ({quantity}) exceeds available stock ({seller_product.stock_quantity})."
+                f"Requested quantity ({quantity}) exceeds available stock ({available_stock})."
             )
 
         if quantity < seller_product.minimum_order_quantity:
@@ -122,9 +128,9 @@ class CartService:
 
         if existing_item:
             new_qty = existing_item.quantity + quantity
-            if new_qty > seller_product.stock_quantity:
+            if new_qty > available_stock:
                 raise BadRequestException(
-                    f"Combined quantity ({new_qty}) exceeds available stock ({seller_product.stock_quantity})."
+                    f"Combined quantity ({new_qty}) exceeds available stock ({available_stock})."
                 )
             existing_item.quantity = new_qty
         else:

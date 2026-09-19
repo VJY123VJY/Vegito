@@ -9,16 +9,21 @@ const apiDebugEnabled = process.env.NEXT_PUBLIC_API_DEBUG === "true";
 // Capacitor builds may opt into a LAN FastAPI URL for local device testing.
 // Production Android builds leave NEXT_PUBLIC_ANDROID_API_URL unset and use
 // the existing HTTPS NEXT_PUBLIC_API_URL value.
-const apiBaseUrl = Capacitor.isNativePlatform() && androidApiUrl ? androidApiUrl : webApiUrl;
+const configuredApiUrl = Capacitor.isNativePlatform() && androidApiUrl ? androidApiUrl : webApiUrl;
 
 /**
  * Returns the correct base API URL for the current platform.
- * Use this instead of process.env.NEXT_PUBLIC_API_URL directly,
- * because on Android (Capacitor) the LAN IP must be used.
+ * Allows runtime override via localStorage ("vegito.custom_api_url") for flexible LAN testing.
  */
 export function getApiBaseUrl(): string {
-  return apiBaseUrl;
+  if (typeof window !== "undefined") {
+    const custom = window.localStorage.getItem("vegito.custom_api_url");
+    if (custom && custom.trim()) return custom.trim();
+  }
+  return configuredApiUrl;
 }
+
+const apiBaseUrl = getApiBaseUrl();
 
 if (apiDebugEnabled && typeof window !== "undefined") {
   console.info("[Vegito API] Base URL:", apiBaseUrl);
@@ -76,10 +81,11 @@ export function getErrorMessage(error: unknown): string {
     if (error.response?.status === 409) return "This mobile number is already registered. Please login instead.";
     if (error.response?.status === 422) return "Invalid input. Please check the entered details.";
     if (error.response?.status === 429) return "Too many requests. Please wait a moment and try again.";
-    if (error.response?.status && error.response.status >= 500) return "Vegito server error. Please try again.";
-    if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") return "Vegito server request timed out. Check Wi-Fi and backend.";
-    if (error.message?.includes("Network Error") || error.code === "ERR_NETWORK") return "Cannot reach Vegito server. Check Wi-Fi and backend.";
+    if (error.response?.status && error.response.status >= 500) return "Unable to connect to Vegito server. Please try again later.";
+    if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT" || error.message?.includes("Network Error") || error.code === "ERR_NETWORK") {
+      return "Unable to connect to Vegito server. Check that your phone and PC are connected to the same Wi-Fi.";
+    }
     return "We couldn’t complete that request. Please try again.";
   }
-  return "Unable to connect to server. Please try again.";
+  return "Unable to connect to Vegito server. Check that your phone and PC are connected to the same Wi-Fi.";
 }
