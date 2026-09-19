@@ -10,9 +10,32 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
 from app.config import settings
 
+
+def _get_db_url() -> str:
+    """
+    Return the database URL, ensuring the psycopg 3 dialect prefix is used.
+
+    Vercel (and Neon) often provide DATABASE_URL as ``postgresql://`` or
+    ``postgres://`` without an explicit driver qualifier.  SQLAlchemy 2.x
+    resolves a bare ``postgresql://`` URL to the psycopg2 dialect when
+    psycopg2 is installed, which breaks deployments that intentionally use
+    psycopg 3.
+
+    This helper normalises the scheme to ``postgresql+psycopg://`` so the
+    correct driver is always selected, regardless of how the environment
+    variable is set in the deployment platform.
+    """
+    url = settings.DATABASE_URL
+    for bare_scheme in ("postgresql://", "postgres://"):
+        if url.startswith(bare_scheme):
+            url = "postgresql+psycopg://" + url[len(bare_scheme):]
+            break
+    return url
+
+
 # Engine configuration
 engine = create_engine(
-    settings.DATABASE_URL,
+    _get_db_url(),
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
