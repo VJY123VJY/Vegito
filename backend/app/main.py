@@ -11,7 +11,7 @@ from app.config import settings
 from app.core.error_handlers import register_error_handlers
 from app.core.logging import setup_logging
 
-# Import all 30 models to ensure they're registered with SQLAlchemy metadata
+# Import all models to ensure they're registered with SQLAlchemy metadata
 import app.models  # noqa: F401
 
 from app.routers import (
@@ -37,6 +37,7 @@ from app.routers import (
     payments_router,
     admin_router,
 )
+
 from app.routers.location import router as location_router
 from app.routers.delivery_tracking import router as delivery_tracking_router
 from app.routers.admin_analytics import router as admin_analytics_router
@@ -49,11 +50,14 @@ from app.routers.websocket_tracking import router as websocket_tracking_router
 # ---------------------------------------------------------------------------
 # Setup structured logging
 # ---------------------------------------------------------------------------
+
 setup_logging(debug=settings.DEBUG)
+
 
 # ---------------------------------------------------------------------------
 # Application instance
 # ---------------------------------------------------------------------------
+
 app = FastAPI(
     title=settings.APP_NAME,
     description=(
@@ -67,34 +71,66 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+
 # ---------------------------------------------------------------------------
 # CORS Middleware
 # ---------------------------------------------------------------------------
+
+# Existing origins from application settings
+configured_origins = list(settings.CORS_ORIGINS or [])
+
+# Production frontend origins
+production_origins = [
+    "https://vegito-eqf3.vercel.app",
+    "https://vegito-iota.vercel.app",
+
+    # Current Vercel deployment shown in browser
+    "https://vegito-eqf3-3520zel2w-vijaydhavan04-1868s-projects.vercel.app",
+]
+
+# Combine and remove duplicates
+cors_origins = list(dict.fromkeys(configured_origins + production_origins))
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    # Capacitor WebViews use http://localhost, https://localhost, or capacitor://localhost.
-    # Also support local private network IPs (10.*, 192.168.*, 172.16-31.*) for development.
-    allow_origin_regex=r"^(?:https?|capacitor)://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:[0-9]+)?$",
+    allow_origins=cors_origins,
+
+    # Local development + Capacitor
+    allow_origin_regex=(
+        r"^(https?|capacitor)://"
+        r"(localhost|127\.0\.0\.1|"
+        r"10\.\d+\.\d+\.\d+|"
+        r"192\.168\.\d+\.\d+|"
+        r"172\.(?:1[6-9]|2\d|3[0-1])\.\d+)"
+        r"(?::[0-9]+)?$"
+    ),
+
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
 # ---------------------------------------------------------------------------
 # Global exception handlers
 # ---------------------------------------------------------------------------
+
 register_error_handlers(app)
 
+
 # ---------------------------------------------------------------------------
-# Health routes are available both at the legacy root URL and under the public
-# API prefix used by mobile clients and deployment health checks.
+# Health routes
 # ---------------------------------------------------------------------------
+
+# Legacy/root health endpoint
 app.include_router(health_router)
+
 
 # ---------------------------------------------------------------------------
 # API v1 routes
 # ---------------------------------------------------------------------------
+
 API_PREFIX = settings.API_V1_STR
 
 app.include_router(health_router, prefix=API_PREFIX)
@@ -110,19 +146,36 @@ app.include_router(reviews_router, prefix=API_PREFIX)
 app.include_router(complaints_router, prefix=API_PREFIX)
 app.include_router(coupons_router, prefix=API_PREFIX)
 app.include_router(notifications_router, prefix=API_PREFIX)
+
 app.include_router(seller_router, prefix=API_PREFIX)
 app.include_router(seller_products_router, prefix=API_PREFIX)
 app.include_router(seller_orders_router, prefix=API_PREFIX)
+
 app.include_router(inventory_router, prefix=API_PREFIX)
+
 app.include_router(delivery_router, prefix=API_PREFIX)
 app.include_router(delivery_batches_router, prefix=API_PREFIX)
+
 app.include_router(payments_router, prefix=API_PREFIX)
+
 app.include_router(admin_router, prefix=API_PREFIX)
+
 app.include_router(promotions_router, prefix=API_PREFIX)
+
 app.include_router(location_router, prefix=API_PREFIX)
 app.include_router(delivery_tracking_router, prefix=API_PREFIX)
+
 app.include_router(admin_analytics_router, prefix=API_PREFIX)
 app.include_router(admin_sellers_router, prefix=API_PREFIX)
 app.include_router(admin_delivery_router, prefix=API_PREFIX)
+
+
+# ---------------------------------------------------------------------------
+# WebSocket tracking
+# ---------------------------------------------------------------------------
+
 app.include_router(websocket_tracking_router)
-app.include_router(websocket_tracking_router, prefix=API_PREFIX)
+app.include_router(
+    websocket_tracking_router,
+    prefix=API_PREFIX,
+)

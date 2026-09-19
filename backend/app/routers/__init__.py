@@ -16,10 +16,10 @@ from app.routers.seller_products import router as seller_products_router
 from app.routers.seller_orders import router as seller_orders_router
 from app.routers.inventory import router as inventory_router
 from app.routers.delivery import router as delivery_router
-from app.routers.promotions import router as promotions_router
 from app.routers.delivery_batches import router as delivery_batches_router
 from app.routers.payments import router as payments_router
 from app.routers.admin import router as admin_router
+from app.routers.promotions import router as promotions_router
 
 __all__ = [
     "health_router",
