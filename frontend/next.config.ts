@@ -1,5 +1,8 @@
+import path from "path";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingRoot: path.join(__dirname),
   output: "export",
   reactStrictMode: true,
   // Keep static Android builds reliable on Windows environments where the
@@ -10,6 +13,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
     remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '8000',
+        pathname: '/**',
+      },
       {
         protocol: 'http',
         hostname: '127.0.0.1',

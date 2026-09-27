@@ -54,3 +54,53 @@ def update_seller_order_status(
         else f"Order marked as {payload.status}"
     )
     return APIResponse(message=message, data=order_read)
+
+
+@router.patch("/{order_id}/urgent", response_model=APIResponse[dict], summary="Toggle urgent flag on an order")
+def toggle_order_urgent(
+    order_id: int,
+    payload: dict,
+    current_user: User = Depends(require_seller),
+    db: Session = Depends(get_db),
+):
+    """Toggle is_urgent flag on an order. Seller must own the order."""
+    from app.models.order import Order
+    from app.models.order_item import OrderItem
+    from app.models.seller_product import SellerProduct
+
+    # Verify seller owns the order
+    order = (
+        db.query(Order)
+        .join(OrderItem, OrderItem.order_id == Order.id)
+        .join(SellerProduct, OrderItem.seller_product_id == SellerProduct.id)
+        .filter(Order.id == order_id, SellerProduct.seller_id == current_user.id)
+        .first()
+    )
+    if not order:
+        from app.core.exceptions import NotFoundException
+        raise NotFoundException(f"Order {order_id} not found or not authorized")
+
+    is_urgent = bool(payload.get("is_urgent", True))
+    order.is_urgent = is_urgent
+    db.commit()
+
+    # Dispatch seller WebSocket notification if marking urgent
+    if is_urgent:
+        try:
+            from app.routers.websocket_tracking import dispatch_seller_new_order_notification
+            dispatch_seller_new_order_notification({
+                "type": "ORDER_URGENT",
+                "event": "ORDER_URGENT",
+                "event_id": f"URGENT_{order.id}",
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "is_urgent": True,
+                "message": f"Order #{order.order_number} marked as URGENT!",
+            }, seller_id=current_user.id)
+        except Exception:
+            pass
+
+    return APIResponse(
+        message=f"Order #{order.order_number} marked as {'URGENT' if is_urgent else 'normal'}",
+        data={"order_id": order.id, "is_urgent": is_urgent}
+    )

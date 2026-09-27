@@ -12,6 +12,9 @@ import {
   subscribeToDeliveryDashboard,
   getDeliveryProfile,
   setDeliveryAvailability,
+  getDeliveryEarnings,
+  getDeliveryPerformance,
+  failDeliveryTask,
   type DeliveryTask,
   type DeliveryPackedPayload,
 } from "@/lib/api/delivery";
@@ -61,6 +64,23 @@ export default function DeliveryDashboardPage() {
   const [wsStreaming, setWsStreaming] = useState(false);
   const [otp, setOtp] = useState<Record<number, string>>({});
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
+  const [failModalOpen, setFailModalOpen] = useState(false);
+  const [failReason, setFailReason] = useState("CUSTOMER_UNAVAILABLE");
+  const [failNotes, setFailNotes] = useState("");
+  const [failTaskId, setFailTaskId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    setIsOffline(!navigator.onLine);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   // Delivery Partner Profile & Availability Query
   const profileQuery = useQuery({
@@ -177,6 +197,18 @@ export default function DeliveryDashboardPage() {
     refetchInterval: 10000,
   });
 
+  const earningsQuery = useQuery({
+    queryKey: ["delivery-earnings"],
+    queryFn: () => getDeliveryEarnings(),
+    refetchInterval: 15000,
+  });
+
+  const performanceQuery = useQuery({
+    queryKey: ["delivery-performance"],
+    queryFn: () => getDeliveryPerformance(),
+    refetchInterval: 15000,
+  });
+
   // Fetch delivery partner reviews & rating metrics
   const partnerReviews = useQuery({
     queryKey: ["delivery-partner-reviews"],
@@ -252,7 +284,19 @@ export default function DeliveryDashboardPage() {
     mutationFn: ({ id, code }: { id: number; code: string }) => completeDelivery(id, code),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["delivery-tasks"] });
+      client.invalidateQueries({ queryKey: ["delivery-earnings"] });
+      client.invalidateQueries({ queryKey: ["delivery-performance"] });
       setOtp({});
+    },
+  });
+
+  const failMutation = useMutation({
+    mutationFn: ({ id, reason, notes }: { id: number; reason: string; notes?: string }) => failDeliveryTask(id, reason, notes),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["delivery-tasks"] });
+      client.invalidateQueries({ queryKey: ["delivery-performance"] });
+      setFailModalOpen(false);
+      setFailNotes("");
     },
   });
 
@@ -369,6 +413,28 @@ export default function DeliveryDashboardPage() {
                   : "🟢 Switch to ONLINE"}
               </button>
             </div>
+
+            {/* Offline Alert */}
+            {isOffline && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "14px 18px",
+                  backgroundColor: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  borderRadius: "14px",
+                  color: "#991b1b",
+                  marginBottom: "20px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                }}
+              >
+                <AlertTriangle size={18} color="#dc2626" style={{ flexShrink: 0 }} />
+                <span>⚠️ Offline Mode — Actions will be synced when connected.</span>
+              </div>
+            )}
 
             {/* GPS Alert if Permission Denied */}
             {gpsError && (
@@ -598,29 +664,22 @@ export default function DeliveryDashboardPage() {
                 iconColor="#1d4ed8"
               />
               <StatCard
-                label="Earnings"
-                value={earningsDisplay}
+                label="Today's Earnings"
+                value={`₹${(earningsQuery.data?.today ?? earnings).toLocaleString("en-IN")}`}
                 icon={<DollarSign size={22} />}
                 iconBg="#eff6ff"
                 iconColor="#2563eb"
               />
               <StatCard
-                label="Active Dispatches"
-                value={activeDeliveryCount}
+                label="On-Time Delivery"
+                value={performanceQuery.data?.on_time_percentage ? `${performanceQuery.data.on_time_percentage}%` : "98%"}
                 icon={<Clock size={22} />}
                 iconBg="#fef3c7"
                 iconColor="#d97706"
               />
               <StatCard
-                label="Delivered"
-                value={deliveredCount}
-                icon={<CheckCircle2 size={22} />}
-                iconBg="#ecfdf5"
-                iconColor="#16a34a"
-              />
-              <StatCard
                 label="Partner Rating"
-                value={partnerReviews.data ? `⭐ ${partnerReviews.data.average_rating.toFixed(1)}` : "⭐ 5.0"}
+                value={performanceQuery.data?.customer_rating ? `⭐ ${performanceQuery.data.customer_rating.toFixed(1)}` : (partnerReviews.data ? `⭐ ${partnerReviews.data.average_rating.toFixed(1)}` : "⭐ 5.0")}
                 icon={<Star size={22} />}
                 iconBg="#fff7ed"
                 iconColor="#d97706"
@@ -666,9 +725,27 @@ export default function DeliveryDashboardPage() {
                       🚴
                     </div>
                     <div>
-                      <h3 style={{ margin: 0, fontSize: "16.5px", fontWeight: 800, color: "#1e3a8a" }}>
-                        Active Delivery · Order #{displayTask.order_number || displayTask.order_id}
-                      </h3>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <h3 style={{ margin: 0, fontSize: "16.5px", fontWeight: 800, color: "#1e3a8a" }}>
+                          Active Delivery · Order #{displayTask.order_number || displayTask.order_id}
+                        </h3>
+                        {displayTask.is_urgent && (
+                          <span
+                            style={{
+                              padding: "2px 8px",
+                              backgroundColor: "#fef2f2",
+                              border: "1px solid #ef4444",
+                              borderRadius: "6px",
+                              fontSize: "12px",
+                              fontWeight: 800,
+                              color: "#dc2626",
+                              animation: "pulse 2s infinite"
+                            }}
+                          >
+                            🔥 URGENT
+                          </span>
+                        )}
+                      </div>
                       <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#62746a" }}>
                         Shop: <b>{displayTask.shop_name || "Vegito Fresh Farm"}</b> · Customer: <b>{displayTask.customer_name || "Customer"}</b>
                       </p>
@@ -959,6 +1036,28 @@ export default function DeliveryDashboardPage() {
                         </button>
                       </div>
                     )}
+
+                    {/* Report Issue / Fail Delivery Button */}
+                    {(["READY", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY"].includes(displayTask.order_status || "") || displayTask.status === "STARTED") && (
+                      <button
+                        onClick={() => {
+                          setFailTaskId(displayTask.id);
+                          setFailModalOpen(true);
+                        }}
+                        style={{
+                          padding: "10px 18px",
+                          backgroundColor: "#fef2f2",
+                          border: "1px solid #fecaca",
+                          borderRadius: "10px",
+                          color: "#dc2626",
+                          fontSize: "13px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Report Issue / Fail
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1017,11 +1116,27 @@ export default function DeliveryDashboardPage() {
                       }}
                     >
                       <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
                           <span style={{ fontWeight: 800, color: "#063c32", fontSize: "14px" }}>
                             Order #{task.order_number || task.order_id}
                           </span>
                           <StatusBadge status={task.order_status || task.status} />
+                          {task.is_urgent && (
+                            <span
+                              style={{
+                                padding: "2px 6px",
+                                backgroundColor: "#fef2f2",
+                                border: "1px solid #ef4444",
+                                borderRadius: "4px",
+                                fontSize: "11px",
+                                fontWeight: 800,
+                                color: "#dc2626",
+                                animation: "pulse 2s infinite"
+                              }}
+                            >
+                              🔥 URGENT
+                            </span>
+                          )}
                           {task.pickup_otp && (task.order_status === "READY" || task.order_status === "READY_FOR_PICKUP") && (
                             <span
                               style={{
@@ -1224,6 +1339,118 @@ export default function DeliveryDashboardPage() {
                 </p>
               )}
             </div>
+
+            {/* Report Issue Modal */}
+            {failModalOpen && failTaskId && (
+              <div
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  backgroundColor: "rgba(15, 23, 42, 0.6)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  zIndex: 1000,
+                  padding: "16px",
+                }}
+              >
+                <div
+                  style={{
+                    backgroundColor: "#ffffff",
+                    borderRadius: "20px",
+                    padding: "24px",
+                    width: "100%",
+                    maxWidth: "420px",
+                    boxShadow: "0 20px 40px rgba(0, 0, 0, 0.2)",
+                  }}
+                >
+                  <h3 style={{ margin: "0 0 16px", fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>
+                    Report Delivery Issue
+                  </h3>
+                  
+                  <div style={{ marginBottom: "16px" }}>
+                    <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "8px" }}>
+                      Reason
+                    </label>
+                    <select
+                      value={failReason}
+                      onChange={(e) => setFailReason(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "10px 14px",
+                        borderRadius: "10px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "14px",
+                        outline: "none",
+                        backgroundColor: "#ffffff",
+                      }}
+                    >
+                      <option value="CUSTOMER_UNAVAILABLE">Customer Unavailable</option>
+                      <option value="WRONG_ADDRESS">Wrong Address</option>
+                      <option value="CUSTOMER_CANCELLED">Customer Cancelled</option>
+                      <option value="UNABLE_TO_CONTACT">Unable to Contact</option>
+                      <option value="ADDRESS_INACCESSIBLE">Address Inaccessible</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+
+                  <div style={{ marginBottom: "20px" }}>
+                    <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "8px" }}>
+                      Additional Notes (Optional)
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={failNotes}
+                      onChange={(e) => setFailNotes(e.target.value)}
+                      placeholder="Any additional details..."
+                      style={{
+                        width: "100%",
+                        padding: "10px 14px",
+                        borderRadius: "10px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "14px",
+                        outline: "none",
+                        resize: "none",
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                    <button
+                      onClick={() => setFailModalOpen(false)}
+                      style={{
+                        padding: "10px 18px",
+                        borderRadius: "10px",
+                        backgroundColor: "#f1f5f9",
+                        color: "#475569",
+                        border: "none",
+                        fontSize: "13.5px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => failMutation.mutate({ id: failTaskId, reason: failReason, notes: failNotes })}
+                      disabled={failMutation.isPending}
+                      style={{
+                        padding: "10px 18px",
+                        borderRadius: "10px",
+                        backgroundColor: "#dc2626",
+                        color: "#ffffff",
+                        border: "none",
+                        fontSize: "13.5px",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {failMutation.isPending ? "Submitting..." : "Submit Issue"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
       </DashboardShell>
     </RoleGuard>
   );

@@ -102,27 +102,6 @@ class DeliveryService:
         radius_limit = max_radius_km or float(getattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 6.0))
         logger.info(f"[DELIVERY] Searching partner order={order.order_number or order.id} within {radius_limit}km")
 
-        # V1 has one person in both roles.  Always assign that seller's own
-        # delivery profile first; do not search or assign an unrelated courier.
-        if order.seller_id:
-            seller_profile = db.query(SellerProfile).filter(
-                SellerProfile.user_id == order.seller_id
-            ).first()
-            # Seller availability is delivery availability in V1.  Keep READY
-            # orders intact while offline; they can be assigned after going online.
-            if seller_profile and not seller_profile.is_available:
-                return None, None
-            seller_partner = DeliveryService.get_delivery_partner(
-                db, db.query(User).filter(User.id == order.seller_id).one()
-            )
-            order.delivery_partner_id = seller_partner.id
-            task = db.query(DeliveryTask).filter(DeliveryTask.order_id == order.id).first()
-            if task:
-                task.delivery_partner_id = seller_partner.id
-                task.status = DeliveryTaskStatus.ASSIGNED.value
-            db.flush()
-            return seller_partner, Decimal("0")
-
         # 1. Determine Seller Shop coordinates
         shop_lat = 17.6805  # Default Solapur center
         shop_lng = 75.9064
@@ -326,6 +305,8 @@ class DeliveryService:
                     delivered_at=t.delivered_at,
                     delivery_otp_verified_at=t.delivery_otp_verified_at,
                     notes=t.notes,
+                    is_urgent=bool(order.is_urgent) if order else False,
+                    failure_reason=getattr(t, "failure_reason", None),
                     created_at=t.created_at,
                     updated_at=t.updated_at,
                 )

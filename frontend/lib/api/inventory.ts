@@ -16,7 +16,7 @@ export type InventoryItem = {
 
 export type InventoryAdjust = {
   quantity_change: number;
-  transaction_type: "STOCK_IN" | "STOCK_OUT" | "ADJUSTMENT";
+  transaction_type: "STOCK_IN" | "STOCK_OUT" | "ADJUSTMENT" | "MANUAL" | "DAMAGED" | "EXPIRED" | string;
   note?: string;
 };
 

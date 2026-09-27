@@ -79,6 +79,7 @@ class OrderRead(BaseSchema):
     pickup_otp_verified_at: Optional[datetime.datetime] = None
     delivery_task_id: Optional[int] = None
     assignment_status: Optional[str] = None
+    is_urgent: bool = False
 
 
 class OrderDetailRead(OrderRead):

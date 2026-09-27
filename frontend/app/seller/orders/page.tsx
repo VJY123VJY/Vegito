@@ -21,6 +21,10 @@ import {
 import {
   listSellerOrders,
   updateSellerOrder,
+  getSellerOrdersQueue,
+  toggleOrderUrgent,
+  downloadSalesReport,
+  type QueueOrder,
 } from "@/lib/api/seller";
 import { getSellerProfile } from "@/lib/api/seller-products";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
@@ -38,9 +42,67 @@ import {
   stopNotificationSound,
 } from "@/lib/audio/chime";
 
+function PreparationTimer({ acceptedAt, status }: { acceptedAt?: string | null, status: string }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  React.useEffect(() => {
+    if (!acceptedAt || ["READY", "READY_FOR_PICKUP", "PICKED_UP", "DELIVERED", "REJECTED", "CANCELLED", "COMPLETED"].includes(status)) return;
+    
+    const start = new Date(acceptedAt).getTime();
+    const update = () => {
+      setElapsed(Math.floor((Date.now() - start) / 1000));
+    };
+    
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [acceptedAt, status]);
+
+  if (!acceptedAt || ["READY", "READY_FOR_PICKUP", "PICKED_UP", "DELIVERED", "REJECTED", "CANCELLED", "COMPLETED"].includes(status)) {
+    return null;
+  }
+
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  const timeString = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+
+  let label = "⏳ In Preparation";
+  let color = "#059669"; // Green
+  let bg = "#ecfdf5";
+
+  if (mins >= 30) {
+    label = "🚨 Preparation Delayed";
+    color = "#dc2626"; // Red
+    bg = "#fef2f2";
+  } else if (mins >= 20) {
+    label = "⚠️ Approaching Delay";
+    color = "#d97706"; // Orange
+    bg = "#fffbeb";
+  }
+
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "4px 10px",
+        borderRadius: "8px",
+        backgroundColor: bg,
+        border: `1px solid ${color}`,
+        color: color,
+        fontSize: "12px",
+        fontWeight: 700,
+      }}
+    >
+      <Clock size={14} /> {timeString} · {label}
+    </div>
+  );
+}
+
 export default function SellerOrdersPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<string>("ALL");
+  const [activeTab, setActiveTab] = useState<string>("SMART QUEUE");
   const [search, setSearch] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [newOrderAlert, setNewOrderAlert] = useState<SellerNewOrderPayload | null>(null);
@@ -126,12 +188,38 @@ export default function SellerOrdersPage() {
     },
   });
 
-  const businessName = profile.data?.business_name || "Farm Fresh Solapur";
-  const rawOrders = ordersQuery.data?.items ?? [];
+  const smartQueueQuery = useQuery({
+    queryKey: ["seller-orders-queue"],
+    queryFn: () => getSellerOrdersQueue(),
+    enabled: activeTab === "SMART QUEUE",
+    refetchInterval: 15000,
+  });
 
-  const filteredOrders = rawOrders.filter((order) => {
+  const toggleUrgentMutation = useMutation({
+    mutationFn: ({ orderId, isUrgent }: { orderId: number, isUrgent: boolean }) => toggleOrderUrgent(orderId, isUrgent),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["seller-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["seller-orders-queue"] });
+    },
+  });
+
+  const handleExport = async () => {
+    try {
+      await downloadSalesReport("30d");
+      setFeedback("Report downloaded successfully");
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err) {
+      setFeedback("Failed to download report");
+      setTimeout(() => setFeedback(null), 4000);
+    }
+  };
+
+  const businessName = profile.data?.business_name || "Farm Fresh Solapur";
+  const rawOrders = activeTab === "SMART QUEUE" ? (smartQueueQuery.data || []) : (ordersQuery.data?.items ?? []);
+
+  const filteredOrders = rawOrders.filter((order: any) => {
     // Status tab filter
-    if (activeTab !== "ALL") {
+    if (activeTab !== "ALL" && activeTab !== "SMART QUEUE") {
       if (activeTab === "READY") {
         if (!["READY", "READY_FOR_PICKUP"].includes(order.status)) return false;
       } else if (activeTab === "PACKING") {
@@ -185,6 +273,21 @@ export default function SellerOrdersPage() {
               {pendingCount} order(s) requiring immediate action
             </p>
           </div>
+          <button
+            onClick={handleExport}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "#16835b",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: "8px",
+              fontWeight: 700,
+              fontSize: "13px",
+              cursor: "pointer",
+            }}
+          >
+            📥 Export Sales Report (CSV)
+          </button>
         </div>
 
         {/* Real-time Order Audio / Alert Banners */}
@@ -332,6 +435,7 @@ export default function SellerOrdersPage() {
             }}
           >
             {[
+              { key: "SMART QUEUE", label: "SMART QUEUE" },
               { key: "ALL", label: "All Orders" },
               { key: "NEW", label: "New Orders" },
               { key: "ACCEPTED", label: "Accepted" },
@@ -389,7 +493,7 @@ export default function SellerOrdersPage() {
         </div>
 
         {/* Orders List */}
-        {ordersQuery.isLoading ? (
+        {ordersQuery.isLoading || smartQueueQuery.isLoading ? (
           <div style={{ padding: "40px", textAlign: "center", color: "#62746a" }}>
             Loading orders...
           </div>
@@ -440,14 +544,64 @@ export default function SellerOrdersPage() {
                     gap: "10px",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
                     <span style={{ fontSize: "16px", fontWeight: 800, color: "#063c32" }}>
                       Order #{order.order_number}
                     </span>
                     <StatusBadge status={order.status} />
+                    {order.is_urgent && (
+                      <span
+                        style={{
+                          padding: "4px 8px",
+                          backgroundColor: "#fef2f2",
+                          border: "1px solid #ef4444",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          fontWeight: 800,
+                          color: "#dc2626",
+                          animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                          boxShadow: "0 0 8px rgba(239, 68, 68, 0.4)",
+                        }}
+                      >
+                        🔥 URGENT ORDER
+                      </span>
+                    )}
+                    {activeTab === "SMART QUEUE" && order.priority_score && (
+                      <span
+                        style={{
+                          padding: "4px 8px",
+                          backgroundColor: "#f3e8ff",
+                          border: "1px solid #d8b4fe",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          color: "#7e22ce",
+                        }}
+                      >
+                        ⭐ Score: {order.priority_score}
+                      </span>
+                    )}
+                    <PreparationTimer acceptedAt={order.accepted_at} status={order.status} />
                   </div>
-                  <div style={{ fontSize: "13px", color: "#62746a" }}>
-                    Placed: {new Date(order.placed_at).toLocaleString()}
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                    <div style={{ fontSize: "13px", color: "#62746a" }}>
+                      Placed: {order.placed_at ? new Date(order.placed_at).toLocaleString() : "-"}
+                    </div>
+                    <button
+                      onClick={() => toggleUrgentMutation.mutate({ orderId: order.id, isUrgent: !order.is_urgent })}
+                      style={{
+                        padding: "4px 10px",
+                        backgroundColor: order.is_urgent ? "#fef2f2" : "#ffffff",
+                        border: `1px solid ${order.is_urgent ? "#fca5a5" : "#e1e8e2"}`,
+                        borderRadius: "6px",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        color: order.is_urgent ? "#dc2626" : "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {order.is_urgent ? "Remove Urgent" : "🔥 Mark Urgent"}
+                    </button>
                   </div>
                 </div>
 

@@ -263,3 +263,358 @@ def get_seller_complaints(
     return APIResponse(data=results)
 
 
+@router.get("/dashboard/summary", summary="Seller command center summary")
+def get_dashboard_summary(current_user: User = Depends(require_seller), db: Session = Depends(get_db)):
+    from app.models.order import Order
+    from app.models.seller_product import SellerProduct
+    from app.models.seller_profile import SellerProfile
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = now - timedelta(days=7)
+    month_start = now - timedelta(days=30)
+    
+    orders = db.query(Order).filter(Order.seller_id == current_user.id).all()
+    
+    live_orders = pending_orders = ready_orders = today_orders = 0
+    today_revenue = weekly_revenue = monthly_revenue = 0.0
+    prep_times = []
+    
+    for o in orders:
+        if o.status in ["ACCEPTED", "PACKING", "PREPARING", "SELLER_ACCEPTED"]:
+            live_orders += 1
+        elif o.status in ["NEW", "ORDER_PLACED"]:
+            pending_orders += 1
+        elif o.status in ["READY", "READY_FOR_PICKUP"]:
+            ready_orders += 1
+            
+        if o.placed_at and o.placed_at >= today_start:
+            today_orders += 1
+            
+        if o.status in ["DELIVERED", "COMPLETED"]:
+            amt = float(o.total_amount)
+            dt = o.delivered_at or o.updated_at
+            if dt:
+                if dt >= today_start: today_revenue += amt
+                if dt >= week_start: weekly_revenue += amt
+                if dt >= month_start: monthly_revenue += amt
+                    
+        if o.accepted_at and o.ready_at:
+            delta = (o.ready_at - o.accepted_at).total_seconds() / 60.0
+            if delta > 0: prep_times.append(delta)
+
+    avg_prep = sum(prep_times) / len(prep_times) if prep_times else None
+
+    sps = db.query(SellerProduct).filter(SellerProduct.seller_id == current_user.id).all()
+    low_stock_count = sum(1 for sp in sps if sp.stock_quantity <= (sp.low_stock_threshold or 10))
+    profile = db.query(SellerProfile).filter(SellerProfile.user_id == current_user.id).first()
+    
+    return APIResponse(data={
+        "live_orders": live_orders,
+        "pending_orders": pending_orders,
+        "ready_orders": ready_orders,
+        "today_orders": today_orders,
+        "today_revenue": round(today_revenue, 2),
+        "weekly_revenue": round(weekly_revenue, 2),
+        "monthly_revenue": round(monthly_revenue, 2),
+        "low_stock_count": low_stock_count,
+        "total_products": len(sps),
+        "active_products": sum(1 for sp in sps if getattr(sp, "is_available", True)),
+        "avg_prep_time_min": round(avg_prep, 1) if avg_prep else None,
+        "is_available": profile.is_available if profile else False
+    })
+
+
+@router.get("/analytics/product-performance", summary="Seller product performance")
+def get_product_performance(current_user: User = Depends(require_seller), db: Session = Depends(get_db)):
+    from app.models.seller_product import SellerProduct
+    from app.models.order_item import OrderItem
+    from app.models.order import Order
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    month_ago = now - timedelta(days=30)
+    
+    sps = db.query(SellerProduct).filter(SellerProduct.seller_id == current_user.id).all()
+    res = []
+    
+    for sp in sps:
+        items = db.query(OrderItem).join(Order).filter(
+            OrderItem.seller_product_id == sp.id,
+            Order.placed_at >= month_ago,
+            Order.status != "CANCELLED"
+        ).all()
+        
+        sold = sum(float(i.quantity) for i in items)
+        rev = sum(float(i.price * i.quantity) for i in items)
+        orders_count = len(set(i.order_id for i in items))
+        avg_qty = round(sold / orders_count, 2) if orders_count else 0.0
+        
+        avg_daily = sold / 30.0
+        stock_turnover = round(float(sp.stock_quantity) / avg_daily, 1) if avg_daily > 0 else None
+        
+        res.append({
+            "seller_product_id": sp.id,
+            "product_id": sp.product_id,
+            "product_name": sp.product.name if sp.product else "Unknown",
+            "unit": sp.product.unit if sp.product else "",
+            "current_stock": float(sp.stock_quantity),
+            "total_units_sold": round(sold, 2),
+            "total_revenue": round(rev, 2),
+            "order_count": orders_count,
+            "avg_order_quantity": avg_qty,
+            "is_fast_moving": sold > 20,
+            "is_slow_moving": sold < 2,
+            "stock_turnover_days": stock_turnover,
+            "low_stock": float(sp.stock_quantity) <= float(getattr(sp, "low_stock_threshold", 5) or 5)
+        })
+    return APIResponse(data=res)
+
+
+@router.get("/analytics/low-stock-prediction", summary="Low stock prediction")
+def get_low_stock_prediction(current_user: User = Depends(require_seller), db: Session = Depends(get_db)):
+    from app.models.seller_product import SellerProduct
+    from app.models.order_item import OrderItem
+    from app.models.order import Order
+    from datetime import datetime, timedelta, timezone
+    
+    now = datetime.now(timezone.utc)
+    month_ago = now - timedelta(days=30)
+    
+    sps = db.query(SellerProduct).filter(SellerProduct.seller_id == current_user.id).all()
+    res = []
+    
+    for sp in sps:
+        items = db.query(OrderItem, Order.placed_at).join(Order).filter(
+            OrderItem.seller_product_id == sp.id,
+            Order.placed_at >= month_ago
+        ).all()
+        
+        days_sold = set(i[1].date() for i in items if i[1])
+        sold = sum(float(i[0].quantity) for i in items)
+        
+        has_suff = len(days_sold) >= 7
+        avg_daily = round(sold / 30.0, 2)
+        
+        rem = round(float(sp.stock_quantity) / avg_daily, 1) if (avg_daily > 0 and has_suff) else None
+        
+        if not has_suff: rec = "Insufficient historical data"
+        elif rem is not None and rem < 2: rec = "Restock urgently"
+        elif rem is not None and rem < 5: rec = "Restock soon"
+        else: rec = "Stock OK"
+            
+        res.append({
+            "seller_product_id": sp.id,
+            "product_name": sp.product.name if sp.product else "Unknown",
+            "current_stock": float(sp.stock_quantity),
+            "unit": sp.product.unit if sp.product else "",
+            "avg_daily_sales": avg_daily,
+            "days_remaining": rem,
+            "has_sufficient_data": has_suff,
+            "recommendation": rec,
+            "suggested_restock_qty": round(14 * avg_daily, 1) if rec in ["Restock urgently", "Restock soon"] else None
+        })
+    return APIResponse(data=res)
+
+
+@router.get("/orders/queue", summary="Smart order queue")
+def get_orders_queue(status: str = None, current_user: User = Depends(require_seller), db: Session = Depends(get_db)):
+    from app.models.order import Order
+    from datetime import datetime, timezone
+    
+    q = db.query(Order).filter(Order.seller_id == current_user.id)
+    if status: q = q.filter(Order.status == status)
+    orders = q.all()
+    
+    now = datetime.now(timezone.utc)
+    res = []
+    for o in orders:
+        score = 0
+        if o.status == "NEW": score += 100
+        elif o.status in ["ACCEPTED", "SELLER_ACCEPTED"]: score += 80
+        elif o.status in ["PACKING", "PREPARING"]: score += 60
+        elif o.status in ["READY", "READY_FOR_PICKUP"]: score += 40
+            
+        if o.placed_at:
+            age_hr = (now - o.placed_at).total_seconds() / 3600.0
+            score += min(int(age_hr), 24)
+            
+        is_urgent = getattr(o, "is_urgent", False)
+        if is_urgent: score += 50
+            
+        prep_min = None
+        sla = "NA"
+        rem = None
+        if o.accepted_at:
+            prep_min = round((now - o.accepted_at).total_seconds() / 60.0, 1)
+            rem = round(30.0 - prep_min, 1)
+            if o.status in ["PACKING", "PREPARING", "ACCEPTED", "SELLER_ACCEPTED"]:
+                if prep_min >= 30:
+                    score += 60
+                    sla = "BREACHED"
+                elif prep_min >= 20:
+                    score += 30
+                    sla = "WARNING"
+                else:
+                    sla = "OK"
+        
+        odict = {
+            "id": o.id, "order_number": o.order_number, "status": o.status,
+            "total_amount": float(o.total_amount), "placed_at": o.placed_at.isoformat() if o.placed_at else None,
+            "accepted_at": o.accepted_at.isoformat() if o.accepted_at else None,
+            "customer_name": o.customer.name if o.customer else None,
+            "priority_score": score,
+            "is_urgent": is_urgent,
+            "prep_minutes_elapsed": prep_min,
+            "sla_status": sla,
+            "sla_minutes_remaining": rem,
+            "items_count": len(o.items) if o.items else 0
+        }
+        res.append(odict)
+        
+    res.sort(key=lambda x: x["priority_score"], reverse=True)
+    return APIResponse(data=res)
+
+
+@router.get("/inventory/audit-log", summary="Inventory transactions")
+def get_inventory_audit(current_user: User = Depends(require_seller), db: Session = Depends(get_db)):
+    from app.models.inventory_transaction import InventoryTransaction
+    from app.models.inventory import Inventory
+    from app.models.seller_product import SellerProduct
+    from app.models.user import User as UserModel
+    
+    txs = db.query(InventoryTransaction, SellerProduct, UserModel)\
+        .join(Inventory, InventoryTransaction.inventory_id == Inventory.id)\
+        .join(SellerProduct, Inventory.seller_product_id == SellerProduct.id)\
+        .outerjoin(UserModel, InventoryTransaction.created_by == UserModel.id)\
+        .filter(SellerProduct.seller_id == current_user.id)\
+        .order_by(InventoryTransaction.created_at.desc())\
+        .limit(100).all()
+        
+    res = []
+    for t, sp, u in txs:
+        res.append({
+            "id": t.id,
+            "product_name": sp.product.name if (sp and sp.product) else "Produce",
+            "transaction_type": t.transaction_type,
+            "quantity": float(t.quantity),
+            "reference_type": t.reference_type,
+            "reference_id": t.reference_id,
+            "note": t.note,
+            "created_by_name": u.name if u else "Seller",
+            "created_at": t.created_at.isoformat() if t.created_at else None
+        })
+    return APIResponse(data=res)
+
+
+@router.patch("/inventory/{seller_product_id}/adjust", summary="Manual inventory adjust")
+def adjust_inventory(seller_product_id: int, payload: dict, current_user: User = Depends(require_seller), db: Session = Depends(get_db)):
+    from app.models.seller_product import SellerProduct
+    from app.models.inventory import Inventory
+    from app.models.inventory_transaction import InventoryTransaction
+    from app.core.exceptions import NotFoundException, BadRequestException
+    
+    sp = db.query(SellerProduct).filter(SellerProduct.id == seller_product_id, SellerProduct.seller_id == current_user.id).first()
+    if not sp:
+        raise NotFoundException("Seller product not found")
+        
+    inv = db.query(Inventory).filter(Inventory.seller_product_id == sp.id).first()
+    if not inv:
+        inv = Inventory(seller_product_id=sp.id, quantity=sp.stock_quantity)
+        db.add(inv)
+        db.flush()
+        
+    delta = float(payload.get("delta", 0))
+    if float(inv.quantity) + delta < 0:
+        raise BadRequestException("Adjustment would result in negative stock quantity")
+        
+    inv.quantity = float(inv.quantity) + delta
+    sp.stock_quantity = inv.quantity
+    
+    tx = InventoryTransaction(
+        inventory_id=inv.id,
+        transaction_type=payload.get("transaction_type", "ADJUSTMENT"),
+        quantity=delta,
+        note=payload.get("reason"),
+        created_by=current_user.id
+    )
+    db.add(tx)
+    db.commit()
+    return APIResponse(message="Inventory updated", data={"new_quantity": float(inv.quantity), "seller_product_id": sp.id})
+
+
+@router.get("/delivery/handoff-status", summary="Handoff status")
+def get_handoff_status(current_user: User = Depends(require_seller), db: Session = Depends(get_db)):
+    from app.models.order import Order
+    from app.models.delivery_task import DeliveryTask
+    from app.models.delivery_partner import DeliveryPartner
+    from app.models.user import User as UserModel
+    
+    orders = db.query(Order).filter(
+        Order.seller_id == current_user.id,
+        Order.status.in_(["READY", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY"])
+    ).all()
+    
+    res = []
+    for o in orders:
+        task = db.query(DeliveryTask).filter(DeliveryTask.order_id == o.id).first()
+        dp_name = dp_phone = None
+        if task and task.delivery_partner_id:
+            dp = db.query(DeliveryPartner).filter(DeliveryPartner.id == task.delivery_partner_id).first()
+            if dp:
+                u = db.query(UserModel).filter(UserModel.id == dp.user_id).first()
+                if u:
+                    dp_name = u.name
+                    dp_phone = u.phone
+                    
+        res.append({
+            "order_id": o.id,
+            "order_number": o.order_number,
+            "order_status": o.status,
+            "delivery_partner_name": dp_name,
+            "delivery_partner_phone": dp_phone,
+            "has_delivery_task": bool(task),
+            "task_status": task.status if task else None,
+            "pickup_otp": o.pickup_otp or (task.notes if task else None)
+        })
+    return APIResponse(data=res)
+
+
+@router.get("/reports/sales", summary="Download sales report")
+def download_sales_report(range: str = "30d", current_user: User = Depends(require_seller), db: Session = Depends(get_db)):
+    from app.models.order import Order
+    from fastapi.responses import StreamingResponse
+    from datetime import datetime, timedelta, timezone
+    import csv, io
+    
+    now = datetime.now(timezone.utc)
+    days = 30
+    if range == "7d": days = 7
+    elif range == "90d": days = 90
+    dt_start = now - timedelta(days=days)
+    
+    orders = db.query(Order).filter(
+        Order.seller_id == current_user.id,
+        Order.placed_at >= dt_start,
+        Order.status != "CANCELLED"
+    ).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Order ID", "Order Number", "Date", "Customer", "Total Amount", "Status"])
+    for o in orders:
+        writer.writerow([
+            o.id, o.order_number,
+            o.placed_at.isoformat() if o.placed_at else "",
+            o.customer.name if o.customer else "",
+            float(o.total_amount), o.status
+        ])
+        
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=sales_report_{now.strftime('%Y-%m-%d')}.csv"}
+    )
+

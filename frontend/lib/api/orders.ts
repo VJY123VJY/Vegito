@@ -31,6 +31,13 @@ export type Order = {
   items_count?: number | null;
   pickup_otp?: string | null;
   delivery_partner_id?: number | null;
+  is_urgent?: boolean;
+  priority_score?: number;
+  accepted_at?: string | null;
+  prep_minutes_elapsed?: number | null;
+  sla_status?: string | null;
+  sla_minutes_remaining?: number | null;
+  customer_name?: string | null;
 };
 
 export type OrderDetail = Order & {

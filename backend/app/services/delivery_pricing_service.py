@@ -77,13 +77,17 @@ class DeliveryPricingService:
             logger.warning(
                 f"[DELIVERY_PRICING] Distance {distance_km} km exceeds maximum limit of {max_radius} km. Checkout blocked."
             )
+            if max_radius == 6.0:
+                out_msg = "This address is outside our delivery range. Please select an address within 6 km."
+            else:
+                out_msg = f"Sorry, this delivery address is outside our {int(max_radius)} KM delivery area."
             raise BadRequestException(
-                message="Sorry, this delivery address is outside our 15 KM delivery area.",
+                message=out_msg,
                 code="DELIVERY_OUT_OF_RANGE",
                 details={
                     "distance": distance_km,
                     "max_distance": max_radius,
-                    "message": "Sorry, this delivery address is outside our 15 KM delivery area.",
+                    "message": out_msg,
                 },
             )
 

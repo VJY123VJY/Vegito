@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 from typing import Optional, List
-from sqlalchemy import BigInteger, String, Numeric, Text, DateTime, ForeignKey, func
+from sqlalchemy import BigInteger, String, Numeric, Text, DateTime, ForeignKey, func, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -32,6 +32,7 @@ class Order(Base):
     delivery_slot_end: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     customer_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     placed_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now(), nullable=False)
+    is_urgent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     accepted_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     packed_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     ready_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)

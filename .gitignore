@@ -6,3 +6,6 @@ __pycache__/
 .pytest_cache/
 prompt_dump.txt
 node_modules/
+
+.vercel
+.env*

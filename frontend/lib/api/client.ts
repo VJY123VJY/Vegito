@@ -1,32 +1,43 @@
 import axios, { AxiosError } from "axios";
 import { Capacitor } from "@capacitor/core";
 
-const webApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1";
-const androidApiUrl = process.env.NEXT_PUBLIC_ANDROID_API_URL;
+const webApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const androidApiUrl = process.env.NEXT_PUBLIC_ANDROID_API_URL ?? "http://localhost:8000/api/v1";
 const apiDebugEnabled = process.env.NEXT_PUBLIC_API_DEBUG === "true";
-
-// Static-exported web assets use the normal web/production URL. Native
-// Capacitor builds may opt into a LAN FastAPI URL for local device testing.
-// Production Android builds leave NEXT_PUBLIC_ANDROID_API_URL unset and use
-// the existing HTTPS NEXT_PUBLIC_API_URL value.
-const configuredApiUrl = Capacitor.isNativePlatform() && androidApiUrl ? androidApiUrl : webApiUrl;
 
 /**
  * Returns the correct base API URL for the current platform.
  * Allows runtime override via localStorage ("vegito.custom_api_url") for flexible LAN testing.
+ * Automatically clears known stale LAN IP values (e.g. 10.41.45.29 / 10.56.190.29).
  */
 export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
-    const custom = window.localStorage.getItem("vegito.custom_api_url");
-    if (custom && custom.trim()) return custom.trim();
+    try {
+      const custom = window.localStorage.getItem("vegito.custom_api_url");
+      if (custom) {
+        if (custom.includes("10.41.45.29") || custom.includes("10.56.190.29")) {
+          console.warn("[Vegito API] Purging stale custom API URL override from localStorage:", custom);
+          window.localStorage.removeItem("vegito.custom_api_url");
+        } else if (custom.trim()) {
+          if (apiDebugEnabled) console.info("[Vegito API] Using custom API URL:", custom.trim());
+          return custom.trim();
+        }
+      }
+    } catch {
+      // Ignore localStorage access restrictions in restricted WebView contexts
+    }
   }
-  return configuredApiUrl;
+
+  if (Capacitor.isNativePlatform()) {
+    return androidApiUrl || "http://localhost:8000/api/v1";
+  }
+  return webApiUrl || "http://localhost:8000/api/v1";
 }
 
 const apiBaseUrl = getApiBaseUrl();
 
 if (apiDebugEnabled && typeof window !== "undefined") {
-  console.info("[Vegito API] Base URL:", apiBaseUrl);
+  console.info("[Vegito API] Initial Base URL:", apiBaseUrl);
   console.info("[Vegito API] Platform:", Capacitor.getPlatform());
 }
 
@@ -44,9 +55,12 @@ export function createIdempotencyKey(scope: string) {
 }
 
 api.interceptors.request.use((config) => {
+  // Ensure baseURL is dynamically verified on every request
+  const currentBase = getApiBaseUrl();
+  config.baseURL = currentBase;
   config.headers["X-Request-ID"] = createRequestId();
   if (apiDebugEnabled) {
-    console.info("[Vegito API] Request:", config.method?.toUpperCase(), `${config.baseURL ?? ""}${config.url ?? ""}`);
+    console.info("[Vegito API] Request:", config.method?.toUpperCase(), `${currentBase}${config.url ?? ""}`);
   }
   if (typeof window !== "undefined") {
     const token = window.localStorage.getItem("vegito.access-token") || window.sessionStorage.getItem("vegito.access-token");

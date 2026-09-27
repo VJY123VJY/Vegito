@@ -20,6 +20,9 @@ class DeliveryTask(Base):
     delivery_otp_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     delivery_otp_verified_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    failure_reason: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    pickup_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    failed_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now(), nullable=False)
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=func.now(), onupdate=func.now(), nullable=False

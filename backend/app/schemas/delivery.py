@@ -77,6 +77,8 @@ class DeliveryTaskRead(BaseSchema):
     delivered_at: Optional[datetime.datetime] = None
     delivery_otp_verified_at: Optional[datetime.datetime] = None
     notes: Optional[str] = None
+    is_urgent: bool = False
+    failure_reason: Optional[str] = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 

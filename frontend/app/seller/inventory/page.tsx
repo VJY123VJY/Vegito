@@ -22,17 +22,19 @@ import {
   InventoryAdjust,
 } from "@/lib/api/inventory";
 import { getSellerProfile } from "@/lib/api/seller-products";
+import { getSellerLowStockPrediction, getInventoryAuditLog, type LowStockPrediction, type InventoryAuditItem } from "@/lib/api/seller";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { RoleGuard } from "@/components/role/role-guard";
 import { getErrorMessage } from "@/lib/api/client";
 
 export default function SellerInventoryPage() {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"CATALOG" | "PREDICTIONS" | "AUDIT">("CATALOG");
   const [search, setSearch] = useState("");
   const [lowStockFilter, setLowStockFilter] = useState(false);
   const [adjustModalItem, setAdjustModalItem] = useState<InventoryItem | null>(null);
   const [customQty, setCustomQty] = useState("");
-  const [customType, setCustomType] = useState<"STOCK_IN" | "STOCK_OUT" | "ADJUSTMENT">("STOCK_IN");
+  const [customType, setCustomType] = useState<"STOCK_IN" | "STOCK_OUT" | "MANUAL" | "DAMAGED" | "EXPIRED" | "ADJUSTMENT">("STOCK_IN");
   const [customNote, setCustomNote] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
@@ -44,6 +46,19 @@ export default function SellerInventoryPage() {
   const inventoryQuery = useQuery({
     queryKey: ["seller-inventory", lowStockFilter],
     queryFn: () => listInventory(lowStockFilter),
+    enabled: activeTab === "CATALOG"
+  });
+
+  const predictionsQuery = useQuery({
+    queryKey: ["seller-inventory-predictions"],
+    queryFn: () => getSellerLowStockPrediction(),
+    enabled: activeTab === "PREDICTIONS"
+  });
+
+  const auditLogQuery = useQuery({
+    queryKey: ["seller-inventory-audit-log"],
+    queryFn: () => getInventoryAuditLog(),
+    enabled: activeTab === "AUDIT"
   });
 
   const adjustMutation = useMutation({
@@ -107,8 +122,9 @@ export default function SellerInventoryPage() {
       return;
     }
 
-    const change = customType === "STOCK_OUT" ? -qty : qty;
-    if (Number(adjustModalItem.quantity) + change < 0) {
+    const isNegative = ["STOCK_OUT", "DAMAGED", "EXPIRED"].includes(customType);
+    const change = isNegative ? -qty : qty;
+    if (Number(adjustModalItem.quantity) + change < 0 && isNegative) {
       setFeedback({ type: "error", msg: "Stock deduction exceeds available inventory." });
       return;
     }
@@ -271,7 +287,42 @@ export default function SellerInventoryPage() {
           </div>
         )}
 
-        {/* Filters */}
+        {/* Tabs */}
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            marginBottom: "24px",
+            borderBottom: "1px solid #e1e8e2",
+            paddingBottom: "12px",
+          }}
+        >
+          {[
+            { key: "CATALOG", label: "Stock Catalog" },
+            { key: "PREDICTIONS", label: "Restock Predictions" },
+            { key: "AUDIT", label: "Audit Log" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as any)}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "8px",
+                border: "none",
+                fontSize: "13.5px",
+                fontWeight: 700,
+                cursor: "pointer",
+                backgroundColor: activeTab === tab.key ? "#063c32" : "transparent",
+                color: activeTab === tab.key ? "#ffffff" : "#62746a",
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Filters - only for CATALOG */}
+        {activeTab === "CATALOG" && (
         <div
           style={{
             backgroundColor: "#ffffff",
@@ -326,173 +377,238 @@ export default function SellerInventoryPage() {
             </button>
           </div>
         </div>
+        )}
 
-        {/* Inventory Items Table */}
-        <div
-          style={{
-            backgroundColor: "#ffffff",
-            border: "1px solid #e1e8e2",
-            borderRadius: "16px",
-            overflow: "hidden",
-            boxShadow: "0 2px 8px rgba(6, 60, 50, 0.04)",
-          }}
-        >
-          {inventoryQuery.isLoading ? (
-            <div style={{ padding: "40px", textAlign: "center", color: "#62746a" }}>
-              Loading inventory records...
-            </div>
-          ) : filteredItems.length === 0 ? (
-            <div style={{ padding: "48px 24px", textAlign: "center", color: "#62746a" }}>
-              <Layers size={40} color="#16835b" style={{ margin: "0 auto 10px" }} />
-              <p style={{ margin: 0, fontWeight: 700, fontSize: "16px", color: "#063c32" }}>
-                No inventory items found
-              </p>
-              <p style={{ margin: "4px 0 0", fontSize: "13px" }}>
-                Products added to your catalog will automatically generate inventory tracking.
-              </p>
-            </div>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
+        {activeTab === "CATALOG" && (
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              border: "1px solid #e1e8e2",
+              borderRadius: "16px",
+              overflow: "hidden",
+              boxShadow: "0 2px 8px rgba(6, 60, 50, 0.04)",
+            }}
+          >
+            {inventoryQuery.isLoading ? (
+              <div style={{ padding: "40px", textAlign: "center", color: "#62746a" }}>
+                Loading inventory records...
+              </div>
+            ) : filteredItems.length === 0 ? (
+              <div style={{ padding: "48px 24px", textAlign: "center", color: "#62746a" }}>
+                <Layers size={40} color="#16835b" style={{ margin: "0 auto 10px" }} />
+                <p style={{ margin: 0, fontWeight: 700, fontSize: "16px", color: "#063c32" }}>
+                  No inventory items found
+                </p>
+                <p style={{ margin: "4px 0 0", fontSize: "13px" }}>
+                  Products added to your catalog will automatically generate inventory tracking.
+                </p>
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13.5px" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "#f9fbf8", borderBottom: "1.5px solid #edf2ee" }}>
+                      <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Vegetable Item</th>
+                      <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Stock on Hand</th>
+                      <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Reserved</th>
+                      <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Available</th>
+                      <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Threshold</th>
+                      <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Status</th>
+                      <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700, textAlign: "right" }}>
+                        Stock Adjustments
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredItems.map((inv) => {
+                      const isLow = Number(inv.quantity) <= Number(inv.low_stock_threshold);
+                      const isOut = Number(inv.quantity) <= 0;
+
+                      return (
+                        <tr key={inv.id} style={{ borderBottom: "1px solid #f1f5f2" }}>
+                          <td style={{ padding: "14px 18px" }}>
+                            <strong style={{ color: "#063c32", fontSize: "14px" }}>
+                              {inv.product_name || "Vegetable Item"}
+                            </strong>
+                            <span style={{ display: "block", fontSize: "11.5px", color: "#62746a" }}>
+                              Unit: {inv.product_unit || "1 KG"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "14px 18px", fontWeight: 800, color: "#063c32" }}>
+                            {Number(inv.quantity).toFixed(1)} kg
+                          </td>
+                          <td style={{ padding: "14px 18px", color: "#62746a" }}>
+                            {Number(inv.reserved_quantity || 0).toFixed(1)} kg
+                          </td>
+                          <td
+                            style={{
+                              padding: "14px 18px",
+                              fontWeight: 800,
+                              color: isOut ? "#dc2626" : isLow ? "#d97706" : "#16835b",
+                            }}
+                          >
+                            {Number(inv.available_quantity ?? (Number(inv.quantity) - Number(inv.reserved_quantity || 0))).toFixed(1)} kg
+                          </td>
+                          <td style={{ padding: "14px 18px", color: "#62746a" }}>
+                            {inv.low_stock_threshold} kg
+                          </td>
+                          <td style={{ padding: "14px 18px" }}>
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "5px",
+                                padding: "4px 10px",
+                                borderRadius: "20px",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                backgroundColor: isOut ? "#fee2e2" : isLow ? "#fef3c7" : "#e9f6ee",
+                                color: isOut ? "#dc2626" : isLow ? "#b45309" : "#16835b",
+                              }}
+                            >
+                              {isOut ? "Out of Stock" : isLow ? "Low Stock" : "Healthy Stock"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "14px 18px", textAlign: "right" }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                              <button
+                                onClick={() => handleQuickAdjust(inv, 10)}
+                                disabled={adjustMutation.isPending}
+                                title="Add 10 kg from fresh harvest"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "2px",
+                                  padding: "5px 9px",
+                                  borderRadius: "8px",
+                                  border: "1px solid #c4e8d3",
+                                  backgroundColor: "#f0fdf4",
+                                  color: "#16835b",
+                                  fontSize: "12px",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                <Plus size={13} /> 10kg
+                              </button>
+
+                              <button
+                                onClick={() => handleQuickAdjust(inv, -10)}
+                                disabled={adjustMutation.isPending}
+                                title="Deduct 10 kg (spoilage/offline sale)"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "2px",
+                                  padding: "5px 9px",
+                                  borderRadius: "8px",
+                                  border: "1px solid #fee2e2",
+                                  backgroundColor: "#fff5f5",
+                                  color: "#dc2626",
+                                  fontSize: "12px",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                <Minus size={13} /> 10kg
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setAdjustModalItem(inv);
+                                  setCustomQty("");
+                                  setCustomNote("");
+                                }}
+                                style={{
+                                  padding: "5px 12px",
+                                  borderRadius: "8px",
+                                  border: "1px solid #d8e5dc",
+                                  backgroundColor: "#ffffff",
+                                  color: "#063c32",
+                                  fontSize: "12px",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Adjust...
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "PREDICTIONS" && (
+          <div style={{ backgroundColor: "#ffffff", border: "1px solid #e1e8e2", borderRadius: "16px", overflow: "hidden" }}>
+            {predictionsQuery.isLoading ? (
+              <div style={{ padding: "40px", textAlign: "center", color: "#62746a" }}>Loading predictions...</div>
+            ) : (
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13.5px" }}>
                 <thead>
                   <tr style={{ backgroundColor: "#f9fbf8", borderBottom: "1.5px solid #edf2ee" }}>
                     <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Vegetable Item</th>
-                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Stock on Hand</th>
-                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Reserved</th>
-                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Available</th>
-                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Threshold</th>
-                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Status</th>
-                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700, textAlign: "right" }}>
-                      Stock Adjustments
-                    </th>
+                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Current Stock</th>
+                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Avg Daily Sales</th>
+                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Days Remaining</th>
+                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Recommendation</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredItems.map((inv) => {
-                    const isLow = Number(inv.quantity) <= Number(inv.low_stock_threshold);
-                    const isOut = Number(inv.quantity) <= 0;
-
-                    return (
-                      <tr key={inv.id} style={{ borderBottom: "1px solid #f1f5f2" }}>
-                        <td style={{ padding: "14px 18px" }}>
-                          <strong style={{ color: "#063c32", fontSize: "14px" }}>
-                            {inv.product_name || "Vegetable Item"}
-                          </strong>
-                          <span style={{ display: "block", fontSize: "11.5px", color: "#62746a" }}>
-                            Unit: {inv.product_unit || "1 KG"}
-                          </span>
-                        </td>
-                        <td style={{ padding: "14px 18px", fontWeight: 800, color: "#063c32" }}>
-                          {Number(inv.quantity).toFixed(1)} kg
-                        </td>
-                        <td style={{ padding: "14px 18px", color: "#62746a" }}>
-                          {Number(inv.reserved_quantity || 0).toFixed(1)} kg
-                        </td>
-                        <td
-                          style={{
-                            padding: "14px 18px",
-                            fontWeight: 800,
-                            color: isOut ? "#dc2626" : isLow ? "#d97706" : "#16835b",
-                          }}
-                        >
-                          {Number(inv.available_quantity ?? (Number(inv.quantity) - Number(inv.reserved_quantity || 0))).toFixed(1)} kg
-                        </td>
-                        <td style={{ padding: "14px 18px", color: "#62746a" }}>
-                          {inv.low_stock_threshold} kg
-                        </td>
-                        <td style={{ padding: "14px 18px" }}>
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "5px",
-                              padding: "4px 10px",
-                              borderRadius: "20px",
-                              fontSize: "12px",
-                              fontWeight: 700,
-                              backgroundColor: isOut ? "#fee2e2" : isLow ? "#fef3c7" : "#e9f6ee",
-                              color: isOut ? "#dc2626" : isLow ? "#b45309" : "#16835b",
-                            }}
-                          >
-                            {isOut ? "Out of Stock" : isLow ? "Low Stock" : "Healthy Stock"}
-                          </span>
-                        </td>
-                        <td style={{ padding: "14px 18px", textAlign: "right" }}>
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                            {/* Quick +10 */}
-                            <button
-                              onClick={() => handleQuickAdjust(inv, 10)}
-                              disabled={adjustMutation.isPending}
-                              title="Add 10 kg from fresh harvest"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "2px",
-                                padding: "5px 9px",
-                                borderRadius: "8px",
-                                border: "1px solid #c4e8d3",
-                                backgroundColor: "#f0fdf4",
-                                color: "#16835b",
-                                fontSize: "12px",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                              }}
-                            >
-                              <Plus size={13} /> 10kg
-                            </button>
-
-                            {/* Quick -10 */}
-                            <button
-                              onClick={() => handleQuickAdjust(inv, -10)}
-                              disabled={adjustMutation.isPending}
-                              title="Deduct 10 kg (spoilage/offline sale)"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "2px",
-                                padding: "5px 9px",
-                                borderRadius: "8px",
-                                border: "1px solid #fee2e2",
-                                backgroundColor: "#fff5f5",
-                                color: "#dc2626",
-                                fontSize: "12px",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                              }}
-                            >
-                              <Minus size={13} /> 10kg
-                            </button>
-
-                            {/* Custom Adjust */}
-                            <button
-                              onClick={() => {
-                                setAdjustModalItem(inv);
-                                setCustomQty("");
-                                setCustomNote("");
-                              }}
-                              style={{
-                                padding: "5px 12px",
-                                borderRadius: "8px",
-                                border: "1px solid #d8e5dc",
-                                backgroundColor: "#ffffff",
-                                color: "#063c32",
-                                fontSize: "12px",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                              }}
-                            >
-                              Adjust...
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {(predictionsQuery.data || []).map((pred) => (
+                    <tr key={pred.product_name} style={{ borderBottom: "1px solid #f1f5f2" }}>
+                      <td style={{ padding: "14px 18px", fontWeight: 800, color: "#063c32" }}>{pred.product_name}</td>
+                      <td style={{ padding: "14px 18px" }}>{pred.current_stock} kg</td>
+                      <td style={{ padding: "14px 18px" }}>{pred.avg_daily_sales} kg</td>
+                      <td style={{ padding: "14px 18px" }}>{pred.days_remaining !== null ? pred.days_remaining : "-"}</td>
+                      <td style={{ padding: "14px 18px" }}>{pred.recommendation}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "AUDIT" && (
+          <div style={{ backgroundColor: "#ffffff", border: "1px solid #e1e8e2", borderRadius: "16px", overflow: "hidden" }}>
+            {auditLogQuery.isLoading ? (
+              <div style={{ padding: "40px", textAlign: "center", color: "#62746a" }}>Loading audit log...</div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13.5px" }}>
+                <thead>
+                  <tr style={{ backgroundColor: "#f9fbf8", borderBottom: "1.5px solid #edf2ee" }}>
+                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Date & Time</th>
+                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Product</th>
+                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Transaction Type</th>
+                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Quantity Change</th>
+                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>Reason / Note</th>
+                    <th style={{ padding: "14px 18px", color: "#62746a", fontWeight: 700 }}>User</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(auditLogQuery.data || []).map((log) => (
+                    <tr key={log.id} style={{ borderBottom: "1px solid #f1f5f2" }}>
+                      <td style={{ padding: "14px 18px", color: "#62746a" }}>{log.created_at ? new Date(log.created_at).toLocaleString() : "-"}</td>
+                      <td style={{ padding: "14px 18px", fontWeight: 800, color: "#063c32" }}>{log.product_name}</td>
+                      <td style={{ padding: "14px 18px" }}>{log.transaction_type}</td>
+                      <td style={{ padding: "14px 18px", color: log.quantity > 0 ? "#16835b" : "#dc2626", fontWeight: 700 }}>
+                        {log.quantity > 0 ? "+" : ""}{log.quantity} kg
+                      </td>
+                      <td style={{ padding: "14px 18px" }}>{log.note || "-"}</td>
+                      <td style={{ padding: "14px 18px", color: "#62746a" }}>{log.created_by_name || "Seller"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
 
         {/* Custom Stock Adjustment Modal */}
         {adjustModalItem && (
@@ -531,40 +647,26 @@ export default function SellerInventoryPage() {
                   <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, color: "#063c32", marginBottom: "6px" }}>
                     Action Type
                   </label>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                    <button
-                      type="button"
-                      onClick={() => setCustomType("STOCK_IN")}
-                      style={{
-                        padding: "10px",
-                        borderRadius: "10px",
-                        border: `1.5px solid ${customType === "STOCK_IN" ? "#16835b" : "#e1e8e2"}`,
-                        backgroundColor: customType === "STOCK_IN" ? "#e9f6ee" : "#ffffff",
-                        color: customType === "STOCK_IN" ? "#16835b" : "#475569",
-                        fontWeight: 700,
-                        fontSize: "13px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      + Stock In (Harvest)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCustomType("STOCK_OUT")}
-                      style={{
-                        padding: "10px",
-                        borderRadius: "10px",
-                        border: `1.5px solid ${customType === "STOCK_OUT" ? "#dc2626" : "#e1e8e2"}`,
-                        backgroundColor: customType === "STOCK_OUT" ? "#fee2e2" : "#ffffff",
-                        color: customType === "STOCK_OUT" ? "#dc2626" : "#475569",
-                        fontWeight: 700,
-                        fontSize: "13px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      - Stock Out (Spoilage)
-                    </button>
-                  </div>
+                  <select
+                    value={customType}
+                    onChange={(e) => setCustomType(e.target.value as any)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      border: "1.5px solid #cbd5e1",
+                      fontSize: "14px",
+                      outline: "none",
+                      backgroundColor: "#ffffff",
+                    }}
+                  >
+                    <option value="STOCK_IN">Stock In (Harvest/Restock)</option>
+                    <option value="STOCK_OUT">Stock Out (Sale/Usage)</option>
+                    <option value="MANUAL">Manual Count Correction</option>
+                    <option value="DAMAGED">Damaged/Spoiled</option>
+                    <option value="EXPIRED">Expired</option>
+                    <option value="ADJUSTMENT">Other Adjustment</option>
+                  </select>
                 </div>
 
                 <div>

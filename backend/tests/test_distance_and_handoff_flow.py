@@ -33,9 +33,19 @@ from app.services.delivery_pricing_service import DeliveryPricingService
 from app.services.mapbox_service import MapboxService
 
 
+from app.config import settings
+
+
+@pytest.fixture(autouse=True)
+def configure_6km_rules(monkeypatch):
+    monkeypatch.setattr(settings, "DELIVERY_MAX_DISTANCE_KM", 6.0)
+    monkeypatch.setattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 6.0)
+
+
 @pytest.fixture
 def base_flow_data(db):
     """Sets up a seller with shop, a customer, products, and auth tokens."""
+    db.query(DeliveryPartner).update({"is_available": False})
     seller_user = User(
         role_id=2,
         name="Solapur Fresh Farms",

@@ -19,6 +19,8 @@ export type DeliveryTask = {
   pickup_otp?: string | null;
   pickup_otp_verified_at?: string | null;
   notes?: string | null;
+  is_urgent?: boolean;
+  failure_reason?: string | null;
 };
 
 export async function listDeliveryTasks(status?: string) {
@@ -113,6 +115,47 @@ export async function setDeliveryAvailability(is_available: boolean): Promise<De
 export async function getPartnerLocationHistory(partnerId?: number, limit = 50) {
   const { data } = await api.get<ApiEnvelope<any[]>>("/delivery/location/history", {
     params: { partner_id: partnerId, limit },
+  });
+  return data.data;
+}
+
+export interface DeliveryEarningsPeriod {
+  deliveries: number;
+  base_earnings: number;
+  failed: number;
+}
+
+export interface DeliveryEarningsResponse {
+  today: DeliveryEarningsPeriod;
+  this_week: DeliveryEarningsPeriod;
+  this_month: DeliveryEarningsPeriod;
+  total_lifetime: DeliveryEarningsPeriod;
+}
+
+export async function getDeliveryEarnings(): Promise<DeliveryEarningsResponse> {
+  const { data } = await api.get<ApiEnvelope<DeliveryEarningsResponse>>("/delivery/earnings");
+  return data.data;
+}
+
+export interface DeliveryPerformanceData {
+  total_completed: number;
+  total_failed: number;
+  on_time_percentage: number;
+  avg_delivery_time_min: number | null;
+  avg_pickup_time_min: number | null;
+  customer_rating: number;
+  cancellation_rate: number;
+}
+
+export async function getDeliveryPerformance(): Promise<DeliveryPerformanceData> {
+  const { data } = await api.get<ApiEnvelope<DeliveryPerformanceData>>("/delivery/performance");
+  return data.data;
+}
+
+export async function failDeliveryTask(taskId: number, reason: string, notes?: string) {
+  const { data } = await api.post<ApiEnvelope<boolean>>(`/delivery/tasks/${taskId}/fail`, {
+    reason,
+    notes,
   });
   return data.data;
 }

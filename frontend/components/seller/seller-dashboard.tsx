@@ -26,7 +26,7 @@ import {
 } from "recharts";
 import { AddProductModal } from "./add-product-modal";
 import { getSellerProfile, setSellerAvailability } from "@/lib/api/seller-products";
-import { listSellerOrders, updateSellerOrder, getSellerRevenueAnalytics, getSellerProductAnalytics } from "@/lib/api/seller";
+import { listSellerOrders, updateSellerOrder, getSellerRevenueAnalytics, getSellerProductAnalytics, getSellerDashboardSummary, getDeliveryHandoffStatus } from "@/lib/api/seller";
 import { listInventory } from "@/lib/api/inventory";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -125,6 +125,18 @@ export function SellerDashboard() {
   const topProducts = useQuery({
     queryKey: ["seller-top-products"],
     queryFn: () => getSellerProductAnalytics(5),
+  });
+
+  const dashboardSummary = useQuery({
+    queryKey: ["seller-dashboard-summary"],
+    queryFn: () => getSellerDashboardSummary(),
+    refetchInterval: 15000,
+  });
+
+  const handoffStatus = useQuery({
+    queryKey: ["seller-delivery-handoff"],
+    queryFn: () => getDeliveryHandoffStatus(),
+    refetchInterval: 15000,
   });
 
   // Status transition mutation
@@ -398,29 +410,29 @@ export function SellerDashboard() {
         }}
       >
         <StatCard
-          label="Total Orders"
-          value={totalOrders}
+          label="Today's Orders"
+          value={dashboardSummary.data?.today_orders ?? 0}
           icon={<ClipboardList size={22} />}
           iconBg="#ffedd5"
           iconColor="#c2410c"
         />
         <StatCard
-          label="Total Sales"
-          value={`₹${totalSalesVal.toLocaleString("en-IN")}`}
+          label="Today's Revenue"
+          value={`₹${(dashboardSummary.data?.today_revenue ?? 0).toLocaleString("en-IN")}`}
           icon={<DollarSign size={22} />}
           iconBg="#fef3c7"
           iconColor="#d97706"
         />
         <StatCard
-          label="Products"
-          value={productsCount}
-          icon={<Package size={22} />}
+          label="Live Orders"
+          value={dashboardSummary.data?.live_orders ?? 0}
+          icon={<ShoppingBag size={22} />}
           iconBg="#ecfdf5"
           iconColor="#059669"
         />
         <StatCard
-          label="Pending Orders"
-          value={pendingOrders}
+          label="Avg Prep Time"
+          value={dashboardSummary.data?.avg_prep_time_min ? `⏱️ ${dashboardSummary.data.avg_prep_time_min.toFixed(1)} min` : "⏱️ -- min"}
           icon={<Clock size={22} />}
           iconBg="#fee2e2"
           iconColor="#dc2626"
@@ -429,6 +441,62 @@ export function SellerDashboard() {
 
       {/* Inventory Alert Banner */}
       {lowStockAlerts.length > 0 && <InventoryAlert alerts={lowStockAlerts} />}
+
+      {/* Delivery Handoff Status */}
+      {handoffStatus.data && handoffStatus.data.length > 0 && (
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            border: "1px solid #e1e8e2",
+            borderRadius: "16px",
+            padding: "20px 24px",
+            marginBottom: "28px",
+            boxShadow: "0 2px 8px rgba(6, 60, 50, 0.04)",
+          }}
+        >
+          <h3 style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: 800, color: "#063c32" }}>
+            Delivery Handoff Status
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {handoffStatus.data.map((order: any) => (
+              <div
+                key={order.order_id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "12px 16px",
+                  borderRadius: "12px",
+                  backgroundColor: "#fafcf9",
+                  border: "1px solid #edf2ee",
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontWeight: 800, color: "#063c32", fontSize: "14px" }}>
+                      Order #{order.order_number}
+                    </span>
+                    <StatusBadge status={order.status} />
+                  </div>
+                  <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#62746a" }}>
+                    Partner: {order.delivery_partner_name || "Assigning..."} {order.delivery_partner_phone ? `(${order.delivery_partner_phone})` : ""}
+                  </p>
+                </div>
+                {order.pickup_otp && (
+                  <div style={{ textAlign: "right" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#059669", textTransform: "uppercase" }}>
+                      Pickup OTP
+                    </span>
+                    <div style={{ fontSize: "16px", fontWeight: 900, color: "#064e3b", letterSpacing: "2px" }}>
+                      {order.pickup_otp}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Main Grid: Revenue Overview + Recent Orders & Top Products */}
       <div

@@ -47,6 +47,9 @@ from app.schemas.order import OrderCreate
 @pytest.fixture
 def setup_solapur_v1(db: Session):
     """Sets up a realistic Solapur single seller, single delivery partner, and customer."""
+    # Set existing partners offline within this test transaction for single-partner test isolation
+    db.query(DeliveryPartner).update({"is_available": False})
+
     # 1. Seller at Solapur Central Market (17.6805, 75.9064)
     seller_user = User(role_id=2, name="Solapur Organic Farms", email="seller_v1@vegito.in", phone="9988000001", is_active=True)
     partner_user = User(role_id=3, name="Solapur Rider Ganesh", email="rider_v1@vegito.in", phone="9988000002", is_active=True)

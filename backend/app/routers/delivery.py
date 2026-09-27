@@ -251,4 +251,131 @@ def get_partner_reviews(
     return APIResponse(data=summary)
 
 
+@router.get("/earnings", summary="Delivery earnings dashboard")
+def get_delivery_earnings(current_user: User = Depends(require_delivery_partner), db: Session = Depends(get_db)):
+    from app.models.delivery_task import DeliveryTask
+    from app.models.delivery_partner import DeliveryPartner
+    from datetime import datetime, timedelta, timezone
+    
+    partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == current_user.id).first()
+    if not partner:
+        return APIResponse(data={"today": {"deliveries": 0, "base_earnings": 0.0, "failed": 0}, "this_week": {"deliveries": 0, "base_earnings": 0.0, "failed": 0}, "this_month": {"deliveries": 0, "base_earnings": 0.0, "failed": 0}, "total_lifetime": {"deliveries": 0, "base_earnings": 0.0, "failed": 0}})
+    
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = now - timedelta(days=7)
+    month_start = now - timedelta(days=30)
+    
+    tasks = db.query(DeliveryTask).filter(DeliveryTask.delivery_partner_id == partner.id).all()
+    
+    def calc_stats(t_list):
+        comps = [t for t in t_list if t.status in ["DELIVERED", "COMPLETED"]]
+        fails = [t for t in t_list if t.status == "FAILED"]
+        return {
+            "deliveries": len(comps),
+            "base_earnings": len(comps) * 35.0,
+            "failed": len(fails)
+        }
+        
+    today_tasks = [t for t in tasks if t.created_at and t.created_at >= today_start]
+    week_tasks = [t for t in tasks if t.created_at and t.created_at >= week_start]
+    month_tasks = [t for t in tasks if t.created_at and t.created_at >= month_start]
+    
+    return APIResponse(data={
+        "today": calc_stats(today_tasks),
+        "this_week": calc_stats(week_tasks),
+        "this_month": calc_stats(month_tasks),
+        "total_lifetime": calc_stats(tasks)
+    })
+
+
+@router.get("/performance", summary="Delivery performance metrics")
+def get_delivery_performance(current_user: User = Depends(require_delivery_partner), db: Session = Depends(get_db)):
+    from app.models.delivery_task import DeliveryTask
+    from app.models.delivery_partner import DeliveryPartner
+    from app.models.review import Review
+    from app.models.order import Order
+    from sqlalchemy.orm import joinedload
+    
+    partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == current_user.id).first()
+    if not partner:
+        return APIResponse(data={
+            "total_completed": 0, "total_failed": 0, "on_time_percentage": 100.0,
+            "avg_delivery_time_min": None, "avg_pickup_time_min": None,
+            "customer_rating": 5.0, "cancellation_rate": 0.0
+        })
+    
+    tasks = db.query(DeliveryTask).options(joinedload(DeliveryTask.order)).filter(DeliveryTask.delivery_partner_id == partner.id).all()
+    comp = [t for t in tasks if t.status in ["DELIVERED", "COMPLETED"]]
+    fails = [t for t in tasks if t.status == "FAILED"]
+    
+    on_time = 0
+    del_times = []
+    pick_times = []
+    
+    for t in comp:
+        if t.created_at and t.updated_at:
+            mins = (t.updated_at - t.created_at).total_seconds() / 60.0
+            if mins <= 60: on_time += 1
+            
+        o = t.order
+        if o and getattr(o, "picked_up_at", None) and getattr(o, "delivered_at", None):
+            dt = (o.delivered_at - o.picked_up_at).total_seconds() / 60.0
+            if dt > 0: del_times.append(dt)
+        if o and getattr(o, "ready_at", None) and getattr(o, "picked_up_at", None):
+            pt = (o.picked_up_at - o.ready_at).total_seconds() / 60.0
+            if pt > 0: pick_times.append(pt)
+            
+    total = len(comp) + len(fails)
+    
+    reviews = db.query(Review).filter(Review.delivery_partner_id == partner.id).all()
+    valid_ratings = [float(r.delivery_rating) for r in reviews if r.delivery_rating]
+    rating = round(sum(valid_ratings) / len(valid_ratings), 1) if valid_ratings else 5.0
+    
+    return APIResponse(data={
+        "total_completed": len(comp),
+        "total_failed": len(fails),
+        "on_time_percentage": round((on_time / len(comp) * 100), 1) if comp else 100.0,
+        "avg_delivery_time_min": round(sum(del_times) / len(del_times), 1) if del_times else None,
+        "avg_pickup_time_min": round(sum(pick_times) / len(pick_times), 1) if pick_times else None,
+        "customer_rating": rating,
+        "cancellation_rate": round((len(fails) / total * 100), 1) if total > 0 else 0.0
+    })
+
+
+@router.post("/tasks/{task_id}/fail", summary="Mark task as failed")
+def fail_delivery_task(task_id: int, payload: dict, current_user: User = Depends(require_delivery_partner), db: Session = Depends(get_db)):
+    from app.models.delivery_task import DeliveryTask
+    from app.models.delivery_partner import DeliveryPartner
+    from app.models.delivery_task_status_history import DeliveryTaskStatusHistory
+    from app.models.order_status_history import OrderStatusHistory
+    from app.models.order import Order
+    from app.core.exceptions import NotFoundException
+    from datetime import datetime, timezone
+    
+    partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == current_user.id).first()
+    task = db.query(DeliveryTask).filter(DeliveryTask.id == task_id, DeliveryTask.delivery_partner_id == partner.id).first()
+    if not task:
+        raise NotFoundException("Delivery task not found or not assigned to you")
+        
+    reason = payload.get('reason', 'OTHER')
+    notes = payload.get('notes', '')
+    now = datetime.now(timezone.utc)
+    
+    task.status = "FAILED"
+    task.failure_reason = reason
+    task.failed_at = now
+    task.notes = f"{reason}: {notes}".strip()
+    
+    t_hist = DeliveryTaskStatusHistory(delivery_task_id=task.id, status="FAILED", note=task.notes)
+    db.add(t_hist)
+    
+    if task.order:
+        task.order.status = "CANCELLED"
+        task.order.cancelled_at = now
+        o_hist = OrderStatusHistory(order_id=task.order.id, status="CANCELLED", note=f"Delivery failed: {task.notes}")
+        db.add(o_hist)
+        
+    db.commit()
+    return APIResponse(message="Delivery marked as failed", data=True)
 
