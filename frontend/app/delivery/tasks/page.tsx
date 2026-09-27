@@ -332,31 +332,41 @@ export default function DeliveryTasksPage() {
 
                     {/* Customer */}
                     <div style={{ backgroundColor: "#f9fafb", padding: "12px 14px", borderRadius: "10px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#16835b", fontWeight: 700, fontSize: "12px", marginBottom: "4px" }}>
-                        <MapPin size={14} /> Delivery Destination
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: isPickedUp ? "#16835b" : "#64748b", fontWeight: 700, fontSize: "12px", marginBottom: "4px" }}>
+                        <MapPin size={14} /> Delivery Destination {isPickedUp ? "(Unlocked)" : "(Locked)"}
                       </div>
-                      <strong style={{ fontSize: "13.5px", color: "#111827", display: "block" }}>
-                        {t.customer_name || "Customer"}
-                      </strong>
-                      <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#6b7280" }}>
-                        {t.delivery_address?.address_line1 || "Doorstep Address"}, {t.delivery_address?.city || "Solapur"} {t.delivery_address?.pincode || ""}
-                      </p>
-                      {t.customer_phone && (
-                        <a
-                          href={`tel:${t.customer_phone}`}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            marginTop: "6px",
-                            color: "#0284c7",
-                            fontSize: "12px",
-                            fontWeight: 700,
-                            textDecoration: "none",
-                          }}
-                        >
-                          <Phone size={12} /> Call {t.customer_phone}
-                        </a>
+                      {isPickedUp ? (
+                        <>
+                          <strong style={{ fontSize: "13.5px", color: "#111827", display: "block" }}>
+                            {t.customer_name || "Customer"}
+                          </strong>
+                          <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#6b7280" }}>
+                            {t.delivery_address?.address_line1 || "Doorstep Address"}, {t.delivery_address?.city || "Solapur"} {t.delivery_address?.pincode || ""}
+                          </p>
+                          {t.customer_phone && (
+                            <a
+                              href={`tel:${t.customer_phone}`}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                marginTop: "6px",
+                                color: "#0284c7",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                textDecoration: "none",
+                              }}
+                            >
+                              <Phone size={12} /> Call {t.customer_phone}
+                            </a>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ padding: "8px 10px", backgroundColor: "#f1f5f9", borderRadius: "8px", border: "1px dashed #cbd5e1", marginTop: "4px" }}>
+                          <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>
+                            🔒 Customer destination & contact are locked. Verify seller pickup code at shop to reveal address.
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -366,48 +376,28 @@ export default function DeliveryTasksPage() {
                     {isReadyForPickup && (
                       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                          <span style={{ fontSize: "12.5px", color: "#475569" }}>
-                            Assigned Pickup Verification Code:
-                          </span>
-                          <span
-                            style={{
-                              padding: "4px 10px",
-                              backgroundColor: "#ffedd5",
-                              border: "1px dashed #ea580c",
-                              borderRadius: "6px",
-                              fontWeight: 800,
-                              fontSize: "13.5px",
-                              color: "#9a3412",
-                              letterSpacing: "1px",
-                              fontFamily: "monospace",
-                            }}
-                          >
-                            {t.pickup_otp || "------"}
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: "13px", fontWeight: 700, color: "#9a3412" }}>
-                            Verify Code from Seller:
+                            Enter Seller Pickup Code:
                           </span>
                           <input
                             type="text"
-                            placeholder="Enter 6-digit code"
+                            placeholder="Enter 6-digit code from seller"
                             maxLength={10}
-                            value={pickupOtpInput[t.order_id] !== undefined ? pickupOtpInput[t.order_id] : (t.pickup_otp || "")}
-                            onChange={(e) => setPickupOtpInput({ ...pickupOtpInput, [t.order_id]: e.target.value })}
+                            value={pickupOtpInput[t.order_id] || ""}
+                            onChange={(e) => setPickupOtpInput({ ...pickupOtpInput, [t.order_id]: e.target.value.replace(/\D/g, "") })}
                             style={{
                               padding: "7px 12px",
                               borderRadius: "8px",
                               border: "1px solid #d1d5db",
                               fontSize: "13px",
-                              width: "200px",
+                              width: "220px",
                               fontWeight: 700,
                               letterSpacing: "1px",
                             }}
                           />
                           <button
-                            onClick={() => verifyPickupMutation.mutate({ orderId: t.order_id, otp: pickupOtpInput[t.order_id] ?? t.pickup_otp ?? "" })}
-                            disabled={verifyPickupMutation.isPending || !(pickupOtpInput[t.order_id] || t.pickup_otp)}
+                            onClick={() => verifyPickupMutation.mutate({ orderId: t.order_id, otp: pickupOtpInput[t.order_id] || "" })}
+                            disabled={verifyPickupMutation.isPending || !(pickupOtpInput[t.order_id] || "").trim()}
                             style={{
                               padding: "8px 16px",
                               borderRadius: "8px",

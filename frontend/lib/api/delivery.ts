@@ -18,6 +18,8 @@ export type DeliveryTask = {
   status: string;
   pickup_otp?: string | null;
   pickup_otp_verified_at?: string | null;
+  pickup_verified?: boolean;
+  pickup_at?: string | null;
   notes?: string | null;
   is_urgent?: boolean;
   failure_reason?: string | null;
