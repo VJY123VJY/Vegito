@@ -1,6 +1,6 @@
 import datetime
 from typing import Optional, List
-from sqlalchemy import BigInteger, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import BigInteger, String, Text, DateTime, ForeignKey, func, Boolean, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -17,11 +17,15 @@ class DeliveryTask(Base):
     assigned_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     started_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     delivered_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    pickup_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    pickup_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     delivery_otp_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    delivery_otp_expires_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     delivery_otp_verified_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    delivery_otp_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    delivery_otp_max_attempts: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     failure_reason: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    pickup_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     failed_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now(), nullable=False)
     updated_at: Mapped[datetime.datetime] = mapped_column(

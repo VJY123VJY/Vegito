@@ -108,6 +108,41 @@ engine = create_engine(
 )
 
 
+def ensure_database_schema(db_engine) -> None:
+    """
+    Idempotent schema guard. Ensures all required columns exist in PostgreSQL
+    without dropping or truncating tables. Safe across serverless cold starts.
+    """
+    try:
+        from sqlalchemy import text
+        with db_engine.begin() as conn:
+            # orders columns
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_urgent BOOLEAN NOT NULL DEFAULT FALSE;"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_otp_hash VARCHAR(255);"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_otp_expires_at TIMESTAMP WITH TIME ZONE;"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_otp_attempts INTEGER NOT NULL DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_otp_max_attempts INTEGER NOT NULL DEFAULT 5;"))
+
+            # delivery_tasks columns
+            conn.execute(text("ALTER TABLE delivery_tasks ADD COLUMN IF NOT EXISTS failure_reason VARCHAR(100);"))
+            conn.execute(text("ALTER TABLE delivery_tasks ADD COLUMN IF NOT EXISTS pickup_at TIMESTAMP;"))
+            conn.execute(text("ALTER TABLE delivery_tasks ADD COLUMN IF NOT EXISTS failed_at TIMESTAMP;"))
+            conn.execute(text("ALTER TABLE delivery_tasks ADD COLUMN IF NOT EXISTS pickup_verified BOOLEAN NOT NULL DEFAULT FALSE;"))
+            conn.execute(text("ALTER TABLE delivery_tasks ADD COLUMN IF NOT EXISTS delivery_otp_expires_at TIMESTAMP WITH TIME ZONE;"))
+            conn.execute(text("ALTER TABLE delivery_tasks ADD COLUMN IF NOT EXISTS delivery_otp_attempts INTEGER NOT NULL DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE delivery_tasks ADD COLUMN IF NOT EXISTS delivery_otp_max_attempts INTEGER NOT NULL DEFAULT 5;"))
+    except Exception as exc:
+        import logging
+        logging.getLogger("vegito.db").warning(f"Schema safety check note: {exc}")
+
+
+try:
+    ensure_database_schema(engine)
+except Exception:
+    pass
+
+
+
 SessionLocal = sessionmaker(
     bind=engine,
     autocommit=False,

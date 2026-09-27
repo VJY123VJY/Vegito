@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 from typing import Optional, List
-from sqlalchemy import BigInteger, String, Numeric, Text, DateTime, ForeignKey, func, Boolean
+from sqlalchemy import BigInteger, String, Numeric, Text, DateTime, ForeignKey, func, Boolean, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -20,8 +20,12 @@ class Order(Base):
     delivery_longitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 7), nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="NEW", nullable=False, index=True)
     pickup_otp: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    pickup_otp_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     pickup_otp_created_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    pickup_otp_expires_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     pickup_otp_verified_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    pickup_otp_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    pickup_otp_max_attempts: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     payment_method: Mapped[str] = mapped_column(String(30), default="COD", nullable=False)
     payment_status: Mapped[str] = mapped_column(String(30), default="PENDING", nullable=False)
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)

@@ -63,6 +63,13 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
         logger.exception(f"Unhandled server error: {str(exc)}")
+        origin = request.headers.get("origin")
+        headers = {}
+        if origin:
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "true"
+            headers["Access-Control-Allow-Headers"] = "*"
+            headers["Access-Control-Allow-Methods"] = "*"
         return JSONResponse(
             status_code=500,
             content={
@@ -73,4 +80,6 @@ def register_error_handlers(app: FastAPI) -> None:
                     "details": None,
                 },
             },
+            headers=headers,
         )
+

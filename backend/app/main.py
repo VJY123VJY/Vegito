@@ -125,7 +125,7 @@ app.add_middleware(
     # LAN IPs
     # Capacitor
     allow_origin_regex=(
-        r"^(https://[a-zA-Z0-9-]+\.vercel\.app"
+        r"^(https://([a-zA-Z0-9_-]+\.)*vercel\.app(?::[0-9]+)?"
         r"|http://localhost(?::[0-9]+)?"
         r"|http://127\.0\.0\.1(?::[0-9]+)?"
         r"|http://10\.\d+\.\d+\.\d+(?::[0-9]+)?"
