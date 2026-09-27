@@ -64,8 +64,32 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
   return data.data;
 }
 
+export interface AdminOrder {
+  id: number;
+  order_number: string;
+  customer_name: string;
+  customer_phone: string;
+  address: string | null;
+  status: string;
+  payment_method: string;
+  payment_status: string;
+  total_amount: number;
+  items_count: number;
+  placed_at: string | null;
+  delivery_task_id: number | null;
+  delivery_partner_id: number | null;
+  delivery_partner_name: string | null;
+}
+
+export interface AdminOrdersPage {
+  items: AdminOrder[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export async function listAdminOrders(params?: { status?: string; q?: string; page?: number; page_size?: number }) {
-  const { data } = await api.get<ApiEnvelope<{ items: any[]; total: number; page: number; page_size: number }>>(
+  const { data } = await api.get<ApiEnvelope<AdminOrdersPage>>(
     "/admin/orders",
     { params }
   );
