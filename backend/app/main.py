@@ -218,3 +218,9 @@ app.include_router(
     websocket_tracking_router,
     prefix=API_PREFIX,
 )
+
+
+@app.on_event("startup")
+async def on_startup():
+    from app.routers.websocket_tracking import register_main_event_loop
+    register_main_event_loop()

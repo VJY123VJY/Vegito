@@ -69,6 +69,21 @@ SELLER_DASHBOARD_SUBSCRIBERS: Dict[int, List[WebSocket]] = {}
 GENERAL_SELLER_SUBSCRIBERS: List[WebSocket] = []
 
 
+MAIN_EVENT_LOOP: Optional[asyncio.AbstractEventLoop] = None
+
+
+def register_main_event_loop(loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+    """Registers the main uvicorn asyncio event loop for threadsafe notification dispatch."""
+    global MAIN_EVENT_LOOP
+    if loop is not None:
+        MAIN_EVENT_LOOP = loop
+    else:
+        try:
+            MAIN_EVENT_LOOP = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+
+
 async def broadcast_order_packed_notification(payload: dict, partner_id: Optional[int] = None) -> None:
     """Broadcasts ORDER_PACKED notification to assigned partner and general delivery subscribers."""
     message_text = json.dumps(payload)
@@ -104,19 +119,29 @@ async def broadcast_order_packed_notification(payload: dict, partner_id: Optiona
 
 
 def dispatch_order_packed_notification(payload: dict, partner_id: Optional[int] = None) -> None:
-    """Synchronous / fire-and-forget helper to dispatch ORDER_PACKED notification."""
+    """Synchronous / fire-and-forget helper to dispatch ORDER_PACKED notification safely across threads."""
+    global MAIN_EVENT_LOOP
     try:
-        loop = asyncio.get_running_loop()
+        current_loop = asyncio.get_running_loop()
     except RuntimeError:
-        loop = None
+        current_loop = None
 
-    if loop and loop.is_running():
-        loop.create_task(broadcast_order_packed_notification(payload, partner_id))
-    else:
+    target_loop = current_loop if (current_loop and current_loop.is_running()) else (MAIN_EVENT_LOOP if (MAIN_EVENT_LOOP and MAIN_EVENT_LOOP.is_running()) else None)
+
+    if target_loop and target_loop.is_running():
         try:
-            asyncio.run(broadcast_order_packed_notification(payload, partner_id))
+            if current_loop is target_loop:
+                target_loop.create_task(broadcast_order_packed_notification(payload, partner_id))
+            else:
+                asyncio.run_coroutine_threadsafe(broadcast_order_packed_notification(payload, partner_id), target_loop)
+            return
         except Exception as e:
-            logger.warning(f"Could not dispatch order packed notification: {e}")
+            logger.warning(f"Could not dispatch order packed notification on target loop: {e}")
+
+    try:
+        asyncio.run(broadcast_order_packed_notification(payload, partner_id))
+    except Exception as e:
+        logger.warning(f"Could not dispatch order packed notification: {e}")
 
 
 async def broadcast_seller_new_order_notification(payload: dict, seller_id: Optional[int] = None) -> None:
@@ -154,19 +179,29 @@ async def broadcast_seller_new_order_notification(payload: dict, seller_id: Opti
 
 
 def dispatch_seller_new_order_notification(payload: dict, seller_id: Optional[int] = None) -> None:
-    """Synchronous / fire-and-forget helper to dispatch NEW_ORDER notification to seller."""
+    """Synchronous / fire-and-forget helper to dispatch NEW_ORDER notification safely across threads."""
+    global MAIN_EVENT_LOOP
     try:
-        loop = asyncio.get_running_loop()
+        current_loop = asyncio.get_running_loop()
     except RuntimeError:
-        loop = None
+        current_loop = None
 
-    if loop and loop.is_running():
-        loop.create_task(broadcast_seller_new_order_notification(payload, seller_id))
-    else:
+    target_loop = current_loop if (current_loop and current_loop.is_running()) else (MAIN_EVENT_LOOP if (MAIN_EVENT_LOOP and MAIN_EVENT_LOOP.is_running()) else None)
+
+    if target_loop and target_loop.is_running():
         try:
-            asyncio.run(broadcast_seller_new_order_notification(payload, seller_id))
+            if current_loop is target_loop:
+                target_loop.create_task(broadcast_seller_new_order_notification(payload, seller_id))
+            else:
+                asyncio.run_coroutine_threadsafe(broadcast_seller_new_order_notification(payload, seller_id), target_loop)
+            return
         except Exception as e:
-            logger.warning(f"Could not dispatch seller new order notification: {e}")
+            logger.warning(f"Could not dispatch seller new order notification on target loop: {e}")
+
+    try:
+        asyncio.run(broadcast_seller_new_order_notification(payload, seller_id))
+    except Exception as e:
+        logger.warning(f"Could not dispatch seller new order notification: {e}")
 
 
 def authenticate_ws_token(token: Optional[str], db: Session) -> Optional[User]:
@@ -227,6 +262,7 @@ async def delivery_partner_ws(
       }
     """
     await websocket.accept()
+    register_main_event_loop()
     db, should_close = get_ws_db()
 
     try:
@@ -370,6 +406,7 @@ async def customer_tracking_ws(
     Broadcasts every GPS update from the delivery partner.
     """
     await websocket.accept()
+    register_main_event_loop()
     db, should_close = get_ws_db()
 
     try:
@@ -455,6 +492,7 @@ async def delivery_dashboard_notifications_ws(
     (such as ORDER_PACKED with OTP and ringtone triggers) without needing page reload.
     """
     await websocket.accept()
+    register_main_event_loop()
     db, should_close = get_ws_db()
     partner_id = None
 
@@ -472,6 +510,12 @@ async def delivery_dashboard_notifications_ws(
 
         if partner:
             partner_id = partner.id
+            if partner.is_available:
+                from app.services.delivery_service import DeliveryService
+                try:
+                    DeliveryService.assign_pending_ready_orders(db, partner_id)
+                except Exception as e:
+                    logger.warning(f"Error scanning pending ready orders on WS connect: {e}")
             if partner_id not in DELIVERY_DASHBOARD_SUBSCRIBERS:
                 DELIVERY_DASHBOARD_SUBSCRIBERS[partner_id] = []
             DELIVERY_DASHBOARD_SUBSCRIBERS[partner_id].append(websocket)
@@ -556,6 +600,7 @@ async def seller_dashboard_notifications_ws(
     with order details and trigger ringtone alert without manual page refresh.
     """
     await websocket.accept()
+    register_main_event_loop()
     db, should_close = get_ws_db()
     seller_id = None
 

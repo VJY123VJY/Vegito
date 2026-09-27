@@ -53,6 +53,7 @@ class DeliveryService:
 
         task = DeliveryTask(
             order_id=order.id,
+            delivery_partner_id=order.delivery_partner_id,
             status=DeliveryTaskStatus.ASSIGNED.value,
             delivery_otp_hash=otp_hash,
             assigned_at=datetime.datetime.now(datetime.timezone.utc),
@@ -195,6 +196,14 @@ class DeliveryService:
         db: Session, partner_user: User, status: Optional[str] = None
     ) -> List[DeliveryTaskRead]:
         partner = DeliveryService.get_delivery_partner(db, partner_user)
+
+        # If partner is available, scan for any unassigned pending ready orders within radius
+        if partner.is_available:
+            try:
+                DeliveryService.assign_pending_ready_orders(db, partner.id)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Error assigning pending orders in list_partner_tasks: {e}")
 
         # Auto-heal any orders assigned to this partner (or ready for pickup) lacking a DeliveryTask
         unlinked_orders = (
