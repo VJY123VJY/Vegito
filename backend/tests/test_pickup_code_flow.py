@@ -140,7 +140,7 @@ def test_pickup_code_generated_only_at_ready(db, setup_flow_data):
 
 
 def test_seller_and_partner_see_same_code(client: TestClient, db, setup_flow_data):
-    """Test 3: Both Seller and Assigned Delivery Partner see the exact same 6-digit pickup code."""
+    """Test 3: Seller sees pickup code; Delivery Partner NEVER receives pickup code in API response."""
     d = setup_flow_data
     seller = d["seller_user"]
     dp = d["dp_user"]
@@ -165,14 +165,14 @@ def test_seller_and_partner_see_same_code(client: TestClient, db, setup_flow_dat
     expected_code = order.pickup_otp
     assert expected_code is not None
 
-    # Seller views order details
+    # Seller views order details and sees code
     seller_detail = OrderService.get_order_detail(db, seller, order.id)
     assert seller_detail.pickup_otp == expected_code
 
-    # Delivery Partner lists tasks
+    # Delivery Partner lists tasks and MUST NOT see pickup OTP (privacy & anti-cheat requirement)
     partner_tasks = DeliveryService.list_partner_tasks(db, dp)
     matching_task = next(t for t in partner_tasks if t.order_id == order.id)
-    assert matching_task.pickup_otp == expected_code
+    assert matching_task.pickup_otp is None
 
 
 def test_customer_never_sees_pickup_code(db, setup_flow_data):
@@ -237,7 +237,7 @@ def test_customer_masked_before_pickup_and_revealed_after(db, setup_flow_data):
     assert task_before.customer_phone is None
     assert task_before.customer_latitude is None
     assert task_before.customer_longitude is None
-    assert "hidden until pickup" in task_before.delivery_address.address_line1.lower()
+    assert task_before.delivery_address is None
 
     # Verify pickup with correct code
     pickup_code = order.pickup_otp

@@ -44,6 +44,14 @@ def calculate_haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2:
     return round(R * c, 2)
 
 
+def ensure_utc(dt: Optional[datetime.datetime]) -> Optional[datetime.datetime]:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=datetime.timezone.utc)
+    return dt.astimezone(datetime.timezone.utc)
+
+
 class DeliveryService:
     @staticmethod
     def create_task_for_order(db: Session, order: Order) -> Tuple[DeliveryTask, str]:
@@ -67,12 +75,17 @@ class DeliveryService:
         raw_otp = generate_delivery_otp()
         otp_hash = hash_otp(str(order.customer_id), raw_otp)
 
+        now = datetime.datetime.now(datetime.timezone.utc)
         task = DeliveryTask(
             order_id=order.id,
             delivery_partner_id=order.delivery_partner_id,
             status=DeliveryTaskStatus.ASSIGNED.value,
             delivery_otp_hash=otp_hash,
-            assigned_at=datetime.datetime.now(datetime.timezone.utc),
+            delivery_otp_expires_at=now + datetime.timedelta(hours=24),
+            delivery_otp_attempts=0,
+            delivery_otp_max_attempts=5,
+            assigned_at=now,
+            notes=f"doorstep_otp:{raw_otp}",
         )
         db.add(task)
         db.flush()
@@ -275,39 +288,22 @@ class DeliveryService:
                 shop = db.query(SellerProfile).filter(SellerProfile.user_id == order.seller_id).first()
 
             is_picked_up = bool(
-                order and (
+                getattr(t, "pickup_verified", False)
+                or (order and (
                     order.pickup_otp_verified_at is not None
                     or order.status in ["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"]
-                    or t.status in ["STARTED", "OUT_FOR_DELIVERY", "DELIVERED"]
-                )
+                ))
             )
 
             cust_name = order.customer.name if (order and order.customer) else "Customer"
             cust_phone = (order.customer.phone if (order and order.customer) else None) if is_picked_up else None
 
             addr_obj = None
-            if order and order.address:
-                if is_picked_up:
-                    addr_obj = AddressRead.model_validate(order.address)
-                else:
-                    addr_obj = AddressRead(
-                        id=order.address.id,
-                        user_id=order.address.user_id,
-                        address_line1="Area hidden until pickup",
-                        address_line2=None,
-                        city=order.address.city,
-                        state=order.address.state,
-                        pincode=order.address.pincode,
-                        landmark=None,
-                        is_default=False,
-                        latitude=None,
-                        longitude=None,
-                        created_at=order.address.created_at or datetime.datetime.now(datetime.timezone.utc),
-                        updated_at=order.address.updated_at or datetime.datetime.now(datetime.timezone.utc),
-                    )
+            if order and order.address and is_picked_up:
+                addr_obj = AddressRead.model_validate(order.address)
 
-            cust_lat = (order.delivery_latitude or (order.address.latitude if order and order.address else None) or Decimal("17.6860")) if is_picked_up else None
-            cust_lng = (order.delivery_longitude or (order.address.longitude if order and order.address else None) or Decimal("75.9120")) if is_picked_up else None
+            cust_lat = (order.delivery_latitude or (order.address.latitude if order and order.address else None)) if is_picked_up else None
+            cust_lng = (order.delivery_longitude or (order.address.longitude if order and order.address else None)) if is_picked_up else None
 
             results.append(
                 DeliveryTaskRead(
@@ -326,8 +322,10 @@ class DeliveryService:
                     shop_longitude=shop.longitude if (shop and shop.longitude) else Decimal("75.9064"),
                     delivery_partner_id=t.delivery_partner_id,
                     status=t.status,
-                    pickup_otp=order.pickup_otp if order else None,
+                    pickup_otp=None,  # Delivery partner must obtain pickup code verbally from seller at shop
                     pickup_otp_verified_at=order.pickup_otp_verified_at if order else None,
+                    pickup_verified=is_picked_up,
+                    pickup_at=t.pickup_at or (order.pickup_otp_verified_at if order else None),
                     assigned_at=t.assigned_at,
                     started_at=t.started_at,
                     delivered_at=t.delivered_at,
@@ -420,13 +418,30 @@ class DeliveryService:
                 "pickup_otp_verified_at": order.pickup_otp_verified_at.isoformat() if order.pickup_otp_verified_at else datetime.datetime.now(datetime.timezone.utc).isoformat(),
             }
 
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        # Check pickup OTP attempts limit and expiry
+        if (getattr(order, "pickup_otp_attempts", 0) or 0) >= (getattr(order, "pickup_otp_max_attempts", 5) or 5):
+            raise BadRequestException(
+                message="Maximum pickup verification attempts exceeded. Please contact support.",
+                code="MAX_PICKUP_ATTEMPTS_EXCEEDED",
+            )
+        pickup_exp = ensure_utc(getattr(order, "pickup_otp_expires_at", None))
+        if pickup_exp and pickup_exp < now:
+            raise BadRequestException(
+                message="Pickup OTP has expired. Please ask the seller to regenerate.",
+                code="PICKUP_OTP_EXPIRED",
+            )
+
         # Verify OTP / Pickup Code
         expected_otp = (order.pickup_otp or "").strip()
         clean_otp = (otp or "").strip()
 
         is_hash_valid = False
-        if task and task.notes and task.notes.startswith("pickup_hash:"):
-            expected_hash = task.notes.split("pickup_hash:", 1)[1].strip()
+        if getattr(order, "pickup_otp_hash", None):
+            is_hash_valid = verify_otp_hash(str(order.id), clean_otp, order.pickup_otp_hash)
+        if not is_hash_valid and task and task.notes and "pickup_hash:" in task.notes:
+            expected_hash = task.notes.split("pickup_hash:", 1)[1].split()[0].strip()
             is_hash_valid = verify_otp_hash(str(order.id), clean_otp, expected_hash)
 
         is_otp_valid = False
@@ -438,12 +453,15 @@ class DeliveryService:
             is_otp_valid = clean_otp in [getattr(settings, "TEST_PICKUP_OTP", "123456"), "123456"]
 
         if not clean_otp or not is_otp_valid:
+            order.pickup_otp_attempts = (getattr(order, "pickup_otp_attempts", 0) or 0) + 1
+            db.commit()
             raise BadRequestException(
                 message="Invalid pickup code. Please ask the seller to verify the code.",
                 code="INVALID_PICKUP_CODE",
             )
 
-        now = datetime.datetime.now(datetime.timezone.utc)
+        task.pickup_verified = True
+        task.pickup_at = now
         order.pickup_otp_verified_at = now
         old_status = order.status
         order.status = OrderStatus.PICKED_UP.value
@@ -602,18 +620,46 @@ class DeliveryService:
         if task.status == DeliveryTaskStatus.DELIVERED.value and order.status == OrderStatus.DELIVERED.value:
             return task
 
-        if task.status not in [DeliveryTaskStatus.STARTED.value, "OUT_FOR_DELIVERY", "PICKED_UP"]:
-            raise BadRequestException("Start the delivery before verifying the delivery OTP")
+        # Check that pickup verification occurred before allowing delivery completion
+        is_pickup_done = bool(
+            getattr(task, "pickup_verified", False)
+            or (order and (order.pickup_otp_verified_at is not None or order.status in [OrderStatus.PICKED_UP.value, OrderStatus.OUT_FOR_DELIVERY.value, OrderStatus.DELIVERED.value]))
+        )
+        if not is_pickup_done:
+            raise BadRequestException(
+                message="Cannot complete delivery: Seller pickup OTP must be verified before completing doorstep delivery.",
+                code="PICKUP_NOT_VERIFIED",
+            )
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        if (getattr(task, "delivery_otp_attempts", 0) or 0) >= (getattr(task, "delivery_otp_max_attempts", 5) or 5):
+            raise BadRequestException(
+                message="Maximum delivery OTP verification attempts exceeded. Please contact support.",
+                code="MAX_DELIVERY_ATTEMPTS_EXCEEDED",
+            )
+        delivery_exp = ensure_utc(getattr(task, "delivery_otp_expires_at", None))
+        if delivery_exp and delivery_exp < now:
+            raise BadRequestException(
+                message="Delivery OTP has expired. Please ask the customer to check their order page for a fresh code.",
+                code="DELIVERY_OTP_EXPIRED",
+            )
 
         # Verify OTP
-        is_valid = verify_otp_hash(str(order.customer_id), delivery_otp.strip(), task.delivery_otp_hash or "")
-        if not is_valid and (settings.OTP_DEV_MODE or settings.OTP_TEST_MODE) and delivery_otp.strip() in [settings.OTP_DEV_CODE, "123456", "654321"]:
+        clean_delivery_otp = delivery_otp.strip()
+        is_valid = verify_otp_hash(str(order.customer_id), clean_delivery_otp, task.delivery_otp_hash or "")
+        if not is_valid and task.notes and f"doorstep_otp:{clean_delivery_otp}" in task.notes:
+            is_valid = True
+        if not is_valid and (settings.OTP_DEV_MODE or settings.OTP_TEST_MODE) and clean_delivery_otp in [settings.OTP_DEV_CODE, "123456", "654321"]:
             is_valid = True
 
         if not is_valid:
-            raise BadRequestException("Invalid delivery OTP code provided by customer.")
+            task.delivery_otp_attempts = (getattr(task, "delivery_otp_attempts", 0) or 0) + 1
+            db.commit()
+            raise BadRequestException(
+                message="Invalid delivery OTP code provided by customer.",
+                code="INVALID_DELIVERY_OTP",
+            )
 
-        now = datetime.datetime.now(datetime.timezone.utc)
         old_status = task.status
         task.status = DeliveryTaskStatus.DELIVERED.value
         task.delivered_at = now

@@ -24,7 +24,16 @@ def list_seller_orders(
 ):
     pagination = PaginationParams(page=page, page_size=page_size)
     orders, total_count = SellerService.list_orders(db, current_user, pagination, status=status)
-    paginated = PaginatedResponse.create([OrderRead.model_validate(o) for o in orders], total_count, pagination)
+    sanitized_orders = []
+    for o in orders:
+        read_obj = OrderRead.model_validate(o)
+        read_obj.delivery_latitude = None
+        read_obj.delivery_longitude = None
+        if o.status not in ["READY", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"]:
+            read_obj.pickup_otp = None
+        sanitized_orders.append(read_obj)
+
+    paginated = PaginatedResponse.create(sanitized_orders, total_count, pagination)
     return APIResponse(data=paginated)
 
 
@@ -42,6 +51,11 @@ def update_seller_order_status(
 
     order = OrderService.update_order_status(db, current_user, order_id, payload.status, payload.note)
     order_read = OrderRead.model_validate(order)
+    order_read.delivery_latitude = None
+    order_read.delivery_longitude = None
+    if order.status not in ["READY", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"]:
+        order_read.pickup_otp = None
+
     from app.models.delivery_task import DeliveryTask
     task = db.query(DeliveryTask).filter(DeliveryTask.order_id == order.id).first()
     if task:

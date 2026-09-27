@@ -1,9 +1,14 @@
+from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import require_delivery_partner, get_current_user
 from app.models.user import User
+from app.models.delivery_task import DeliveryTask
+from app.models.seller_profile import SellerProfile
+from app.core.exceptions import NotFoundException, ForbiddenException
+from app.schemas.address import AddressRead
 from app.schemas.delivery import (
     DeliveryTaskRead,
     DeliveryTaskStatusUpdate,
@@ -39,6 +44,92 @@ def list_delivery_orders(
 ):
     tasks = DeliveryService.list_partner_tasks(db, current_user, status=status)
     return APIResponse(data=tasks)
+
+
+@router.get("/tasks/{task_id}", response_model=APIResponse[DeliveryTaskRead], summary="Get specific delivery task with IDOR protection")
+def get_task(
+    task_id: int,
+    current_user: User = Depends(require_delivery_partner),
+    db: Session = Depends(get_db),
+):
+    partner = DeliveryService.get_delivery_partner(db, current_user)
+    task = db.query(DeliveryTask).filter(DeliveryTask.id == task_id).first()
+    if not task:
+        raise NotFoundException(f"Delivery task {task_id} not found")
+    if task.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
+        raise ForbiddenException("This task is assigned to another delivery partner")
+
+    order = task.order
+    shop = order.shop if order else None
+    if not shop and order and order.seller_id:
+        shop = db.query(SellerProfile).filter(SellerProfile.user_id == order.seller_id).first()
+
+    is_picked_up = bool(
+        getattr(task, "pickup_verified", False)
+        or (order and (
+            order.pickup_otp_verified_at is not None
+            or order.status in ["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"]
+        ))
+    )
+
+    cust_name = order.customer.name if (order and order.customer) else "Customer"
+    cust_phone = (order.customer.phone if (order and order.customer) else None) if is_picked_up else None
+
+    addr_obj = None
+    if order and order.address and is_picked_up:
+        addr_obj = AddressRead.model_validate(order.address)
+
+    cust_lat = (order.delivery_latitude or (order.address.latitude if order and order.address else None)) if is_picked_up else None
+    cust_lng = (order.delivery_longitude or (order.address.longitude if order and order.address else None)) if is_picked_up else None
+
+    read_task = DeliveryTaskRead(
+        id=task.id,
+        order_id=task.order_id,
+        order_number=order.order_number if order else None,
+        order_status=order.status if order else None,
+        customer_name=cust_name,
+        customer_phone=cust_phone,
+        delivery_address=addr_obj,
+        customer_latitude=cust_lat,
+        customer_longitude=cust_lng,
+        shop_name=shop.business_name if shop else "Vegito Fresh Farm",
+        shop_address=shop.address if shop else "Solapur Market Depot",
+        shop_latitude=shop.latitude if (shop and shop.latitude) else Decimal("17.6805"),
+        shop_longitude=shop.longitude if (shop and shop.longitude) else Decimal("75.9064"),
+        delivery_partner_id=task.delivery_partner_id,
+        status=task.status,
+        pickup_otp=None,
+        pickup_otp_verified_at=order.pickup_otp_verified_at if order else None,
+        pickup_verified=is_picked_up,
+        pickup_at=task.pickup_at or (order.pickup_otp_verified_at if order else None),
+        assigned_at=task.assigned_at,
+        started_at=task.started_at,
+        delivered_at=task.delivered_at,
+        delivery_otp_verified_at=task.delivery_otp_verified_at,
+        notes=task.notes,
+        is_urgent=bool(order.is_urgent) if order else False,
+        failure_reason=getattr(task, "failure_reason", None),
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+    )
+    return APIResponse(data=read_task)
+
+
+@router.post("/tasks/{task_id}/verify-pickup", response_model=APIResponse[dict], summary="Verify pickup OTP by task ID")
+def verify_task_pickup_otp(
+    task_id: int,
+    payload: VerifyPickupOtpRequest,
+    current_user: User = Depends(require_delivery_partner),
+    db: Session = Depends(get_db),
+):
+    partner = DeliveryService.get_delivery_partner(db, current_user)
+    task = db.query(DeliveryTask).filter(DeliveryTask.id == task_id).first()
+    if not task:
+        raise NotFoundException(f"Delivery task {task_id} not found")
+    if task.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
+        raise ForbiddenException("This task is assigned to another delivery partner")
+    result = DeliveryService.verify_pickup_otp(db, current_user, task.order_id, payload.otp)
+    return APIResponse(message="Pickup OTP Verified", data=result)
 
 
 @router.patch("/tasks/{task_id}/status", response_model=APIResponse[bool], summary="Update delivery task status")

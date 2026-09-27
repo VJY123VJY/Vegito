@@ -79,6 +79,8 @@ class DeliveryTaskRead(BaseSchema):
     notes: Optional[str] = None
     is_urgent: bool = False
     failure_reason: Optional[str] = None
+    pickup_verified: bool = False
+    pickup_at: Optional[datetime.datetime] = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 

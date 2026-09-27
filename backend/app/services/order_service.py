@@ -322,27 +322,28 @@ class OrderService:
         if not order:
             raise NotFoundException(f"Order {order_id} not found")
 
-        # Access check: customer can access only their own order unless admin/seller/delivery partner
-        if user.role_id == 1 and order.customer_id != user.id:
-            raise ForbiddenException("You do not have permission to view this order")
+        # Access check
+        if user.role_id == 1:
+            if order.customer_id != user.id:
+                raise ForbiddenException("You do not have permission to view this order")
+        elif user.role_id == 2:
+            # Seller check
+            seller_owns = (order.seller_id == user.id) or any(
+                item.seller_product and item.seller_product.seller_id == user.id for item in order.items
+            )
+            if not seller_owns and user.role_id not in [4, 5]:
+                raise ForbiddenException("You do not have permission to view this order")
+        elif user.role_id == 3:
+            # Delivery partner check
+            partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == user.id).first()
+            if not partner:
+                raise ForbiddenException("Delivery partner profile not found")
+            if order.delivery_partner_id and order.delivery_partner_id != partner.id and user.role_id not in [4, 5]:
+                raise ForbiddenException("This order is assigned to another delivery partner")
 
         detail = OrderDetailRead.model_validate(order)
         detail.items = [OrderItemRead.model_validate(i) for i in order.items]
         detail.status_history = [OrderStatusHistoryRead.model_validate(h) for h in order.status_history]
-        detail.address = AddressRead.model_validate(order.address) if order.address else None
-        detail.delivery_otp = raw_delivery_otp
-        # Security: Customer must never see pickup OTP;
-        # Unauthorized delivery partners must not see pickup OTP of other partners
-        if user.role_id == 1:
-            detail.pickup_otp = None
-        elif user.role_id == 3:
-            partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == user.id).first()
-            if partner and order.delivery_partner_id and order.delivery_partner_id != partner.id:
-                detail.pickup_otp = None
-            else:
-                detail.pickup_otp = order.pickup_otp
-        else:
-            detail.pickup_otp = order.pickup_otp
 
         # Populate shop info
         shop_prof = order.shop
@@ -364,12 +365,8 @@ class OrderService:
             detail.shop_latitude = Decimal("17.6805")
             detail.shop_longitude = Decimal("75.9064")
 
-        # Customer coordinates & phone
         cust_user = db.query(User).filter(User.id == order.customer_id).first()
         detail.customer_name = cust_user.name if cust_user else "Customer"
-        detail.customer_phone = cust_user.phone if cust_user else None
-        detail.customer_latitude = order.delivery_latitude or (order.address.latitude if order.address else Decimal("17.6860"))
-        detail.customer_longitude = order.delivery_longitude or (order.address.longitude if order.address else Decimal("75.9120"))
 
         # Delivery partner info
         dp = order.delivery_partner
@@ -379,9 +376,80 @@ class OrderService:
             detail.delivery_partner_name = dp.user.name or "Delivery Partner"
             detail.delivery_partner_phone = dp.user.phone
 
-        # Privacy & Security: Customer & Delivery Partner must NOT see the seller pickup code
-        if user.role_id in [1, 3] and not (user.role_id in [4, 5] or order.seller_id == user.id):
+        # Determine pickup verification state
+        is_picked_up = bool(
+            order.pickup_otp_verified_at is not None
+            or (order.delivery_task and getattr(order.delivery_task, "pickup_verified", False))
+            or order.status in [OrderStatus.PICKED_UP.value, OrderStatus.OUT_FOR_DELIVERY.value, OrderStatus.DELIVERED.value]
+        )
+
+        # ROLE-BASED PRIVACY & ACCESS CONTROLS
+        if user.role_id == 2:
+            # SELLER: Never receive customer exact delivery address, coordinates, or phone
+            detail.address = None
+            detail.customer_latitude = None
+            detail.customer_longitude = None
+            detail.delivery_latitude = None
+            detail.delivery_longitude = None
+            detail.customer_phone = None
+            detail.delivery_otp = None
+            # Seller only receives pickup_otp when order is READY or later
+            if order.status in [
+                OrderStatus.READY.value,
+                OrderStatus.READY_FOR_PICKUP.value,
+                OrderStatus.PICKED_UP.value,
+                OrderStatus.OUT_FOR_DELIVERY.value,
+                OrderStatus.DELIVERED.value,
+            ]:
+                detail.pickup_otp = order.pickup_otp
+            else:
+                detail.pickup_otp = None
+
+        elif user.role_id == 3:
+            # DELIVERY PARTNER: Pickup OTP is NEVER revealed in API response (must receive from seller at shop)
             detail.pickup_otp = None
+            detail.delivery_otp = None
+
+            if is_picked_up:
+                # UNLOCKED after pickup verification
+                detail.address = AddressRead.model_validate(order.address) if order.address else None
+                detail.customer_latitude = order.delivery_latitude or (order.address.latitude if order.address else Decimal("17.6860"))
+                detail.customer_longitude = order.delivery_longitude or (order.address.longitude if order.address else Decimal("75.9120"))
+                detail.customer_phone = cust_user.phone if cust_user else None
+            else:
+                # LOCKED / HIDDEN before pickup verification
+                detail.address = None
+                detail.customer_latitude = None
+                detail.customer_longitude = None
+                detail.delivery_latitude = None
+                detail.delivery_longitude = None
+                detail.customer_phone = None
+
+        elif user.role_id == 1:
+            # CUSTOMER: Sees own address and doorstep delivery OTP; NEVER sees pickup OTP
+            detail.address = AddressRead.model_validate(order.address) if order.address else None
+            detail.customer_latitude = order.delivery_latitude or (order.address.latitude if order.address else Decimal("17.6860"))
+            detail.customer_longitude = order.delivery_longitude or (order.address.longitude if order.address else Decimal("75.9120"))
+            detail.customer_phone = cust_user.phone if cust_user else None
+            detail.pickup_otp = None
+
+            if raw_delivery_otp:
+                detail.delivery_otp = raw_delivery_otp
+            elif order.delivery_task and order.delivery_task.notes and "doorstep_otp:" in order.delivery_task.notes:
+                try:
+                    detail.delivery_otp = order.delivery_task.notes.split("doorstep_otp:", 1)[1].split()[0].strip()
+                except Exception:
+                    detail.delivery_otp = None
+            else:
+                detail.delivery_otp = None
+
+        else:
+            # Admin / Superadmin
+            detail.address = AddressRead.model_validate(order.address) if order.address else None
+            detail.customer_latitude = order.delivery_latitude or (order.address.latitude if order.address else Decimal("17.6860"))
+            detail.customer_longitude = order.delivery_longitude or (order.address.longitude if order.address else Decimal("75.9120"))
+            detail.customer_phone = cust_user.phone if cust_user else None
+            detail.pickup_otp = order.pickup_otp
 
         return detail
 
@@ -475,6 +543,10 @@ class OrderService:
                 order.pickup_otp_created_at = now
             else:
                 pickup_code = order.pickup_otp
+            order.pickup_otp_hash = hash_otp(str(order.id), pickup_code)
+            order.pickup_otp_expires_at = now + datetime.timedelta(minutes=30)
+            order.pickup_otp_attempts = 0
+            order.pickup_otp_max_attempts = 5
             logger.info(f"[SELLER] Marked ready order={order.order_number} pickup_code_ready=True")
 
             # Assign nearest eligible delivery partner within 6 KM of seller shop
@@ -487,7 +559,7 @@ class OrderService:
                 else:
                     logger.info(f"No available delivery partner within 6km radius for order {order.id}. Order remains READY awaiting partner.")
 
-            # Store pickup code hash into task notes for verification
+            # Store pickup code hash into task notes for verification while preserving any doorstep OTP
             task = db.query(DeliveryTask).filter(DeliveryTask.order_id == order.id).first()
             if not task:
                 task, _ = DeliveryService.create_task_for_order(db, order)
@@ -501,7 +573,7 @@ class OrderService:
                         new_status=DeliveryTaskStatus.ASSIGNED.value,
                         note="Assigned to nearest eligible partner within 6 km",
                     ))
-                task.notes = f"pickup_hash:{hash_otp(str(order.id), pickup_code)}"
+                task.notes = f"pickup_hash:{order.pickup_otp_hash}"
         elif new_status in [OrderStatus.OUT_FOR_DELIVERY.value, OrderStatus.PICKED_UP.value]:
             order.out_for_delivery_at = now
         elif new_status == OrderStatus.DELIVERED.value:
