@@ -1,4 +1,4 @@
-﻿import datetime
+import datetime
 from decimal import Decimal
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
@@ -154,6 +154,89 @@ class SellerFulfillmentService:
 
         db.commit()
         db.refresh(f)
+
+        # If order transitioned to READY via fulfillment, ensure delivery task exists
+        # and dispatch real-time notification to delivery dashboard.
+        # This path is used when the seller uses /seller/fulfillments/{id}/status
+        # (as opposed to /seller/orders/{id}/status which goes through order_service).
+        if all_ready and order.status == OrderStatus.READY.value:
+            import logging as _logging
+            _logger = _logging.getLogger(__name__)
+            _logger.info(
+                f"[SELLER_FULFILLMENT_READY] order_id={order.id} order_number={order.order_number} "
+                f"all_seller_fulfillments=READY delivery_partner_id={order.delivery_partner_id}"
+            )
+            try:
+                from app.models.delivery_task import DeliveryTask
+                from app.services.delivery_service import DeliveryService
+                from app.services.notification_service import NotificationService
+                from app.models.seller_profile import SellerProfile
+
+                # Idempotent: only create task if one doesn't exist yet
+                existing_task = db.query(DeliveryTask).filter(DeliveryTask.order_id == order.id).first()
+                if not existing_task:
+                    existing_task, _ = DeliveryService.create_task_for_order(db, order)
+                    db.commit()
+                    _logger.info(
+                        f"[DELIVERY_TASK_CREATED] task_id={existing_task.id} "
+                        f"order_id={order.id}"
+                    )
+                else:
+                    _logger.info(
+                        f"[DELIVERY_TASK_EXISTS] task_id={existing_task.id} "
+                        f"order_id={order.id} status={existing_task.status}"
+                    )
+
+                # Try to assign a delivery partner if not yet assigned
+                if not order.delivery_partner_id:
+                    from app.config import settings
+                    assigned_partner, dist_km = DeliveryService.find_and_assign_nearest_partner(db, order)
+                    if assigned_partner:
+                        db.commit()
+                        _logger.info(
+                            f"[DELIVERY_PARTNER_ASSIGNMENT] task_id={existing_task.id} "
+                            f"partner_id={assigned_partner.id} distance_km={dist_km}"
+                        )
+                    else:
+                        _logger.info(
+                            f"[DELIVERY_PARTNER_ASSIGNMENT] No available partner for "
+                            f"order_id={order.id}. Order remains READY awaiting partner."
+                        )
+
+                # Dispatch real-time notification to delivery dashboard
+                shop_prof = order.shop or (
+                    db.query(SellerProfile).filter(SellerProfile.user_id == order.seller_id).first()
+                    if order.seller_id else None
+                )
+                shop_name = shop_prof.business_name if shop_prof else "Vegito Fresh Farm"
+                from app.routers.websocket_tracking import dispatch_order_packed_notification
+                ws_payload = {
+                    "type": "ORDER_PACKED",
+                    "event": "DELIVERY_ASSIGNED",
+                    "event_id": f"DELIVERY_ASSIGNED_{existing_task.id}",
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "status": order.status,
+                    "otp": order.pickup_otp or "",
+                    "pickup_code": order.pickup_otp or "",
+                    "delivery_partner_id": order.delivery_partner_id,
+                    "delivery_task_id": existing_task.id,
+                    "shop_name": shop_name,
+                    "total_amount": float(order.total_amount),
+                    "message": f"Order {order.order_number} is packed and ready for pickup. Go to seller shop.",
+                }
+                dispatch_order_packed_notification(ws_payload, partner_id=order.delivery_partner_id)
+                _logger.info(
+                    f"[DELIVERY_EVENT_PUBLISHED] event=DELIVERY_ASSIGNED "
+                    f"order_id={order.id} task_id={existing_task.id} "
+                    f"delivery_partner_id={order.delivery_partner_id}"
+                )
+            except Exception as _e:
+                import logging as _logging2
+                _logging2.getLogger(__name__).warning(
+                    f"[FULFILLMENT_READY_NOTIFY_ERROR] order_id={order.id}: {_e}"
+                )
+
         return f
 
     @staticmethod

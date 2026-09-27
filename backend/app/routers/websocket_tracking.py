@@ -27,6 +27,7 @@ from app.models.user import User
 from app.models.order import Order
 from app.models.delivery_partner import DeliveryPartner
 from app.models.delivery_partner_location import DeliveryPartnerLocation
+from app.models.seller_profile import SellerProfile
 from app.services.jwt_service import decode_access_token
 from app.core.constants import OrderStatus
 
@@ -486,6 +487,11 @@ async def delivery_dashboard_notifications_ws(
         recovery_items = []
         for o in pending_ready_orders:
             shop_prof = o.shop or (db.query(SellerProfile).filter(SellerProfile.user_id == o.seller_id).first() if o.seller_id else None)
+            logger.info(
+                f"[DELIVERY_WS] Recovery: READY order order_id={o.id} "
+                f"order_number={o.order_number} status={o.status} "
+                f"delivery_partner_id={o.delivery_partner_id} partner_ws={partner_id}"
+            )
             recovery_items.append({
                 "type": "ORDER_PACKED",
                 "event": "DELIVERY_ASSIGNED",
@@ -493,12 +499,18 @@ async def delivery_dashboard_notifications_ws(
                 "order_id": o.id,
                 "order_number": o.order_number,
                 "status": o.status,
+                "otp": o.pickup_otp or "",
+                "pickup_code": o.pickup_otp or "",
                 "delivery_partner_id": o.delivery_partner_id,
                 "shop_name": shop_prof.business_name if shop_prof else "Vegito Fresh Farm",
                 "total_amount": float(o.total_amount),
                 "message": f"Order {o.order_number} is packed and ready for pickup. Go to seller shop.",
             })
 
+        logger.info(
+            f"[DELIVERY_WS] Sending connection_ack to partner_id={partner_id} "
+            f"with {len(recovery_items)} pending READY order(s)"
+        )
         await websocket.send_text(json.dumps({
             "type": "connection_ack",
             "status": "connected",

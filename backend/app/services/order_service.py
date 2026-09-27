@@ -534,6 +534,10 @@ class OrderService:
 
         # Dispatch real-time DELIVERY_ASSIGNED / ORDER_PACKED notification to Delivery Partner Dashboard
         if new_status in [OrderStatus.READY.value, OrderStatus.READY_FOR_PICKUP.value]:
+            logger.info(
+                f"[ORDER_READY] order_id={order.id} order_number={order.order_number} "
+                f"delivery_partner_id={order.delivery_partner_id} pickup_otp_set={bool(order.pickup_otp)}"
+            )
             try:
                 from app.routers.websocket_tracking import dispatch_order_packed_notification
                 shop_prof = order.shop or (db.query(SellerProfile).filter(SellerProfile.user_id == order.seller_id).first() if order.seller_id else None)
@@ -549,12 +553,19 @@ class OrderService:
                     "order_id": order.id,
                     "order_number": order.order_number,
                     "status": order.status,
+                    "otp": order.pickup_otp or "",
+                    "pickup_code": order.pickup_otp or "",
                     "delivery_partner_id": order.delivery_partner_id,
                     "delivery_task_id": task_id,
                     "shop_name": shop_name,
                     "total_amount": float(order.total_amount),
                     "message": f"Order {order.order_number} is packed and ready for pickup. Go to seller shop.",
                 }
+                logger.info(
+                    f"[DELIVERY_EVENT_PUBLISHED] event=DELIVERY_ASSIGNED "
+                    f"order_id={order.id} task_id={task_id} "
+                    f"delivery_partner_id={order.delivery_partner_id} shop={shop_name}"
+                )
                 dispatch_order_packed_notification(payload, partner_id=order.delivery_partner_id)
             except Exception as notify_err:
                 logger.warning(f"Could not dispatch DELIVERY_ASSIGNED / ORDER_PACKED notification: {notify_err}")

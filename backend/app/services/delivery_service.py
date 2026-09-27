@@ -702,6 +702,8 @@ class DeliveryService:
                         "order_id": order.id,
                         "order_number": order.order_number,
                         "status": order.status,
+                        "otp": order.pickup_otp or "",
+                        "pickup_code": order.pickup_otp or "",
                         "delivery_partner_id": assigned_partner.id,
                         "shop_name": shop_name,
                         "total_amount": float(order.total_amount),
