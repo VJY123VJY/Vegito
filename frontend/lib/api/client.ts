@@ -1,26 +1,53 @@
 import axios, { AxiosError } from "axios";
 import { Capacitor } from "@capacitor/core";
 
-const webApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-const androidApiUrl = process.env.NEXT_PUBLIC_ANDROID_API_URL ?? "http://localhost:8000/api/v1";
+const DEFAULT_PROD_API_URL = "https://vegito-git-main-vijaydhavan04-1868s-projects.vercel.app/api/v1";
+const DEFAULT_LOCAL_API_URL = "http://localhost:8000/api/v1";
+
+function normalizeApiUrl(url?: string | null): string {
+  if (!url) return DEFAULT_LOCAL_API_URL;
+  let trimmed = url.trim().replace(/\/+$/, "");
+  if (!trimmed) return DEFAULT_LOCAL_API_URL;
+  if (!trimmed.endsWith("/api/v1")) {
+    trimmed = `${trimmed}/api/v1`;
+  }
+  return trimmed;
+}
+
+const rawWebApiUrl = process.env.NEXT_PUBLIC_API_URL;
+const rawAndroidApiUrl = process.env.NEXT_PUBLIC_ANDROID_API_URL;
 const apiDebugEnabled = process.env.NEXT_PUBLIC_API_DEBUG === "true";
 
 /**
  * Returns the correct base API URL for the current platform.
  * Allows runtime override via localStorage ("vegito.custom_api_url") for flexible LAN testing.
- * Automatically clears known stale LAN IP values (e.g. 10.41.45.29 / 10.56.190.29).
+ * Automatically clears known stale LAN IP values or any HTTP/LAN values when running on HTTPS.
  */
 export function getApiBaseUrl(): string {
-  if (typeof window !== "undefined") {
+  const isBrowser = typeof window !== "undefined";
+  const isHttps = isBrowser && window.location.protocol === "https:";
+
+  if (isBrowser) {
     try {
       const custom = window.localStorage.getItem("vegito.custom_api_url");
       if (custom) {
-        if (custom.includes("10.41.45.29") || custom.includes("10.56.190.29")) {
-          console.warn("[Vegito API] Purging stale custom API URL override from localStorage:", custom);
+        const trimmedCustom = custom.trim();
+        const isInsecureLocal =
+          trimmedCustom.startsWith("http://") ||
+          trimmedCustom.includes("localhost") ||
+          trimmedCustom.includes("127.0.0.1") ||
+          trimmedCustom.includes("10.") ||
+          trimmedCustom.includes("192.168.") ||
+          trimmedCustom.includes("172.");
+
+        // On HTTPS web (e.g. Vercel), browsers block HTTP requests as Mixed Content,
+        // and private LAN IPs cannot be reached over the public internet.
+        if (isHttps && isInsecureLocal) {
+          console.warn("[Vegito API] Purging insecure/unreachable local API URL override from localStorage on HTTPS:", custom);
           window.localStorage.removeItem("vegito.custom_api_url");
-        } else if (custom.trim()) {
-          if (apiDebugEnabled) console.info("[Vegito API] Using custom API URL:", custom.trim());
-          return custom.trim();
+        } else if (trimmedCustom) {
+          if (apiDebugEnabled) console.info("[Vegito API] Using custom API URL:", trimmedCustom);
+          return normalizeApiUrl(trimmedCustom);
         }
       }
     } catch {
@@ -29,9 +56,23 @@ export function getApiBaseUrl(): string {
   }
 
   if (Capacitor.isNativePlatform()) {
-    return androidApiUrl || "http://localhost:8000/api/v1";
+    const raw = rawAndroidApiUrl || rawWebApiUrl;
+    return raw ? normalizeApiUrl(raw) : DEFAULT_LOCAL_API_URL;
   }
-  return webApiUrl || "http://localhost:8000/api/v1";
+
+  if (rawWebApiUrl) {
+    const normalized = normalizeApiUrl(rawWebApiUrl);
+    if (isHttps && normalized.startsWith("http://")) {
+      return DEFAULT_PROD_API_URL;
+    }
+    return normalized;
+  }
+
+  if (isHttps) {
+    return DEFAULT_PROD_API_URL;
+  }
+
+  return DEFAULT_LOCAL_API_URL;
 }
 
 const apiBaseUrl = getApiBaseUrl();
@@ -41,7 +82,7 @@ if (apiDebugEnabled && typeof window !== "undefined") {
   console.info("[Vegito API] Platform:", Capacitor.getPlatform());
 }
 
-export const api = axios.create({ baseURL: apiBaseUrl, timeout: 10000 });
+export const api = axios.create({ baseURL: apiBaseUrl, timeout: 15000 });
 export type ApiEnvelope<T> = { data: T; message?: string };
 export type ApiError = { success: false; error?: { code?: string; message?: string; details?: unknown } };
 export type PaginatedResponse<T> = { items: T[]; meta: { total_items: number; page: number; total_pages: number; has_next: boolean } };
@@ -84,6 +125,8 @@ api.interceptors.response.use(
 );
 
 export function getErrorMessage(error: unknown): string {
+  const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+
   if (error instanceof AxiosError) {
     const payload = error.response?.data as ApiError | undefined;
     if (payload?.error?.message) {
@@ -97,9 +140,15 @@ export function getErrorMessage(error: unknown): string {
     if (error.response?.status === 429) return "Too many requests. Please wait a moment and try again.";
     if (error.response?.status && error.response.status >= 500) return "Unable to connect to Vegito server. Please try again later.";
     if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT" || error.message?.includes("Network Error") || error.code === "ERR_NETWORK") {
+      if (isHttps) {
+        return "Unable to connect to Vegito server. Please check your internet connection or try again later.";
+      }
       return "Unable to connect to Vegito server. Check that your phone and PC are connected to the same Wi-Fi.";
     }
     return "We couldn’t complete that request. Please try again.";
+  }
+  if (isHttps) {
+    return "Unable to connect to Vegito server. Please check your internet connection or try again later.";
   }
   return "Unable to connect to Vegito server. Check that your phone and PC are connected to the same Wi-Fi.";
 }
