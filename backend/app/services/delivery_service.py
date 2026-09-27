@@ -47,7 +47,23 @@ def calculate_haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2:
 class DeliveryService:
     @staticmethod
     def create_task_for_order(db: Session, order: Order) -> Tuple[DeliveryTask, str]:
-        """Creates a delivery task for a newly placed order with a secure OTP."""
+        """Creates a delivery task for a newly placed order with a secure OTP (idempotent)."""
+        existing = db.query(DeliveryTask).filter(DeliveryTask.order_id == order.id).first()
+        if existing:
+            import logging
+            logging.getLogger(__name__).info(
+                f"[DELIVERY_TASK_CHECK] Reusing existing delivery_task_id={existing.id} order_id={order.id}"
+            )
+            if order.delivery_partner_id and not existing.delivery_partner_id:
+                existing.delivery_partner_id = order.delivery_partner_id
+                existing.status = DeliveryTaskStatus.ASSIGNED.value
+                db.flush()
+            return existing, ""
+
+        import logging
+        logging.getLogger(__name__).info(
+            f"[DELIVERY_TASK_CHECK] No existing task. Creating delivery task for order_id={order.id}"
+        )
         raw_otp = generate_delivery_otp()
         otp_hash = hash_otp(str(order.customer_id), raw_otp)
 
@@ -68,6 +84,9 @@ class DeliveryService:
             note="Task automatically created on order checkout",
         )
         db.add(history)
+        logging.getLogger(__name__).info(
+            f"[DELIVERY_TASK_CREATED] delivery_task_id={task.id} order_id={order.id} status={task.status}"
+        )
         return task, raw_otp
 
     @staticmethod

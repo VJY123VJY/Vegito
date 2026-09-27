@@ -11,7 +11,7 @@ from app.config import settings
 from app.core.error_handlers import register_error_handlers
 from app.core.logging import setup_logging
 
-# Import all models to ensure they're registered with SQLAlchemy metadata
+# Import all models so SQLAlchemy metadata is populated
 import app.models  # noqa: F401
 
 from app.routers import (
@@ -48,14 +48,14 @@ from app.routers.websocket_tracking import router as websocket_tracking_router
 
 
 # ---------------------------------------------------------------------------
-# Setup structured logging
+# Logging
 # ---------------------------------------------------------------------------
 
 setup_logging(debug=settings.DEBUG)
 
 
 # ---------------------------------------------------------------------------
-# Application instance
+# FastAPI application
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
@@ -73,38 +73,39 @@ app = FastAPI(
 
 
 # ---------------------------------------------------------------------------
-# CORS Middleware
+# CORS
 # ---------------------------------------------------------------------------
 
-# Read CORS origins from application settings.
 configured_origins = settings.CORS_ORIGINS or []
 
-# Support both:
-#   CORS_ORIGINS=["http://localhost:3000", ...]
-# and:
-#   CORS_ORIGINS="http://localhost:3000,http://localhost:3001"
 if isinstance(configured_origins, str):
     configured_origins = [
-        origin.strip()
+        origin.strip().rstrip("/")
         for origin in configured_origins.split(",")
         if origin.strip()
     ]
 else:
-    configured_origins = list(configured_origins)
+    configured_origins = [
+        str(origin).strip().rstrip("/")
+        for origin in configured_origins
+        if str(origin).strip()
+    ]
 
 
-# Production frontend domains
+# Production / Vercel frontend URLs
 production_origins = [
     "https://vegito-eqf3.vercel.app",
     "https://vegito-iota.vercel.app",
 
-    # Current Vercel frontend deployment
+    # Current frontend deployment
     "https://vegito-eqf3-3520zel2w-vijaydhavan04-1868s-projects.vercel.app",
+
+    # Git/main deployment
+    "https://vegito-git-main-vijaydhavan04-1868s-projects.vercel.app",
 ]
 
 
-# Combine configured origins with production origins
-# and remove duplicates.
+# Combine configured + production origins
 cors_origins = list(
     dict.fromkeys(
         configured_origins + production_origins
@@ -115,24 +116,23 @@ cors_origins = list(
 app.add_middleware(
     CORSMiddleware,
 
-    # Explicitly allowed origins
+    # Explicit origins
     allow_origins=cors_origins,
 
-    # Supports:
-    # - localhost
-    # - 127.0.0.1
-    # - private LAN IPs
-    # - Capacitor
-    # - Vercel deployments / preview URLs
+    # Vercel preview deployments
+    # localhost
+    # 127.0.0.1
+    # LAN IPs
+    # Capacitor
     allow_origin_regex=(
-        r"^(https?|capacitor)://"
-        r"(localhost|"
-        r"127\.0\.0\.1|"
-        r"10\.\d+\.\d+\.\d+|"
-        r"192\.168\.\d+\.\d+|"
-        r"172\.(?:1[6-9]|2\d|3[0-1])\.\d+|"
-        r"[a-zA-Z0-9-]+\.vercel\.app)"
-        r"(?::[0-9]+)?$"
+        r"^(https://[a-zA-Z0-9-]+\.vercel\.app"
+        r"|http://localhost(?::[0-9]+)?"
+        r"|http://127\.0\.0\.1(?::[0-9]+)?"
+        r"|http://10\.\d+\.\d+\.\d+(?::[0-9]+)?"
+        r"|http://192\.168\.\d+\.\d+(?::[0-9]+)?"
+        r"|http://172\.(?:1[6-9]|2\d|3[0-1])\.\d+\.\d+(?::[0-9]+)?"
+        r"|capacitor://localhost"
+        r")$"
     ),
 
     allow_credentials=True,
@@ -142,7 +142,7 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
-# Global exception handlers
+# Exception handlers
 # ---------------------------------------------------------------------------
 
 register_error_handlers(app)
@@ -152,7 +152,6 @@ register_error_handlers(app)
 # Health routes
 # ---------------------------------------------------------------------------
 
-# Legacy/root health endpoint
 app.include_router(health_router)
 
 
@@ -162,65 +161,162 @@ app.include_router(health_router)
 
 API_PREFIX = settings.API_V1_STR
 
-app.include_router(health_router, prefix=API_PREFIX)
+app.include_router(
+    health_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(auth_router, prefix=API_PREFIX)
+app.include_router(
+    auth_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(customers_router, prefix=API_PREFIX)
-app.include_router(addresses_router, prefix=API_PREFIX)
+app.include_router(
+    customers_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(categories_router, prefix=API_PREFIX)
-app.include_router(products_router, prefix=API_PREFIX)
+app.include_router(
+    addresses_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(cart_router, prefix=API_PREFIX)
+app.include_router(
+    categories_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(orders_router, prefix=API_PREFIX)
+app.include_router(
+    products_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(favorites_router, prefix=API_PREFIX)
-app.include_router(reviews_router, prefix=API_PREFIX)
-app.include_router(complaints_router, prefix=API_PREFIX)
+app.include_router(
+    cart_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(coupons_router, prefix=API_PREFIX)
-app.include_router(notifications_router, prefix=API_PREFIX)
+app.include_router(
+    orders_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(seller_router, prefix=API_PREFIX)
-app.include_router(seller_products_router, prefix=API_PREFIX)
-app.include_router(seller_orders_router, prefix=API_PREFIX)
+app.include_router(
+    favorites_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(inventory_router, prefix=API_PREFIX)
+app.include_router(
+    reviews_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(delivery_router, prefix=API_PREFIX)
-app.include_router(delivery_batches_router, prefix=API_PREFIX)
+app.include_router(
+    complaints_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(payments_router, prefix=API_PREFIX)
+app.include_router(
+    coupons_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(admin_router, prefix=API_PREFIX)
+app.include_router(
+    notifications_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(promotions_router, prefix=API_PREFIX)
+app.include_router(
+    seller_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(location_router, prefix=API_PREFIX)
-app.include_router(delivery_tracking_router, prefix=API_PREFIX)
+app.include_router(
+    seller_products_router,
+    prefix=API_PREFIX,
+)
 
-app.include_router(admin_analytics_router, prefix=API_PREFIX)
-app.include_router(admin_sellers_router, prefix=API_PREFIX)
-app.include_router(admin_delivery_router, prefix=API_PREFIX)
+app.include_router(
+    seller_orders_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    inventory_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    delivery_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    delivery_batches_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    payments_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    admin_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    promotions_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    location_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    delivery_tracking_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    admin_analytics_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    admin_sellers_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    admin_delivery_router,
+    prefix=API_PREFIX,
+)
 
 
 # ---------------------------------------------------------------------------
 # WebSocket tracking
 # ---------------------------------------------------------------------------
 
-# Legacy WebSocket route
-app.include_router(websocket_tracking_router)
+app.include_router(
+    websocket_tracking_router
+)
 
-# API v1 WebSocket route
 app.include_router(
     websocket_tracking_router,
     prefix=API_PREFIX,
 )
 
 
+# ---------------------------------------------------------------------------
+# Startup
+# ---------------------------------------------------------------------------
+
 @app.on_event("startup")
 async def on_startup():
     from app.routers.websocket_tracking import register_main_event_loop
+
     register_main_event_loop()
