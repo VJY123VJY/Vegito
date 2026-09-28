@@ -55,16 +55,7 @@ export function RevenueChart({
     }
   }
 
-  // Fallback demo data if no records yet so chart displays beautifully like the mockup
-  const rawData = (data && data.length > 0) ? data : [
-    { date: "2025-09-10", value: 3400, orders_count: 8 },
-    { date: "2025-09-11", value: 5200, orders_count: 14 },
-    { date: "2025-09-12", value: 4800, orders_count: 11 },
-    { date: "2025-09-13", value: 6900, orders_count: 18 },
-    { date: "2025-09-14", value: 8100, orders_count: 22 },
-    { date: "2025-09-15", value: 9500, orders_count: 25 },
-    { date: "2025-09-16", value: 10320, orders_count: 26 },
-  ];
+  const rawData = data ?? [];
 
   const chartData = rawData.map((d) => ({
     date: d.date.length > 5 ? d.date.slice(5) : d.date, // e.g. "09-16"

@@ -97,13 +97,16 @@ export function DashboardPanel({ userName }: { userName: string }) {
   const taskList = tasks.data ?? [];
   const invItems = inventory.data?.items ?? [];
 
+  const deliveredRevenue = orderList
+    .filter((o) => o.status === "DELIVERED")
+    .reduce((sum, o) => sum + Number(o.total_amount ?? 0), 0);
   const totalRevenue = orderList
     .filter((o) => o.status === "DELIVERED" || o.status === "OUT_FOR_DELIVERY")
     .reduce((sum, o) => sum + Number(o.total_amount ?? 0), 0);
   const pendingOrders = orderList.filter((o) => ["NEW", "ACCEPTED", "PACKING"].includes(o.status)).length;
   const todayDeliveries = taskList.length;
   const completedDeliveries = taskList.filter((t) => t.status === "DELIVERED").length;
-  const earnings = completedDeliveries * 35; // ₹35 per delivery placeholder
+  const earnings = deliveredRevenue;
   const lowStockItems = invItems.filter((i) => i.quantity <= i.low_stock_threshold);
 
   const chartData = useMemo(() => buildChartData(orderList), [orderList]);

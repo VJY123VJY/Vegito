@@ -82,20 +82,29 @@ export function MapboxTrackingMap({
 
         const center = getInitialCenter();
 
-        const map = new mapboxgl.Map({
-          container: containerRef.current,
-          style: getMapStyle(),
-          center,
-          zoom: 13.5,
-          attributionControl: false,
-          interactive,
-        });
+        let map: any;
+        try {
+          map = new mapboxgl.Map({
+            container: containerRef.current,
+            style: getMapStyle(),
+            center,
+            zoom: 13.5,
+            attributionControl: false,
+            interactive,
+          });
+        } catch (e: any) {
+          console.warn("Mapbox map creation fallback:", e);
+          setMapError("Live interactive map running in simplified mode");
+          return;
+        }
 
         mapRef.current = map;
 
         // Add navigation controls (zoom & rotate)
         if (interactive) {
-          map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
+          try {
+            map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
+          } catch { /* ignore */ }
         }
 
         map.on("load", () => {

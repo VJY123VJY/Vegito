@@ -194,18 +194,41 @@ export function watchDeliveryBoyGps(
         lastLat = latitude;
         lastLng = longitude;
 
+        // Dual-transport transmission:
+        // 1. Send via WebSocket if connected
         if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(
-            JSON.stringify({
-              order_id: orderId,
-              latitude,
-              longitude,
-              accuracy: accuracy ?? null,
-              heading: heading ?? null,
-              speed: speed ? speed * 3.6 : null, // convert m/s to km/h
-            }),
-          );
+          try {
+            ws.send(
+              JSON.stringify({
+                order_id: orderId,
+                latitude,
+                longitude,
+                accuracy: accuracy ?? null,
+                heading: heading ?? null,
+                speed: speed ? speed * 3.6 : null, // convert m/s to km/h
+              }),
+            );
+          } catch {
+            // WS send failed, HTTP fallback below will handle
+          }
         }
+
+        // 2. Reliable HTTP fallback: Record in backend database & live location store
+        api.post("/delivery/location", {
+          latitude,
+          longitude,
+          accuracy_meters: accuracy ?? undefined,
+          heading: heading ?? undefined,
+          speed_kmh: speed ? speed * 3.6 : undefined,
+        }).catch(() => {
+          // Retry to general location update if specific endpoint fails
+          api.post("/location/update", {
+            task_id: orderId,
+            lat: latitude,
+            lng: longitude,
+            accuracy,
+          }).catch(() => {});
+        });
       }
     },
     (err) => {
@@ -232,8 +255,8 @@ export function watchDeliveryBoyGps(
 }
 
 /**
- * Customer live delivery tracker via WebSocket /ws/customer/{orderId}.
- * Receives live coordinate updates broadcasted by backend.
+ * Customer live delivery tracker via WebSocket + HTTP Polling Dual Transport.
+ * Receives live coordinate updates broadcasted by backend or polls HTTP endpoints.
  */
 export function subscribeToOrderTracking(
   orderId: number,
@@ -253,7 +276,66 @@ export function subscribeToOrderTracking(
   let isClosed = false;
   let reconnectTimer: any = null;
   let pingInterval: any = null;
+  let pollInterval: any = null;
+  let hasReceivedWsData = false;
 
+  // 1. Initial HTTP poll to get coordinates immediately on page load
+  async function pollLatestLocation() {
+    if (isClosed) return;
+    try {
+      // First try /location/current/{orderId}
+      const locRes = await api.get<ApiEnvelope<LocationData | null>>(`/location/current/${orderId}`).catch(() => null);
+      if (locRes?.data?.data?.lat && locRes?.data?.data?.lng) {
+        onLocation({
+          latitude: Number(locRes.data.data.lat),
+          longitude: Number(locRes.data.data.lng),
+          partner_name: locRes.data.data.partner_name || undefined,
+        });
+        return;
+      }
+
+      // Next try order detail for delivery_latitude / delivery_longitude
+      const orderRes = await api.get<ApiEnvelope<any>>(`/orders/${orderId}`).catch(() => null);
+      const ord = orderRes?.data?.data;
+      if (ord) {
+        const lat = ord.delivery_latitude != null ? Number(ord.delivery_latitude) : null;
+        const lng = ord.delivery_longitude != null ? Number(ord.delivery_longitude) : null;
+        if (lat !== null && lng !== null) {
+          onLocation({
+            latitude: lat,
+            longitude: lng,
+            status: ord.status,
+            partner_name: ord.delivery_partner_name,
+          });
+          return;
+        }
+
+        // If partner assigned, check partner latest location
+        if (ord.delivery_partner_id) {
+          const partLoc = await api.get<ApiEnvelope<any>>(`/delivery/location/latest/${ord.delivery_partner_id}`).catch(() => null);
+          const pData = partLoc?.data?.data;
+          if (pData?.latitude && pData?.longitude) {
+            onLocation({
+              latitude: Number(pData.latitude),
+              longitude: Number(pData.longitude),
+              status: ord.status,
+              partner_name: ord.delivery_partner_name,
+            });
+          }
+        }
+      }
+    } catch {
+      // Silent error during polling
+    }
+  }
+
+  // Poll immediately on mount
+  pollLatestLocation();
+
+  // Poll every 5 seconds as a guaranteed backup in serverless or WS-restricted environments
+  pollInterval = setInterval(pollLatestLocation, 5000);
+
+  // 2. Connect to WebSocket for instant real-time streaming
   function connect() {
     if (isClosed) return;
     try {
@@ -263,6 +345,7 @@ export function subscribeToOrderTracking(
         try {
           const payload = JSON.parse(event.data);
           if (payload.latitude !== undefined && payload.longitude !== undefined) {
+            hasReceivedWsData = true;
             onLocation({
               latitude: Number(payload.latitude),
               longitude: Number(payload.longitude),
@@ -287,16 +370,17 @@ export function subscribeToOrderTracking(
       ws.onclose = () => {
         if (pingInterval) clearInterval(pingInterval);
         if (!isClosed) {
-          reconnectTimer = setTimeout(connect, 3000);
+          reconnectTimer = setTimeout(connect, 4000);
         }
       };
 
       ws.onerror = (e) => {
+        // Fallback polling is already running, notify handler
         onError?.(e);
       };
     } catch (e) {
       onError?.(e);
-      if (!isClosed) reconnectTimer = setTimeout(connect, 4000);
+      if (!isClosed) reconnectTimer = setTimeout(connect, 5000);
     }
   }
 
@@ -305,6 +389,7 @@ export function subscribeToOrderTracking(
   return () => {
     isClosed = true;
     if (pingInterval) clearInterval(pingInterval);
+    if (pollInterval) clearInterval(pollInterval);
     if (reconnectTimer) clearTimeout(reconnectTimer);
     if (ws) {
       ws.onclose = null;

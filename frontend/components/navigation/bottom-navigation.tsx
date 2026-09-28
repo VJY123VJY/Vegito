@@ -91,47 +91,68 @@ export function BottomNavigation({
       }}
     >
       {items.map(({ icon: Icon, label, href }) => {
-        const isActive = pathname === href || (href !== "/" && pathname?.startsWith(href));
+        const isHome = (pathname === "/" || pathname === "/customer") && (href === "/" || href === "/customer");
+        const isActive = isHome || (href !== "/" && href !== "/customer" && pathname?.startsWith(href));
 
         const content = (
-          <>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "6px 14px",
+              borderRadius: "16px",
+              backgroundColor: isActive ? "#e9f6ee" : "transparent",
+              transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
             <span
               className="nav-icon"
               style={{
-                color: isActive ? "var(--vegito-primary)" : "#8ea096",
+                color: isActive ? "#063c32" : "#8ea096",
                 transition: "color 0.2s ease, transform 0.2s ease",
-                transform: isActive ? "translateY(-2px) scale(1.1)" : "none",
+                transform: isActive ? "scale(1.08)" : "none",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                position: "relative"
+                position: "relative",
               }}
             >
-              <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+              <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
               {label === "Basket" && basketCount > 0 && (
-                <em style={{
-                  position: "absolute",
-                  top: "-4px",
-                  right: "-10px",
-                  background: "var(--vegito-accent)",
-                  color: "white",
-                  fontSize: "10px",
-                  fontWeight: 800,
-                  fontStyle: "normal",
-                  padding: "2px 6px",
-                  borderRadius: "10px",
-                  border: "2px solid #fff"
-                }}>{basketCount}</em>
+                <em
+                  style={{
+                    position: "absolute",
+                    top: "-5px",
+                    right: "-12px",
+                    background: "#16835b",
+                    color: "white",
+                    fontSize: "10px",
+                    fontWeight: 800,
+                    fontStyle: "normal",
+                    padding: "2px 6px",
+                    borderRadius: "10px",
+                    border: "2px solid #fff",
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                  }}
+                >
+                  {basketCount}
+                </em>
               )}
             </span>
-            <small style={{
-              fontSize: "11px",
-              fontWeight: isActive ? 700 : 500,
-              marginTop: "4px",
-              color: isActive ? "var(--vegito-primary)" : "#8ea096",
-              letterSpacing: "0.01em"
-            }}>{label}</small>
-          </>
+            <small
+              style={{
+                fontSize: "11px",
+                fontWeight: isActive ? 800 : 600,
+                marginTop: "3px",
+                color: isActive ? "#063c32" : "#8ea096",
+                letterSpacing: "0.01em",
+              }}
+            >
+              {label}
+            </small>
+          </div>
         );
 
         if (href === "#more") {

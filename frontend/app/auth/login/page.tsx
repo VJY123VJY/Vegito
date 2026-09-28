@@ -316,57 +316,143 @@ function LoginContent() {
           >
             Sign in to Your Account
           </h1>
-          <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>
-            {meta.subtext}
+          <p style={{ margin: 0, fontSize: "13px", color: "#62746a" }}>
+            Select your account type to continue
           </p>
         </div>
 
-        {/* Role Selector Tabs */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: "6px",
-            backgroundColor: "#f1f5f2",
-            padding: "4px",
-            borderRadius: "14px",
-            marginBottom: "20px",
-          }}
-        >
-          {(Object.keys(ROLE_META) as LoginRole[]).map((roleKey) => {
-            const r = ROLE_META[roleKey];
-            const isSelected = activeRole === roleKey;
-            return (
-              <button
-                key={roleKey}
-                type="button"
-                onClick={() => {
-                  setActiveRole(roleKey);
-                  setError(null);
-                  setInfoMsg(null);
-                }}
-                style={{
-                  padding: "8px 4px",
-                  borderRadius: "10px",
-                  border: "none",
-                  backgroundColor: isSelected ? "#ffffff" : "transparent",
-                  color: isSelected ? r.color : "#64748b",
-                  fontWeight: isSelected ? 700 : 500,
-                  fontSize: "12px",
-                  cursor: "pointer",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: "2px",
-                  boxShadow: isSelected ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
-                  transition: "all 0.15s",
-                }}
-              >
-                <span style={{ fontSize: "15px" }}>{r.icon}</span>
-                <span>{r.label}</span>
-              </button>
-            );
-          })}
+        {/* Prominent Role Selector Cards (2x2 Grid) */}
+        <div style={{ marginBottom: "22px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: "10px",
+            }}
+          >
+            {(Object.keys(ROLE_META) as LoginRole[]).map((roleKey) => {
+              const r = ROLE_META[roleKey];
+              const isSelected = activeRole === roleKey;
+              return (
+                <button
+                  key={roleKey}
+                  type="button"
+                  onClick={() => {
+                    setActiveRole(roleKey);
+                    setError(null);
+                    setInfoMsg(null);
+                  }}
+                  style={{
+                    padding: "12px 10px",
+                    borderRadius: "14px",
+                    border: isSelected ? `2px solid ${r.color}` : "1.5px solid #e2e8e5",
+                    backgroundColor: isSelected ? r.bgBadge : "#ffffff",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    textAlign: "left",
+                    transition: "all 0.18s ease",
+                    boxShadow: isSelected
+                      ? `0 4px 14px ${r.color}25`
+                      : "0 2px 6px rgba(0,0,0,0.03)",
+                    position: "relative",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "10px",
+                      backgroundColor: isSelected ? "#ffffff" : "#f1f5f2",
+                      border: isSelected ? `1px solid ${r.borderBadge}` : "1px solid #e5ebe7",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "18px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {r.icon}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 800,
+                        color: isSelected ? r.color : "#1a2e26",
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {r.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "10.5px",
+                        color: isSelected ? r.color : "#64748b",
+                        fontWeight: isSelected ? 600 : 500,
+                        marginTop: "2px",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        opacity: isSelected ? 0.9 : 0.7,
+                      }}
+                    >
+                      {roleKey === "customer"
+                        ? "Order produce"
+                        : roleKey === "seller"
+                        ? "Manage store"
+                        : roleKey === "delivery"
+                        ? "Live delivery"
+                        : "Platform HQ"}
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "-5px",
+                        right: "-5px",
+                        width: "16px",
+                        height: "16px",
+                        borderRadius: "50%",
+                        backgroundColor: r.color,
+                        color: "#ffffff",
+                        fontSize: "10px",
+                        fontWeight: 900,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        border: "2px solid #ffffff",
+                      }}
+                    >
+                      ✓
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active Role Info Strip */}
+          <div
+            style={{
+              marginTop: "10px",
+              padding: "8px 12px",
+              borderRadius: "10px",
+              backgroundColor: meta.bgBadge,
+              border: `1px solid ${meta.borderBadge}`,
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "12px",
+              color: meta.color,
+              fontWeight: 600,
+            }}
+          >
+            <span style={{ fontSize: "14px" }}>{meta.icon}</span>
+            <span>Signing in as <strong>{meta.label}</strong>: {meta.subtext}</span>
+          </div>
         </div>
 
         {/* Error / Info messages */}

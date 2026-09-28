@@ -68,6 +68,8 @@ export async function submitOrderReview(payload: ReviewCreatePayload) {
   return data;
 }
 
+export const createReview = submitOrderReview;
+
 export async function getOrderReviewStatus(orderId: number): Promise<OrderReviewStatus> {
   const { data } = await api.get<ApiEnvelope<OrderReviewStatus>>(`/reviews/order/${orderId}`);
   return data.data;

@@ -25,6 +25,7 @@ import {
   Tooltip as RechartsTooltip,
 } from "recharts";
 import { AddProductModal } from "./add-product-modal";
+import { OrderPreparationSheet } from "./order-preparation-sheet";
 import { getSellerProfile, setSellerAvailability } from "@/lib/api/seller-products";
 import { listSellerOrders, updateSellerOrder, getSellerRevenueAnalytics, getSellerProductAnalytics, getSellerDashboardSummary, getDeliveryHandoffStatus } from "@/lib/api/seller";
 import { listInventory } from "@/lib/api/inventory";
@@ -45,6 +46,7 @@ export function SellerDashboard() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newOrderAlert, setNewOrderAlert] = useState<SellerNewOrderPayload | null>(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [prepOrderId, setPrepOrderId] = useState<number | null>(null);
   const seenOrderIds = React.useRef(new Set<number>());
 
   // Seller profile (scoped to current seller)
@@ -149,6 +151,8 @@ export function SellerDashboard() {
     },
   });
 
+  const [selectedFilter, setSelectedFilter] = useState<"ALL" | "URGENT" | "PENDING" | "PACKING" | "READY" | "LOW_STOCK">("ALL");
+
   const businessName = profile.data?.business_name || "Farm Fresh Solapur";
   const orderItems = orders.data?.items ?? [];
   const totalOrders = (profile.data as any)?.total_orders ?? orderItems.length;
@@ -167,6 +171,8 @@ export function SellerDashboard() {
   const packingCount = orderItems.filter((o) => ["PACKING", "PREPARING"].includes(o.status)).length;
   const readyCount = orderItems.filter((o) => ["READY", "READY_FOR_PICKUP", "PICKED_UP"].includes(o.status)).length;
   const deliveredCount = orderItems.filter((o) => ["DELIVERED", "COMPLETED"].includes(o.status)).length;
+  const urgentOrders = orderItems.filter((o) => o.is_urgent && !["DELIVERED", "COMPLETED", "CANCELLED", "REJECTED"].includes(o.status));
+  const urgentCount = urgentOrders.length;
 
   const orderStatusData = [
     { name: "Accepted", value: acceptedCount, color: "#f97316" },
@@ -185,6 +191,14 @@ export function SellerDashboard() {
       quantity: Number(inv.quantity),
       low_stock_threshold: Number(inv.low_stock_threshold),
     }));
+
+  const filteredOrders = orderItems.filter((o) => {
+    if (selectedFilter === "URGENT") return o.is_urgent;
+    if (selectedFilter === "PENDING") return ["NEW", "ACCEPTED", "SELLER_ACCEPTED"].includes(o.status);
+    if (selectedFilter === "PACKING") return ["PACKING", "PREPARING"].includes(o.status);
+    if (selectedFilter === "READY") return ["READY", "READY_FOR_PICKUP"].includes(o.status);
+    return true;
+  });
 
   return (
     <DashboardShell
@@ -400,44 +414,183 @@ export function SellerDashboard() {
         </div>
       )}
 
-      {/* KPI Cards (Matching Seller Dashboard Mockup Screen 2) */}
+      {/* KPI Cards — Clickable to filter operations board */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "16px",
-          marginBottom: "28px",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: "14px",
+          marginBottom: "24px",
         }}
       >
         <StatCard
           label="Today's Orders"
-          value={dashboardSummary.data?.today_orders ?? 0}
-          icon={<ClipboardList size={22} />}
+          value={dashboardSummary.data?.today_orders ?? orderItems.length}
+          icon={<ClipboardList size={20} />}
           iconBg="#ffedd5"
           iconColor="#c2410c"
+          active={selectedFilter === "ALL"}
+          onClick={() => setSelectedFilter("ALL")}
         />
         <StatCard
           label="Today's Revenue"
-          value={`₹${(dashboardSummary.data?.today_revenue ?? 0).toLocaleString("en-IN")}`}
-          icon={<DollarSign size={22} />}
+          value={`₹${(dashboardSummary.data?.today_revenue ?? totalRevenue).toLocaleString("en-IN")}`}
+          icon={<DollarSign size={20} />}
           iconBg="#fef3c7"
           iconColor="#d97706"
         />
         <StatCard
-          label="Live Orders"
-          value={dashboardSummary.data?.live_orders ?? 0}
-          icon={<ShoppingBag size={22} />}
+          label="Pending Orders"
+          value={pendingOrders}
+          icon={<ShoppingBag size={20} />}
           iconBg="#ecfdf5"
           iconColor="#059669"
+          active={selectedFilter === "PENDING"}
+          onClick={() => setSelectedFilter(selectedFilter === "PENDING" ? "ALL" : "PENDING")}
         />
         <StatCard
-          label="Avg Prep Time"
-          value={dashboardSummary.data?.avg_prep_time_min ? `⏱️ ${dashboardSummary.data.avg_prep_time_min.toFixed(1)} min` : "⏱️ -- min"}
-          icon={<Clock size={22} />}
+          label="Packing In Progress"
+          value={packingCount}
+          icon={<Clock size={20} />}
+          iconBg="#e0f2fe"
+          iconColor="#0284c7"
+          active={selectedFilter === "PACKING"}
+          onClick={() => setSelectedFilter(selectedFilter === "PACKING" ? "ALL" : "PACKING")}
+        />
+        <StatCard
+          label="Ready For Pickup"
+          value={readyCount}
+          icon={<CheckCircle size={20} />}
+          iconBg="#dcfce7"
+          iconColor="#16a34a"
+          active={selectedFilter === "READY"}
+          onClick={() => setSelectedFilter(selectedFilter === "READY" ? "ALL" : "READY")}
+        />
+        <StatCard
+          label="🔥 Urgent Orders"
+          value={urgentCount}
+          icon={<AlertTriangle size={20} />}
           iconBg="#fee2e2"
           iconColor="#dc2626"
+          active={selectedFilter === "URGENT"}
+          onClick={() => setSelectedFilter(selectedFilter === "URGENT" ? "ALL" : "URGENT")}
         />
       </div>
+
+      {/* Priority Area: Urgent Orders Banner */}
+      {urgentCount > 0 && (
+        <div
+          style={{
+            backgroundColor: "#fef2f2",
+            border: "2px solid #ef4444",
+            borderRadius: "18px",
+            padding: "18px 22px",
+            marginBottom: "24px",
+            boxShadow: "0 4px 16px rgba(239, 68, 68, 0.12)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", marginBottom: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "22px" }}>🔥</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#991b1b" }}>
+                  Priority Action Required ({urgentCount} Urgent Orders)
+                </h3>
+                <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#b91c1c" }}>
+                  Customer priority delivery requested. Prepare and pack immediately to meet SLAs.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "12px" }}>
+            {urgentOrders.map((ord) => (
+              <div
+                key={ord.id}
+                style={{
+                  backgroundColor: "#ffffff",
+                  borderRadius: "14px",
+                  border: "1px solid #fca5a5",
+                  padding: "14px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "10px",
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontWeight: 800, color: "#991b1b", fontSize: "14px" }}>
+                      #{ord.order_number}
+                    </span>
+                    <StatusBadge status={ord.status} />
+                  </div>
+                  <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#62746a" }}>
+                    ₹{Number(ord.total_amount).toFixed(0)} · {ord.items_count || 1} items
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", gap: "6px" }}>
+                  {ord.status === "NEW" && (
+                    <button
+                      onClick={() => updateStatusMutation.mutate({ orderId: ord.id, status: "ACCEPTED" })}
+                      disabled={updateStatusMutation.isPending}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        backgroundColor: "#991b1b",
+                        color: "#ffffff",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Accept
+                    </button>
+                  )}
+                  {ord.status === "ACCEPTED" && (
+                    <button
+                      onClick={() => updateStatusMutation.mutate({ orderId: ord.id, status: "PACKING" })}
+                      disabled={updateStatusMutation.isPending}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        backgroundColor: "#c2410c",
+                        color: "#ffffff",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Pack Now
+                    </button>
+                  )}
+                  {ord.status === "PACKING" && (
+                    <button
+                      onClick={() => updateStatusMutation.mutate({ orderId: ord.id, status: "READY" })}
+                      disabled={updateStatusMutation.isPending}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        backgroundColor: "#16835b",
+                        color: "#ffffff",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Ready ✓
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Inventory Alert Banner */}
       {lowStockAlerts.length > 0 && <InventoryAlert alerts={lowStockAlerts} />}
@@ -535,32 +688,63 @@ export function SellerDashboard() {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "20px",
+                marginBottom: "16px",
+                flexWrap: "wrap",
+                gap: "10px",
               }}
             >
               <div>
                 <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#063c32" }}>
-                  Active Orders Fulfillment
+                  Active Orders Fulfillment ({filteredOrders.length})
                 </h3>
                 <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
                   Accept, pack, and mark vegetables READY for delivery pickup
                 </p>
               </div>
+
+              {/* Kanban Filter Tabs */}
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {[
+                  { id: "ALL", label: `All (${orderItems.length})` },
+                  { id: "URGENT", label: `🔥 Urgent (${urgentCount})` },
+                  { id: "PENDING", label: `Pending (${pendingOrders})` },
+                  { id: "PACKING", label: `Packing (${packingCount})` },
+                  { id: "READY", label: `Ready (${readyCount})` },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setSelectedFilter(tab.id as any)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "10px",
+                      border: selectedFilter === tab.id ? "1.5px solid #063c32" : "1px solid #d1ded5",
+                      backgroundColor: selectedFilter === tab.id ? "#063c32" : "#ffffff",
+                      color: selectedFilter === tab.id ? "#ffffff" : "#4a5a51",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {orders.isLoading ? (
               <p style={{ fontSize: "13px", color: "#62746a" }}>Loading orders...</p>
-            ) : orderItems.length === 0 ? (
+            ) : filteredOrders.length === 0 ? (
               <div style={{ textAlign: "center", padding: "32px 16px", color: "#62746a" }}>
                 <ShoppingBag size={36} color="#16835b" style={{ margin: "0 auto 8px" }} />
-                <p style={{ margin: 0, fontWeight: 700 }}>No orders received yet</p>
+                <p style={{ margin: 0, fontWeight: 700 }}>No orders match this filter</p>
                 <p style={{ margin: "4px 0 0", fontSize: "12px" }}>
-                  Customer vegetable orders will appear here for fulfillment.
+                  Select &quot;All&quot; to view your full active fulfillment queue.
                 </p>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                {orderItems.slice(0, 6).map((order) => (
+                {filteredOrders.slice(0, 10).map((order) => (
                   <div
                     key={order.id}
                     style={{
@@ -568,9 +752,9 @@ export function SellerDashboard() {
                       justifyContent: "space-between",
                       alignItems: "center",
                       padding: "14px 16px",
-                      borderRadius: "12px",
+                      borderRadius: "14px",
                       backgroundColor: "#fafcf9",
-                      border: "1px solid #edf2ee",
+                      border: order.is_urgent ? "1.5px solid #fca5a5" : "1px solid #edf2ee",
                       flexWrap: "wrap",
                       gap: "12px",
                     }}
@@ -580,11 +764,26 @@ export function SellerDashboard() {
                         <span style={{ fontWeight: 800, color: "#063c32", fontSize: "14px" }}>
                           #{order.order_number}
                         </span>
+                        {order.is_urgent && (
+                          <span style={{ backgroundColor: "#fef2f2", color: "#dc2626", fontSize: "11px", fontWeight: 800, padding: "2px 6px", borderRadius: "6px" }}>
+                            🔥 Urgent
+                          </span>
+                        )}
                         <StatusBadge status={order.status} />
                       </div>
                       <p style={{ margin: 0, fontSize: "12px", color: "#62746a" }}>
                         Placed: {new Date(order.placed_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · Total: <b>₹{Number(order.total_amount).toFixed(0)}</b>
                       </p>
+                      {order.pickup_otp && ["READY", "READY_FOR_PICKUP", "PICKED_UP"].includes(order.status) && (
+                        <div style={{ marginTop: "6px", display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "#ecfdf5", padding: "4px 10px", borderRadius: "8px", border: "1px solid #a7f3d0" }}>
+                          <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#065f46" }}>
+                            🔑 Handshake OTP for Partner:
+                          </span>
+                          <span style={{ fontSize: "14px", fontWeight: 900, color: "#064e3b", letterSpacing: "1px" }}>
+                            {order.pickup_otp}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Status Action Buttons */}
@@ -672,6 +871,22 @@ export function SellerDashboard() {
                           ✓ Order Packed
                         </span>
                       )}
+
+                      <button
+                        onClick={() => setPrepOrderId(order.id)}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: "8px",
+                          backgroundColor: "#f0fdf4",
+                          border: "1px solid #bbf7d0",
+                          color: "#166534",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        📋 Checklist
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -836,6 +1051,13 @@ export function SellerDashboard() {
       <AddProductModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+      />
+
+      {/* Order Preparation Checklist Sheet */}
+      <OrderPreparationSheet
+        orderId={prepOrderId || 0}
+        isOpen={Boolean(prepOrderId)}
+        onClose={() => setPrepOrderId(null)}
       />
 
       <style>{`

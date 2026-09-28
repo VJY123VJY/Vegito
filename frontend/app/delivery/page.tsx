@@ -105,12 +105,22 @@ export default function DeliveryDashboardPage() {
   const [pickupOtpError, setPickupOtpError] = useState<Record<number, string | null>>({});
   const [pickupOtpVerified, setPickupOtpVerified] = useState<Record<number, boolean>>({});
   const [verifyOtpPending, setVerifyOtpPending] = useState(false);
-  const [isSoundMuted, setIsSoundMuted] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [isSoundMuted, setIsSoundMuted] = useState(false);
+  const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
 
   useEffect(() => {
     setPartnerName(getStoredUserName() || "Delivery Partner");
     setIsSoundMuted(isAudioMuted());
+
+    if (typeof navigator !== "undefined" && (navigator as any).getBattery) {
+      (navigator as any).getBattery().then((battery: any) => {
+        setBatteryLevel(Math.round(battery.level * 100));
+        battery.addEventListener("levelchange", () => {
+          setBatteryLevel(Math.round(battery.level * 100));
+        });
+      }).catch(() => {});
+    }
   }, []);
 
   // Real-time Delivery Dashboard WebSocket Subscription for ORDER_PACKED & ringtone
@@ -306,10 +316,20 @@ export default function DeliveryDashboardPage() {
     lng: displayTask?.shop_longitude ? Number(displayTask.shop_longitude) : 75.9064,
   };
 
-  const customerPosition: LatLng = {
-    lat: displayTask?.customer_latitude ? Number(displayTask.customer_latitude) : 17.686,
-    lng: displayTask?.customer_longitude ? Number(displayTask.customer_longitude) : 75.912,
-  };
+  const isDisplayTaskPickupVerified = Boolean(
+    displayTask?.pickup_verified ||
+    displayTask?.pickup_otp_verified_at ||
+    displayTask?.status === "STARTED" ||
+    displayTask?.status === "OUT_FOR_DELIVERY" ||
+    displayTask?.status === "DELIVERED"
+  );
+
+  const customerPosition: LatLng | null = (isDisplayTaskPickupVerified && displayTask?.customer_latitude && displayTask?.customer_longitude)
+    ? {
+        lat: Number(displayTask.customer_latitude),
+        lng: Number(displayTask.customer_longitude),
+      }
+    : null;
 
   const currentStatus = displayTask?.order_status || (displayTask?.status === "STARTED" ? "OUT_FOR_DELIVERY" : "READY_FOR_PICKUP");
 
@@ -412,6 +432,43 @@ export default function DeliveryDashboardPage() {
                   ? "🔴 Switch to OFFLINE"
                   : "🟢 Switch to ONLINE"}
               </button>
+            </div>
+
+            {/* PWA Device Health Strip */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                flexWrap: "wrap",
+                backgroundColor: "#f4f8f5",
+                borderRadius: "14px",
+                padding: "8px 16px",
+                border: "1px solid #dce8df",
+                marginBottom: "16px",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#063c32",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>GPS:</span>
+                <span style={{ color: currentGps ? "#16835b" : "#d97706" }}>
+                  {currentGps ? "🟢 High Accuracy Live" : "🟡 Acquiring satellites..."}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>Network:</span>
+                <span style={{ color: isOffline ? "#dc2626" : "#16835b" }}>
+                  {isOffline ? "🔴 Disconnected" : "🟢 4G/Wi-Fi Connected"}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>Battery:</span>
+                <span style={{ color: batteryLevel && batteryLevel < 20 ? "#dc2626" : "#16835b" }}>
+                  🔋 {batteryLevel !== null ? `${batteryLevel}%` : "Normal"}
+                </span>
+              </div>
             </div>
 
             {/* Offline Alert */}
@@ -607,10 +664,10 @@ export default function DeliveryDashboardPage() {
                 >
                   <div>
                     <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                      Pickup OTP (Show to Seller at Shop)
+                      Shop Pickup Verification
                     </span>
-                    <div style={{ fontSize: "24px", fontWeight: 900, color: "#047857", letterSpacing: "3px", fontFamily: "monospace" }}>
-                      {pickupNotification.otp}
+                    <div style={{ fontSize: "14px", fontWeight: 800, color: "#047857", marginTop: "2px" }}>
+                      Ask seller at shop for the verbal 6-digit pickup code
                     </div>
                   </div>
 
@@ -876,37 +933,22 @@ export default function DeliveryDashboardPage() {
                         </button>
 
                         {/* Pickup OTP verification form at Shop */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                          {displayTask.pickup_otp && (
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                padding: "8px 14px",
-                                backgroundColor: "#ecfdf5",
-                                border: "1.5px dashed #10b981",
-                                borderRadius: "10px",
-                                fontSize: "13px",
-                                fontWeight: 800,
-                                color: "#047857",
-                                letterSpacing: "1px",
-                              }}
-                            >
-                              <ShieldCheck size={16} /> Pickup OTP: {displayTask.pickup_otp}
-                            </span>
-                          )}
-                          <input
-                            type="text"
-                            maxLength={6}
-                            placeholder="Enter Pickup OTP"
-                            value={pickupOtpInput[displayTask.order_id] || ""}
-                            onChange={(e) =>
-                              setPickupOtpInput({
-                                ...pickupOtpInput,
-                                [displayTask.order_id]: e.target.value.replace(/\D/g, ""),
-                              })
-                            }
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <span style={{ fontSize: "12px", color: "#475569", fontWeight: 700 }}>
+                            Ask seller for their 6-digit Pickup Verification Code:
+                          </span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <input
+                              type="text"
+                              maxLength={6}
+                              placeholder="Enter 6-digit code"
+                              value={pickupOtpInput[displayTask.order_id] || ""}
+                              onChange={(e) =>
+                                setPickupOtpInput({
+                                  ...pickupOtpInput,
+                                  [displayTask.order_id]: e.target.value.replace(/\D/g, ""),
+                                })
+                              }
                             style={{
                               padding: "10px 14px",
                               border: pickupOtpError[displayTask.order_id] ? "1.5px solid #dc2626" : "1.5px solid #cbd5e1",
@@ -944,7 +986,8 @@ export default function DeliveryDashboardPage() {
                           </div>
                         )}
                       </div>
-                    )}
+                    </div>
+                  )}
 
                     {/* 2. If order is PICKED_UP (or verified): Show Start Delivery */}
                     {(displayTask.order_status === "PICKED_UP" || pickupOtpVerified[displayTask.order_id]) && (
@@ -1137,19 +1180,33 @@ export default function DeliveryDashboardPage() {
                               🔥 URGENT
                             </span>
                           )}
-                          {task.pickup_otp && (task.order_status === "READY" || task.order_status === "READY_FOR_PICKUP") && (
+                          {Boolean(task.pickup_verified || task.pickup_otp_verified_at) ? (
                             <span
                               style={{
                                 padding: "2px 8px",
                                 backgroundColor: "#ecfdf5",
-                                border: "1px dashed #10b981",
+                                border: "1px solid #a7f3d0",
                                 borderRadius: "6px",
                                 fontSize: "11.5px",
                                 fontWeight: 800,
                                 color: "#065f46",
                               }}
                             >
-                              Pickup OTP: {task.pickup_otp}
+                              ✓ Pickup Verified
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                padding: "2px 8px",
+                                backgroundColor: "#f1f5f9",
+                                border: "1px solid #cbd5e1",
+                                borderRadius: "6px",
+                                fontSize: "11.5px",
+                                fontWeight: 700,
+                                color: "#475569",
+                              }}
+                            >
+                              🔒 Destination Locked
                             </span>
                           )}
                         </div>
@@ -1157,7 +1214,9 @@ export default function DeliveryDashboardPage() {
                           Shop: <b>{task.shop_name || "Vegito Fresh Farm"}</b> · Customer: <b>{task.customer_name || "Customer"}</b>
                         </p>
                         <p style={{ margin: "2px 0 0", fontSize: "11.5px", color: "#62746a" }}>
-                          {task.delivery_address?.address_line1}, {task.delivery_address?.city} {task.delivery_address?.pincode}
+                          {Boolean(task.pickup_verified || task.pickup_otp_verified_at) && task.delivery_address
+                            ? `${task.delivery_address.address_line1}, ${task.delivery_address.city} ${task.delivery_address.pincode}`
+                            : "🔒 Customer address locked until seller pickup verification"}
                         </p>
                       </div>
 
