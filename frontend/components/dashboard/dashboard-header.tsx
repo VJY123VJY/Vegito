@@ -1,11 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Search, Menu, X, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Bell, Search, Menu, X, PanelLeftClose, PanelLeft, MapPin } from "lucide-react";
 import { clearSession } from "@/lib/api/auth";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { useTranslation } from "@/context/i18n-context";
+import { LocationModal, getStoredLocation } from "@/components/location/location-modal";
 
 interface DashboardHeaderProps {
   role?: "customer" | "seller" | "delivery" | "admin" | "farmer";
@@ -51,6 +52,20 @@ export function DashboardHeader({
   const { t } = useTranslation();
   const initial = userName.trim().charAt(0).toUpperCase() || "V";
   const badge = role ? ROLE_BADGES[role] : null;
+
+  const [locModalOpen, setLocModalOpen] = useState(false);
+  const [selectedLoc, setSelectedLoc] = useState("Solapur Central Mandi · 413001");
+
+  useEffect(() => {
+    const saved = getStoredLocation();
+    if (saved?.address) setSelectedLoc(saved.address);
+
+    const handler = (e: any) => {
+      if (e.detail?.address) setSelectedLoc(e.detail.address);
+    };
+    window.addEventListener("vegito:location_changed", handler);
+    return () => window.removeEventListener("vegito:location_changed", handler);
+  }, []);
 
   const defaultSearchPlaceholder =
     searchPlaceholder ||
@@ -131,22 +146,50 @@ export function DashboardHeader({
 
         {/* Brand text */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "17px",
-              fontWeight: 800,
-              color: "var(--vegito-primary)",
-              lineHeight: 1.1,
-            }}
-          >
-            Vegito
-          </h2>
-          {badge && (
-            <span style={{ fontSize: "11px", fontWeight: 600, color: badge.color, opacity: 0.8 }}>
-              {badge.label.split(" ").slice(1).join(" ")}
-            </span>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "17px",
+                fontWeight: 800,
+                color: "var(--vegito-primary)",
+                lineHeight: 1.1,
+              }}
+            >
+              Vegito
+            </h2>
+            {badge && (
+              <span style={{ fontSize: "11px", fontWeight: 600, color: badge.color, opacity: 0.8 }}>
+                {badge.label.split(" ").slice(1).join(" ")}
+              </span>
+            )}
+            {role === "customer" && (
+              <button
+                type="button"
+                onClick={() => setLocModalOpen(true)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "2px 8px",
+                  borderRadius: "10px",
+                  backgroundColor: "#ecfdf5",
+                  border: "1px solid #a7f3d0",
+                  color: "#065f46",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  maxWidth: "160px",
+                }}
+              >
+                <MapPin size={11} color="#059669" />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {selectedLoc.split("·")[0].trim()}
+                </span>
+                <span style={{ fontSize: "8px" }}>▼</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Right Actions */}
@@ -248,6 +291,13 @@ export function DashboardHeader({
           .dashboard-mobile-toggle  { display: flex  !important; }
         }
       `}</style>
+
+      {/* Location Modal */}
+      <LocationModal
+        isOpen={locModalOpen}
+        onClose={() => setLocModalOpen(false)}
+        onSelect={(l) => setSelectedLoc(l.address)}
+      />
     </header>
   );
 }

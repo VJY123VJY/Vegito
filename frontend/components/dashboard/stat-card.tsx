@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 
@@ -13,6 +13,8 @@ interface StatCardProps {
     isPositive: boolean;
   };
   isLoading?: boolean;
+  onClick?: () => void;
+  active?: boolean;
 }
 
 export function StatCard({
@@ -23,6 +25,8 @@ export function StatCard({
   iconColor = "#16835b",
   trend,
   isLoading = false,
+  onClick,
+  active = false,
 }: StatCardProps) {
   if (isLoading) {
     return (
@@ -72,16 +76,34 @@ export function StatCard({
 
   return (
     <div
-      className="stat-card"
+      className={`stat-card ${active ? "stat-card-active" : ""}`}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
       style={{
-        background: "#ffffff",
-        border: "1px solid #e1e8e2",
-        borderRadius: "16px",
-        padding: "20px 22px",
+        background: active ? "#f0fdf4" : "#ffffff",
+        border: active ? "2px solid #16835b" : "1px solid #e1e8e2",
+        borderRadius: "18px",
+        padding: "18px 20px",
         display: "flex",
         alignItems: "center",
         gap: "16px",
-        boxShadow: "0 2px 8px rgba(6, 60, 50, 0.04)",
+        boxShadow: active
+          ? "0 8px 24px rgba(22, 131, 91, 0.15)"
+          : "0 2px 8px rgba(6, 60, 50, 0.04)",
+        cursor: onClick ? "pointer" : "default",
+        transform: active ? "translateY(-2px)" : "none",
+        transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
       <div

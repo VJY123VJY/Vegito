@@ -1,2211 +1,1509 @@
 "use client";
 
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { FormEvent, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRight,
   Search,
   ShoppingCart,
+  MapPin,
+  Sparkles,
   Truck,
   ShieldCheck,
   Leaf,
   Store,
-  Bike,
-  Star,
-  CheckCircle2,
   ChevronRight,
-  Sparkles,
-  ExternalLink,
-  Users,
-  Activity,
+  ArrowRight,
+  User,
+  Heart,
+  RotateCcw,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Phone,
+  Clock,
+  Star,
+  Mic,
+  Languages,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCategories } from "@/lib/api/categories";
+import { getCategories, ApiCategory } from "@/lib/api/categories";
 import { getProducts, ApiProduct } from "@/lib/api/products";
-import { addCartItem } from "@/lib/api/cart";
-import { isLoggedIn, getStoredRole, getStoredUserName, clearSession, getRoleRedirectPath, type AuthRole } from "@/lib/api/auth";
+import { getCart, addCartItem, updateCartItem, removeCartItem } from "@/lib/api/cart";
+import { listOrders, reorder } from "@/lib/api/orders";
+import {
+  isLoggedIn,
+  getStoredRole,
+  getStoredUserName,
+  clearSession,
+  getRoleRedirectPath,
+  type AuthRole,
+} from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/client";
+import { ProductCard } from "@/components/product/product-card";
+import { CategoryCarousel } from "@/components/ui/category-carousel";
+import { BottomNavigation } from "@/components/navigation/bottom-navigation";
+import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/common/theme-toggle";
-import { LanguageSwitcher } from "@/components/common/language-switcher";
+import { LocationModal, getStoredLocation } from "@/components/location/location-modal";
+import { SmartBasket } from "@/components/customer/smart-basket";
+import { SmartReorder } from "@/components/customer/smart-reorder";
+import { GroceryReminders } from "@/components/customer/grocery-reminders";
+import { VoiceShoppingModal } from "@/components/customer/voice-shopping-modal";
 import { useTranslation } from "@/context/i18n-context";
 
-// Artisanal Vegetable Gallery items matching the mockup's 3x2 earthenware/ceramic plate cards
-const ARTISAN_GALLERY_ITEMS = [
+const BEST_OFFERS = [
   {
-    id: "gal-1",
-    name: "Festive Heirloom Tomatoes",
-    subtitle: "Organic Heritage Variety",
-    price: 45,
-    unit: "500g",
-    farm: "Solapur Organic Orchards",
-    tag: "Artisan Pick",
-    image: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=600&auto=format&fit=crop&q=80",
+    id: "off-1",
+    tag: "FARM SPECIAL",
+    title: "Fresh Solapur Tomato Crate",
+    desc: "Direct harvest from Vasant Valley. Rich in lycopene.",
+    discount: "20% OFF",
+    price: "₹32/kg",
+    bg: "linear-gradient(135deg, #063c32 0%, #16835b 100%)",
   },
   {
-    id: "gal-2",
-    name: "Artisanal Farm Potatoes",
-    subtitle: "Earthen Russet Gold",
-    price: 35,
-    unit: "1 kg",
-    farm: "Vasant Valley Farms",
-    tag: "Fresh Harvest",
-    image: "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&auto=format&fit=crop&q=80",
+    id: "off-2",
+    tag: "MORNING HARVEST",
+    title: "Organic Spinach & Greens",
+    desc: "Crisp hand-plucked baby spinach and coriander.",
+    discount: "FRESH PICK",
+    price: "₹25/bunch",
+    bg: "linear-gradient(135deg, #16835b 0%, #22c55e 100%)",
+  },
+];
+
+const LOCAL_FARMS = [
+  {
+    name: "Solapur Organic Orchards",
+    area: "North Solapur",
+    specialty: "Heirloom Tomatoes & Gourds",
+    rating: 4.9,
+    orders: "1.2k+ deliveries",
   },
   {
-    id: "gal-3",
-    name: "Brussels Sprouts & Crisp Greens",
-    subtitle: "Crisp Sweet Florets",
-    price: 60,
-    unit: "250g",
-    farm: "Green Hills Co-op",
-    tag: "Seasonal",
-    image: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=600&auto=format&fit=crop&q=80",
+    name: "Vasant Valley Farms",
+    area: "Khed Mandi Road",
+    specialty: "Farm Potatoes & Root Veggies",
+    rating: 4.8,
+    orders: "890+ deliveries",
   },
   {
-    id: "gal-4",
-    name: "Fresh Brussels Sprouts Stalk",
-    subtitle: "Whole Stalk Hand-Cut",
-    price: 75,
-    unit: "500g",
-    farm: "Khed Bio Greens",
-    tag: "Chef's Choice",
-    image: "https://images.unsplash.com/photo-1568584711075-3d021a7c3ca3?w=600&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "gal-5",
-    name: "Vine-Ripened Cherry Tomatoes",
-    subtitle: "Sweet Sun-Drenched Clusters",
-    price: 50,
-    unit: "250g",
-    farm: "Solapur Sun Orchards",
-    tag: "Best Seller",
-    image: "https://images.unsplash.com/photo-1546470427-e26264be0b11?w=600&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "gal-6",
-    name: "Globe Artichokes & Squash",
-    subtitle: "Tender Farm Delicacy",
-    price: 65,
-    unit: "per piece",
-    farm: "Sahyadri Natural Estate",
-    tag: "Rare Farm Find",
-    image: "https://images.unsplash.com/photo-1511688878353-3a2f5be94cd7?w=600&auto=format&fit=crop&q=80",
+    name: "Sahyadri Bio Greens",
+    area: "South Solapur",
+    specialty: "Crisp Spinach, Cabbage & Herbs",
+    rating: 4.9,
+    orders: "2.4k+ deliveries",
   },
 ];
 
 export function PublicHome() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { t } = useTranslation();
-  const [search, setSearch] = useState("");
-  const [addedToast, setAddedToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [currentUserRole, setCurrentUserRole] = useState<AuthRole | null>(null);
-  const [currentUserName, setCurrentUserName] = useState<string>("");
+
+  const [role, setRole] = useState<AuthRole | null>(null);
+  const [userName, setUserName] = useState<string>("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<"all" | "fresh" | "popular">("all");
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState("Solapur Central Mandi · 413001");
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const { language, setLanguage, t } = useTranslation();
 
   useEffect(() => {
-    setCurrentUserRole(getStoredRole());
-    setCurrentUserName(getStoredUserName());
-    setAuthChecked(true);
+    setRole(getStoredRole());
+    setUserName(getStoredUserName());
+    const stored = getStoredLocation();
+    if (stored?.address) {
+      setSelectedLocation(stored.address);
+    }
+    // Auto-open Instamart-style location popup on first visit
+    if (typeof window !== "undefined") {
+      const visited = localStorage.getItem("vegito.location_selected");
+      if (!visited) {
+        const timer = setTimeout(() => {
+          setAddressModalOpen(true);
+        }, 600);
+        return () => clearTimeout(timer);
+      }
+    }
   }, []);
 
-  const handleLaunchDashboard = (target: "customer" | "seller" | "delivery" | "admin", e: React.MouseEvent) => {
-    e.preventDefault();
-    const role = getStoredRole();
-    const logged = isLoggedIn();
+  useEffect(() => {
+    const handleLocChange = (e: any) => {
+      if (e.detail?.address) {
+        setSelectedLocation(e.detail.address);
+      }
+    };
+    window.addEventListener("vegito:location_changed", handleLocChange);
+    return () => window.removeEventListener("vegito:location_changed", handleLocChange);
+  }, []);
 
-    if (!logged) {
-      router.push(`/auth/login?role=${target}`);
-      return;
-    }
-
-    if (target === "customer") {
-      if (role === "CUSTOMER") {
-        router.push("/customer");
-      } else {
-        router.push(`/unauthorized?required=CUSTOMER&current=${role}`);
-      }
-    } else if (target === "seller") {
-      if (role === "SELLER" || role === "ADMIN" || role === "SUPER_ADMIN") {
-        router.push("/seller");
-      } else {
-        router.push(`/unauthorized?required=SELLER&current=${role}`);
-      }
-    } else if (target === "delivery") {
-      if (role === "DELIVERY_PARTNER" || role === "ADMIN" || role === "SUPER_ADMIN") {
-        router.push("/delivery");
-      } else {
-        router.push(`/unauthorized?required=DELIVERY_PARTNER&current=${role}`);
-      }
-    } else if (target === "admin") {
-      if (role === "ADMIN" || role === "SUPER_ADMIN") {
-        router.push("/admin");
-      } else {
-        router.push(`/unauthorized?required=ADMIN&current=${role}`);
-      }
-    }
-  };
-
-  const categories = useQuery({
+  // API Queries
+  const categoriesQuery = useQuery({
     queryKey: ["categories"],
     queryFn: getCategories,
+    staleTime: 60_000,
   });
 
-  const products = useQuery({
-    queryKey: ["products", "public-home"],
-    queryFn: () => getProducts({ pageSize: 8 }),
+  const cartQuery = useQuery({
+    queryKey: ["cart"],
+    queryFn: getCart,
+    enabled: role === "CUSTOMER",
+    staleTime: 15_000,
   });
 
-  const addToCartMutation = useMutation({
-    mutationFn: (sellerProductId: number) => addCartItem(sellerProductId, 1),
+  const productsQuery = useQuery({
+    queryKey: ["public-products", selectedCategoryId, searchQuery],
+    queryFn: () =>
+      getProducts({
+        categoryId: selectedCategoryId || undefined,
+        search: searchQuery.trim() || undefined,
+        pageSize: 30,
+      }),
+    staleTime: 30_000,
+  });
+
+  const pastOrdersQuery = useQuery({
+    queryKey: ["past-orders-public"],
+    queryFn: () => listOrders(1, 6),
+    enabled: role === "CUSTOMER",
+    staleTime: 60_000,
+  });
+
+  // Cart quantity map
+  const cartItems = cartQuery.data?.items ?? [];
+  const cartQuantityByProduct = useMemo(() => {
+    const map: Record<number, { qty: number; itemId: number }> = {};
+    for (const it of cartItems) {
+      map[it.product_id] = { qty: it.quantity, itemId: it.id };
+    }
+    return map;
+  }, [cartItems]);
+
+  const totalCartCount =
+    cartQuery.data?.total_items_count ??
+    cartItems.reduce((acc, it) => acc + it.quantity, 0);
+  const totalCartAmount =
+    cartQuery.data?.total_amount ?? cartQuery.data?.subtotal ?? 0;
+
+  // Mutations
+  const addCartMut = useMutation({
+    mutationFn: ({ sellerProductId, qty }: { sellerProductId: number; qty: number }) =>
+      addCartItem(sellerProductId, qty),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cart"] });
-      setAddedToast({ type: "success", text: "Fresh vegetable added to your basket!" });
-      setTimeout(() => setAddedToast(null), 3000);
+      setToast({ type: "success", text: "Added fresh vegetable to basket!" });
+      setTimeout(() => setToast(null), 2500);
     },
     onError: (err) => {
-      setAddedToast({ type: "error", text: getErrorMessage(err) });
-      setTimeout(() => setAddedToast(null), 3500);
+      setToast({ type: "error", text: getErrorMessage(err) });
+      setTimeout(() => setToast(null), 3000);
     },
   });
 
-  function submitSearch(event: FormEvent) {
-    event.preventDefault();
-    router.push(
-      search.trim() ? `/search?search=${encodeURIComponent(search.trim())}` : "/search"
-    );
-  }
+  const updateCartMut = useMutation({
+    mutationFn: ({ itemId, quantity }: { itemId: number; quantity: number }) =>
+      quantity > 0 ? updateCartItem(itemId, quantity) : removeCartItem(itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
+    },
+    onError: (err) => {
+      setToast({ type: "error", text: getErrorMessage(err) });
+      setTimeout(() => setToast(null), 3000);
+    },
+  });
 
-  const handleAddToCart = (product: ApiProduct) => {
-    if (!isLoggedIn()) {
-      setLoginModalOpen(true);
+  const reorderMut = useMutation({
+    mutationFn: (orderId: number) => reorder(orderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      setToast({ type: "success", text: "Items added to your basket! Ready for checkout." });
+      setTimeout(() => setToast(null), 3000);
+    },
+    onError: (err) => {
+      setToast({ type: "error", text: getErrorMessage(err) });
+      setTimeout(() => setToast(null), 3000);
+    },
+  });
+
+  const handleProductQtyChange = (product: ApiProduct, newQty: number) => {
+    if (!role) {
+      router.push("/auth/login?role=customer");
       return;
     }
-    const offer = product.seller_products?.[0];
-    const sellerProductId = offer?.seller_product_id || product.id;
-    addToCartMutation.mutate(sellerProductId);
+    const cartEntry = cartQuantityByProduct[product.id];
+    if (cartEntry) {
+      updateCartMut.mutate({ itemId: cartEntry.itemId, quantity: newQty });
+    } else if (newQty > 0) {
+      const offer = product.seller_products?.[0];
+      if (offer?.seller_product_id) {
+        addCartMut.mutate({ sellerProductId: offer.seller_product_id, qty: newQty });
+      }
+    }
   };
 
-  const handleGalleryAdd = (item: typeof ARTISAN_GALLERY_ITEMS[0]) => {
-    if (!isLoggedIn()) {
-      setLoginModalOpen(true);
+  const handleAddToCartDirect = (sellerProductId: number, qty: number) => {
+    if (!role) {
+      router.push("/auth/login?role=customer");
       return;
     }
-    // Match against real live products if available, or first available product
-    const liveProd = products.data?.items?.[0];
-    if (liveProd) {
-      const offer = liveProd.seller_products?.[0];
-      const sellerProductId = offer?.seller_product_id || liveProd.id;
-      addToCartMutation.mutate(sellerProductId);
-    } else {
-      setAddedToast({ type: "success", text: `Added ${item.name} to basket!` });
-      setTimeout(() => setAddedToast(null), 3000);
-    }
+    addCartMut.mutate({ sellerProductId, qty });
   };
+
+  const productList = productsQuery.data?.items ?? [];
+
+  const isFruit = (p: ApiProduct) => {
+    const text = `${p.name} ${p.description || ""}`.toLowerCase();
+    const fruitKeywords = [
+      "fruit", "apple", "banana", "orange", "grape", "mango", "papaya",
+      "pomegranate", "watermelon", "melon", "guava", "lemon", "citrus",
+      "berries", "strawberry", "chiku", "chikoo", "sapota", "pineapple", "coconut", "anar", "seb", "santre", "kela"
+    ];
+    return fruitKeywords.some((k) => text.includes(k));
+  };
+
+  const vegetableProducts = useMemo(() => {
+    return productList.filter((p) => !isFruit(p));
+  }, [productList]);
+
+  const fruitProducts = useMemo(() => {
+    return productList.filter((p) => isFruit(p));
+  }, [productList]);
 
   return (
     <div
-      className="public-page"
       style={{
         minHeight: "100vh",
-        backgroundColor: "var(--vegito-background, #fbf8f2)",
-        color: "var(--vegito-text, #222c1d)",
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        backgroundColor: "#f8faf7",
+        color: "#12221e",
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        paddingBottom: totalCartCount > 0 ? "140px" : "90px",
+        overflowX: "hidden",
       }}
     >
-      {/* ── MOBILE ANDROID WELCOME (PREMIUM REDESIGN) ─────────────────
-          A polished, native-feeling splash screen for the Android app. */}
-      <section className="mobile-welcome-screen" aria-labelledby="mobile-welcome-title">
-        <div className="mobile-welcome-top">
-          <div className="mobile-welcome-brand">
-            <div className="mobile-logo-group">
-              <Leaf className="mobile-logo-leaf" size={28} fill="currentColor" />
-              <span className="mobile-logo-text">Vegito</span>
-            </div>
-            <span className="mobile-tagline">Fresh Produce. Better Tomorrow.</span>
-          </div>
-
-          <div className="mobile-hero-container">
-            {/* Subtle background blobs */}
-            <div className="mobile-hero-blob" />
-            <img
-              src="https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=800&auto=format&fit=crop&q=80"
-              alt="Fresh vegetables in crate"
-              className="mobile-hero-img"
-            />
-          </div>
-
-          <div className="mobile-content-group">
-            <h1 id="mobile-welcome-title" className="mobile-title">
-              Your Freshness<br />Our Priority
-            </h1>
-            <p className="mobile-description">
-              Get fresh, quality vegetables and fruits delivered to your doorstep.
-            </p>
-          </div>
-
-          <div className="mobile-features-grid">
-            <div className="mobile-feature-item">
-              <div className="mobile-feature-icon">
-                <Leaf size={20} />
-              </div>
-              <span>Fresh &<br />Healthy</span>
-            </div>
-            <div className="mobile-feature-item">
-              <div className="mobile-feature-icon">
-                <Truck size={20} />
-              </div>
-              <span>Fast<br />Delivery</span>
-            </div>
-            <div className="mobile-feature-item">
-              <div className="mobile-feature-icon">
-                <ShieldCheck size={20} />
-              </div>
-              <span>Trusted<br />Quality</span>
-            </div>
-          </div>
-
-          <div className="mobile-progress-dots">
-            <span className="dot active" />
-            <span className="dot" />
-            <span className="dot" />
-          </div>
-        </div>
-
-        <div className="mobile-welcome-footer">
-          <Link className="mobile-cta-btn" href="/auth/login">
-            Get Started <ArrowRight size={18} />
-          </Link>
-          <p className="mobile-login-hint">
-            Already have an account? <Link href="/auth/login">Login</Link>
-          </p>
-        </div>
-      </section>
-
-      {/* ── TOAST NOTIFICATION ──────────────────────────────────── */}
-      {addedToast && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "24px",
-            right: "24px",
-            zIndex: 100,
-            backgroundColor: addedToast.type === "success" ? "#2f3a27" : "#dc2626",
-            color: "#ffffff",
-            padding: "12px 22px",
-            borderRadius: "14px",
-            boxShadow: "0 10px 30px rgba(47, 58, 39, 0.3)",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            fontSize: "14px",
-            fontWeight: 700,
-          }}
-        >
-          {addedToast.type === "success" ? (
-            <CheckCircle2 size={18} color="#86efac" />
-          ) : (
-            <span>⚠️</span>
-          )}
-          {addedToast.text}
-          {addedToast.type === "success" && (
-            <Link
-              href="/customer/cart"
-              style={{
-                marginLeft: "8px",
-                color: "#fef08a",
-                textDecoration: "underline",
-                fontSize: "13px",
-              }}
-            >
-              View Cart
-            </Link>
-          )}
-        </div>
-      )}
-
-      {/* ── LOGIN REQUIRED MODAL ──────────────────────────────── */}
-      {loginModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(34, 44, 29, 0.55)",
-            backdropFilter: "blur(5px)",
-            zIndex: 1000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "16px",
-          }}
-          onClick={() => setLoginModalOpen(false)}
-        >
-          <div
-            style={{
-              backgroundColor: "var(--vegito-surface, #ffffff)",
-              borderRadius: "24px",
-              padding: "36px 32px",
-              maxWidth: "440px",
-              width: "100%",
-              boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
-              textAlign: "center",
-              border: "1px solid var(--vegito-border, #ede7dc)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                width: "60px",
-                height: "60px",
-                borderRadius: "18px",
-                backgroundColor: "#e8ede2",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "30px",
-                margin: "0 auto 18px",
-              }}
-            >
-              🍃
-            </div>
-            <h3
-              style={{
-                margin: "0 0 8px",
-                fontSize: "22px",
-                fontWeight: 800,
-                color: "#222c1d",
-                fontFamily: "'Playfair Display', Georgia, serif",
-              }}
-            >
-              Login Required
-            </h3>
-            <p style={{ margin: "0 0 24px", fontSize: "14px", color: "#57534e", lineHeight: 1.55 }}>
-              Please login or create a customer account to add farm-fresh vegetables to your basket and place your delivery order.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <Link
-                href="/auth/login"
-                style={{
-                  padding: "12px",
-                  borderRadius: "12px",
-                  backgroundColor: "#2f3a27",
-                  color: "#ffffff",
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  textDecoration: "none",
-                  boxShadow: "0 4px 12px rgba(47, 58, 39, 0.2)",
-                  display: "block",
-                }}
-              >
-                Log In to Your Account
-              </Link>
-              <Link
-                href="/auth/register"
-                style={{
-                  padding: "11px",
-                  borderRadius: "12px",
-                  backgroundColor: "#f4f7f3",
-                  border: "1px solid #d8e5dc",
-                  color: "#2f3a27",
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  textDecoration: "none",
-                  display: "block",
-                }}
-              >
-                Register as New Customer
-              </Link>
-              <button
-                onClick={() => setLoginModalOpen(false)}
-                style={{
-                  padding: "10px",
-                  borderRadius: "10px",
-                  backgroundColor: "transparent",
-                  border: "none",
-                  color: "#78716c",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Continue Browsing
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── TOP NAVBAR ─────────────────────────────────────────── */}
+      {/* ── 1. TOP HEADER & LOCATION ─────────────────────────────── */}
       <header
         style={{
-          background: "var(--vegito-surface, rgba(251, 248, 242, 0.95))",
-          backdropFilter: "blur(12px)",
-          borderBottom: "1px solid var(--vegito-border, #ede7dc)",
           position: "sticky",
           top: 0,
-          zIndex: 50,
+          zIndex: 100,
+          backgroundColor: "rgba(255, 255, 255, 0.94)",
+          backdropFilter: "blur(18px)",
+          borderBottom: "1px solid #e8eee9",
+          paddingTop: "env(safe-area-inset-top, 10px)",
         }}
       >
         <div
           style={{
-            maxWidth: "1280px",
+            maxWidth: "1200px",
             margin: "0 auto",
-            padding: "0 28px",
-            height: "72px",
+            padding: "12px 18px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            gap: "24px",
+            gap: "12px",
           }}
         >
-          {/* Brand Logo */}
-          <Link
-            href="/"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              textDecoration: "none",
-            }}
-          >
-            <div
+          {/* Brand + Location */}
+          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+            <Link
+              href="/"
               style={{
-                width: "38px",
-                height: "38px",
-                background: "#2f3a27",
-                borderRadius: "10px",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                fontSize: "20px",
-                color: "#ffffff",
+                gap: "8px",
+                textDecoration: "none",
               }}
             >
-              🍃
-            </div>
-            <div>
+              <div
+                style={{
+                  width: "38px",
+                  height: "38px",
+                  borderRadius: "12px",
+                  backgroundColor: "#063c32",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  boxShadow: "0 4px 12px rgba(6, 60, 50, 0.2)",
+                }}
+              >
+                <Leaf size={20} fill="#34d399" color="#34d399" />
+              </div>
               <span
                 style={{
-                  fontFamily: "'Playfair Display', Georgia, serif",
-                  fontSize: "25px",
-                  fontWeight: 800,
-                  color: "var(--vegito-text, #242e1f)",
-                  letterSpacing: "-0.5px",
+                  fontSize: "21px",
+                  fontWeight: 900,
+                  color: "#063c32",
+                  letterSpacing: "-0.03em",
                 }}
               >
                 Vegito
               </span>
+            </Link>
+
+            {/* Location selector pill */}
+            <button
+              onClick={() => setAddressModalOpen(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 12px",
+                borderRadius: "14px",
+                backgroundColor: "#f2f8f4",
+                border: "1px solid #e1ebe3",
+                color: "#063c32",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+                maxWidth: "220px",
+              }}
+            >
+              <MapPin size={14} color="#16835b" />
               <span
                 style={{
-                  display: "block",
-                  fontSize: "10px",
-                  fontWeight: 700,
-                  letterSpacing: "1.2px",
-                  color: "#78716c",
-                  textTransform: "uppercase",
-                  marginTop: "-3px",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
                 }}
               >
-                Farm-Fresh Direct
+                {selectedLocation}
               </span>
-            </div>
-          </Link>
+              <span style={{ fontSize: "10px", color: "#16835b" }}>▼</span>
+            </button>
+          </div>
 
-          {/* Nav Links */}
-          <nav
-            style={{
-              display: "flex",
-              gap: "8px",
-              alignItems: "center",
-            }}
-            className="home-nav-links"
-          >
-            {[
-              { label: t("nav.home", "Home"), href: "/" },
-              { label: t("nav.gallery", "Artisan Gallery"), href: "#gallery" },
-              { label: t("nav.harvest", "Live Harvest"), href: "#harvest" },
-              { label: t("nav.dashboards", "Dashboards"), href: "#dashboards" },
-              { label: t("nav.whyVegito", "Why Vegito"), href: "#about" },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                style={{
-                  padding: "8px 14px",
-                  borderRadius: "8px",
-                  color: "var(--vegito-text, #57534e)",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  textDecoration: "none",
-                  transition: "all 0.15s",
-                }}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+          {/* Right Header Controls */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {/* Language Switcher Pill */}
+            <button
+              onClick={() => {
+                const nextLang = language === "en" ? "mr" : language === "mr" ? "hi" : "en";
+                setLanguage(nextLang);
+              }}
+              title="Change Language"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "6px 10px",
+                borderRadius: "12px",
+                backgroundColor: "#f2f8f4",
+                border: "1px solid #e1ebe3",
+                color: "#063c32",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: "13px" }}>🌐</span>
+              <span>{language === "en" ? "EN" : language === "mr" ? "मराठी" : "हिन्दी"}</span>
+            </button>
 
-          {/* Right Role Portal Buttons & Theme/Language controls */}
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-            <LanguageSwitcher />
             <ThemeToggle />
 
-            {authChecked && currentUserRole ? (
-              <>
-                <Link
-                  href={getRoleRedirectPath(currentUserRole)}
+            {/* Basket Button */}
+            <Link
+              href={role === "CUSTOMER" ? "/customer/cart" : "/auth/login?role=customer"}
+              style={{
+                position: "relative",
+                width: "42px",
+                height: "42px",
+                borderRadius: "14px",
+                backgroundColor: totalCartCount > 0 ? "#063c32" : "#f2f6f3",
+                color: totalCartCount > 0 ? "#ffffff" : "#063c32",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                textDecoration: "none",
+                boxShadow: totalCartCount > 0 ? "0 4px 14px rgba(6, 60, 50, 0.25)" : "none",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <ShoppingCart size={19} />
+              {totalCartCount > 0 && (
+                <span
                   style={{
-                    padding: "8px 18px",
-                    borderRadius: "999px",
-                    background: "var(--vegito-primary, #2f3a27)",
+                    position: "absolute",
+                    top: "-4px",
+                    right: "-4px",
+                    width: "20px",
+                    height: "20px",
+                    borderRadius: "50%",
+                    backgroundColor: "#16835b",
                     color: "#ffffff",
-                    fontSize: "13.5px",
-                    fontWeight: 700,
-                    textDecoration: "none",
-                    display: "inline-flex",
+                    fontSize: "11px",
+                    fontWeight: 900,
+                    display: "flex",
                     alignItems: "center",
-                    gap: "6px",
-                    boxShadow: "0 2px 8px rgba(47, 58, 39, 0.25)",
+                    justifyContent: "center",
+                    border: "2px solid #ffffff",
+                    animation: "scaleIn 0.2s ease",
                   }}
                 >
-                  <span>{t("nav.myDashboard", "Dashboard")} ({currentUserRole.replace("_", " ")})</span>
-                  <ArrowRight size={14} />
-                </Link>
-                <button
-                  onClick={() => {
-                    clearSession();
-                    setCurrentUserRole(null);
-                    setCurrentUserName("");
-                    router.push("/");
-                  }}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "999px",
-                    border: "1.5px solid var(--vegito-border, #d6cebf)",
-                    background: "var(--vegito-surface, #ffffff)",
-                    color: "var(--vegito-text, #57534e)",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  {t("nav.logout", "Logout")}
-                </button>
-              </>
+                  {totalCartCount}
+                </span>
+              )}
+            </Link>
+
+            {/* User Profile or Login */}
+            {role ? (
+              <Link
+                href={getRoleRedirectPath(role)}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "14px",
+                  backgroundColor: "#e9f6ee",
+                  color: "#16835b",
+                  border: "1px solid #c7e3d2",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <User size={15} />
+                <span className="hidden-mobile">
+                  {userName ? userName.split(" ")[0] : "Dashboard"}
+                </span>
+              </Link>
             ) : (
-              <>
-                <Link
-                  href="/auth/login"
-                  style={{
-                    padding: "8px 18px",
-                    borderRadius: "999px",
-                    border: "1.5px solid var(--vegito-border, #d6cebf)",
-                    color: "var(--vegito-text, #2f3a27)",
-                    fontSize: "13.5px",
-                    fontWeight: 700,
-                    textDecoration: "none",
-                    backgroundColor: "var(--vegito-surface, #ffffff)",
-                    transition: "border-color 0.15s",
-                  }}
-                >
-                  {t("nav.login", "Login")}
-                </Link>
-                <Link
-                  href="/auth/register"
-                  style={{
-                    padding: "9px 22px",
-                    borderRadius: "999px",
-                    background: "var(--vegito-primary, #2f3a27)",
-                    color: "#ffffff",
-                    fontSize: "13.5px",
-                    fontWeight: 700,
-                    textDecoration: "none",
-                    boxShadow: "0 2px 8px rgba(47, 58, 39, 0.25)",
-                  }}
-                >
-                  {t("nav.register", "Get Started")}
-                </Link>
-              </>
+              <Link
+                href="/auth/login"
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "14px",
+                  backgroundColor: "#063c32",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  boxShadow: "0 4px 12px rgba(6, 60, 50, 0.18)",
+                }}
+              >
+                <span>Login</span>
+              </Link>
             )}
+          </div>
+        </div>
+
+        {/* ── 2. INTERACTIVE SEARCH BAR ──────────────────────────── */}
+        <div
+          style={{
+            maxWidth: "1200px",
+            margin: "0 auto",
+            padding: "0 18px 12px",
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              backgroundColor: "#f4f8f5",
+              borderRadius: "16px",
+              border: "1.5px solid #e1ebe3",
+              padding: "2px 14px",
+              transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+            }}
+          >
+            <Search size={18} color="#62746a" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search vegetables, tomatoes, potatoes, greens..."
+              style={{
+                width: "100%",
+                height: "44px",
+                padding: "0 12px",
+                border: "none",
+                backgroundColor: "transparent",
+                outline: "none",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "#12221e",
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#62746a",
+                  cursor: "pointer",
+                  padding: "4px",
+                }}
+              >
+                <X size={16} />
+              </button>
+            )}
+
+            {/* Voice Shopping Mic Button */}
+            <button
+              type="button"
+              onClick={() => setVoiceModalOpen(true)}
+              title="Voice Search produce"
+              style={{
+                background: "none",
+                border: "none",
+                color: "#16835b",
+                cursor: "pointer",
+                padding: "6px 8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "8px",
+              }}
+            >
+              <Mic size={18} />
+            </button>
           </div>
         </div>
       </header>
 
-      {/* ── HERO SECTION (EDITORIAL ORGANIC STYLE) ────────────── */}
-      <section
+      {/* Main Container */}
+      <main
         style={{
-          maxWidth: "1280px",
+          maxWidth: "1200px",
           margin: "0 auto",
-          padding: "54px 28px 48px",
-          display: "grid",
-          gridTemplateColumns: "1.1fr 0.9fr",
-          gap: "48px",
-          alignItems: "center",
+          padding: "18px 18px 0",
+          display: "flex",
+          flexDirection: "column",
+          gap: "28px",
         }}
-        className="home-hero-grid"
       >
-        {/* Left Editorial Copy */}
-        <div>
-          {/* "70% Fresh - Direct to You" badge from Mockup */}
+        {/* ── 3. HERO / FRESH GROCERY BANNER ────────────────────── */}
+        <section
+          style={{
+            position: "relative",
+            borderRadius: "26px",
+            overflow: "hidden",
+            background: "linear-gradient(135deg, #063c32 0%, #0d5843 60%, #16835b 100%)",
+            color: "#ffffff",
+            padding: "32px 28px",
+            boxShadow: "0 12px 36px rgba(6, 60, 50, 0.16)",
+          }}
+        >
           <div
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "6px 16px",
-              borderRadius: "999px",
-              background: "#e8ede2",
-              color: "#2f3a27",
-              fontSize: "12.5px",
-              fontWeight: 800,
-              marginBottom: "20px",
-              letterSpacing: "0.4px",
-              border: "1px solid #d5decb",
-            }}
-          >
-            <span>🍃</span>
-            <span>70% Fresh · Direct to You.</span>
-          </div>
-
-          <h1
-            style={{
-              fontFamily: "'Playfair Display', Georgia, serif",
-              fontSize: "clamp(36px, 4.8vw, 58px)",
-              fontWeight: 800,
-              color: "var(--vegito-text, #222c1d)",
-              lineHeight: 1.15,
-              letterSpacing: "-1px",
-              margin: "0 0 18px",
-            }}
-          >
-            Vegito — Farm-Fresh,<br />
-            Direct to You.
-          </h1>
-
-          <p
-            style={{
-              fontSize: "16.5px",
-              color: "var(--vegito-muted, #57534e)",
-              lineHeight: 1.65,
-              margin: "0 0 28px",
-              maxWidth: "500px",
-            }}
-          >
-            Curated Local Produce, Artisan Goods &amp; Sustainable Practices. Straight from Solapur farmers to your doorstep in minutes.
-          </p>
-
-          {/* Search bar */}
-          <form
-            onSubmit={submitSearch}
-            style={{
+              position: "relative",
+              zIndex: 2,
+              maxWidth: "600px",
               display: "flex",
-              maxWidth: "480px",
-              marginBottom: "26px",
-              boxShadow: "0 4px 20px rgba(47, 58, 39, 0.08)",
-              borderRadius: "999px",
-              overflow: "hidden",
-              border: "1.5px solid var(--vegito-border, #ded5c5)",
-              background: "var(--vegito-surface, #ffffff)",
+              flexDirection: "column",
+              gap: "12px",
             }}
           >
             <div
               style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                padding: "12px 20px",
-              }}
-            >
-              <Search size={18} color="#78716c" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search heirloom tomatoes, greens, potatoes..."
-                style={{
-                  border: "none",
-                  outline: "none",
-                  fontSize: "14px",
-                  color: "var(--vegito-text, #222c1d)",
-                  width: "100%",
-                  background: "transparent",
-                }}
-              />
-            </div>
-            <button
-              type="submit"
-              style={{
-                padding: "12px 24px",
-                background: "#2f3a27",
-                color: "#ffffff",
-                border: "none",
-                fontSize: "14px",
-                fontWeight: 700,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
-              Search <ArrowRight size={15} />
-            </button>
-          </form>
-
-          {/* CTA & 3 Feature Badges */}
-          <div style={{ display: "flex", gap: "14px", alignItems: "center", flexWrap: "wrap", marginBottom: "32px" }}>
-            <Link
-              href="#gallery"
-              style={{
-                padding: "13px 28px",
-                background: "#2f3a27",
-                color: "#ffffff",
-                borderRadius: "999px",
-                fontSize: "14.5px",
-                fontWeight: 800,
-                textDecoration: "none",
                 display: "inline-flex",
                 alignItems: "center",
-                gap: "8px",
-                boxShadow: "0 6px 20px rgba(47, 58, 39, 0.25)",
+                gap: "6px",
+                padding: "5px 12px",
+                borderRadius: "20px",
+                backgroundColor: "rgba(52, 211, 153, 0.18)",
+                color: "#a7f3d0",
+                fontSize: "12px",
+                fontWeight: 800,
+                width: "fit-content",
+                border: "1px solid rgba(52, 211, 153, 0.3)",
               }}
             >
-              Shop Now <ArrowRight size={16} />
-            </Link>
-            <Link
-              href="/categories"
+              <Sparkles size={14} />
+              <span>Direct From Solapur Mandi Farms</span>
+            </div>
+
+            <h1
               style={{
-                padding: "13px 26px",
-                background: "#ffffff",
-                color: "#2f3a27",
-                border: "1.5px solid #d5ccbe",
-                borderRadius: "999px",
-                fontSize: "14.5px",
-                fontWeight: 700,
-                textDecoration: "none",
+                margin: 0,
+                fontSize: "clamp(26px, 5vw, 38px)",
+                fontWeight: 900,
+                lineHeight: 1.15,
+                letterSpacing: "-0.03em",
+                color: "#ffffff",
               }}
             >
-              Explore Harvest
-            </Link>
+              Fresh groceries.<br />Delivered fast.
+            </h1>
+
+            <p
+              style={{
+                margin: 0,
+                fontSize: "clamp(13px, 2.5vw, 15px)",
+                color: "rgba(255, 255, 255, 0.85)",
+                lineHeight: 1.5,
+              }}
+            >
+              Pure farm-harvested vegetables, packed with care and delivered to your doorstep in 15–30 minutes.
+            </p>
+
+            {/* Quick stats pills */}
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "8px",
+                marginTop: "6px",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  backgroundColor: "rgba(255, 255, 255, 0.12)",
+                  padding: "4px 10px",
+                  borderRadius: "10px",
+                }}
+              >
+                ⚡ 15–30 Min Express
+              </span>
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  backgroundColor: "rgba(255, 255, 255, 0.12)",
+                  padding: "4px 10px",
+                  borderRadius: "10px",
+                }}
+              >
+                🌿 100% Quality Guaranteed
+              </span>
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  backgroundColor: "rgba(255, 255, 255, 0.12)",
+                  padding: "4px 10px",
+                  borderRadius: "10px",
+                }}
+              >
+                🏡 Local Verified Farmers
+              </span>
+            </div>
           </div>
 
-          {/* 3 Inline Feature Badges from Mockup */}
+          {/* Decorative vegetable background accent */}
+          <div
+            style={{
+              position: "absolute",
+              right: "-20px",
+              bottom: "-20px",
+              fontSize: "140px",
+              opacity: 0.18,
+              userSelect: "none",
+              pointerEvents: "none",
+            }}
+          >
+            🥬
+          </div>
+        </section>
+
+        {/* ── 4. CATEGORY CAROUSEL ──────────────────────────────── */}
+        <section>
           <div
             style={{
               display: "flex",
-              gap: "20px",
-              flexWrap: "wrap",
-              paddingTop: "18px",
-              borderTop: "1px solid #ede5d8",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "12px",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, color: "#44403c" }}>
-              <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: "#e8ede2", display: "flex", alignItems: "center", justifyContent: "center", color: "#2f3a27" }}>
-                🌿
-              </div>
-              <span>Fresh &amp; Natural</span>
+            <div>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: "18px",
+                  fontWeight: 800,
+                  color: "#063c32",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Explore Categories
+              </h2>
+              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
+                Handpicked varieties from local growers
+              </p>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, color: "#44403c" }}>
-              <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: "#e0f2fe", display: "flex", alignItems: "center", justifyContent: "center", color: "#0284c7" }}>
-                🚚
-              </div>
-              <span>Fast Delivery</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, color: "#44403c" }}>
-              <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: "#fef3c7", display: "flex", alignItems: "center", justifyContent: "center", color: "#d97706" }}>
-                🛡️
-              </div>
-              <span>Secure Payment</span>
-            </div>
+            {selectedCategoryId !== null && (
+              <button
+                onClick={() => setSelectedCategoryId(null)}
+                style={{
+                  border: "none",
+                  backgroundColor: "transparent",
+                  color: "#16835b",
+                  fontSize: "12.5px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Clear filter
+              </button>
+            )}
           </div>
-        </div>
 
-        {/* Right Editorial Hero Image: Rustic Harvest Crate */}
-        <div style={{ position: "relative" }}>
-          <div
-            style={{
-              borderRadius: "28px",
-              overflow: "hidden",
-              boxShadow: "0 20px 48px rgba(47, 58, 39, 0.18)",
-              position: "relative",
-              aspectRatio: "4/3",
-              background: "#2f3a27",
-            }}
-          >
-            {/* Rustic vegetable crate photo */}
-            <img
-              src="https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=1000&auto=format&fit=crop&q=80"
-              alt="Harvest Crate"
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-                filter: "brightness(0.95)",
-              }}
-            />
+          <CategoryCarousel
+            categories={categoriesQuery.data ?? []}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategory={(id) => setSelectedCategoryId(id)}
+            isLoading={categoriesQuery.isLoading}
+          />
+        </section>
 
-            {/* Gradient Overlay for warm contrast */}
+        {/* ── 5. SEARCH OR CATEGORY FILTERED VIEW ──────────────── */}
+        {(selectedCategoryId !== null || searchQuery.trim().length > 0) ? (
+          <section>
             <div
               style={{
-                position: "absolute",
-                inset: 0,
-                background: "linear-gradient(to top, rgba(34, 44, 29, 0.7) 0%, rgba(34, 44, 29, 0.05) 60%)",
-              }}
-            />
-
-            {/* Floating Rustic Badge */}
-            <div
-              style={{
-                position: "absolute",
-                bottom: "20px",
-                left: "20px",
-                right: "20px",
-                background: "rgba(251, 248, 242, 0.95)",
-                backdropFilter: "blur(8px)",
-                borderRadius: "16px",
-                padding: "14px 20px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                boxShadow: "0 8px 24px rgba(0, 0, 0, 0.15)",
+                marginBottom: "14px",
               }}
             >
               <div>
-                <p style={{ margin: 0, fontSize: "11px", fontWeight: 800, color: "#2f3a27", textTransform: "uppercase", letterSpacing: "1px" }}>
-                  MORNING HARVEST CRATE
-                </p>
-                <p style={{ margin: "2px 0 0", fontSize: "14px", fontWeight: 800, color: "#222c1d" }}>
-                  Heirloom Vegetables &amp; Artichokes
-                </p>
-              </div>
-              <div
-                style={{
-                  background: "#2f3a27",
-                  color: "#ffffff",
-                  fontSize: "11.5px",
-                  fontWeight: 800,
-                  padding: "5px 12px",
-                  borderRadius: "999px",
-                }}
-              >
-                100% Organic
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── ARTISAN VEGETABLE GALLERY (MOCKUP TOP RIGHT 3x2) ─────── */}
-      <section
-        id="gallery"
-        style={{
-          maxWidth: "1280px",
-          margin: "40px auto 60px",
-          padding: "0 28px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            marginBottom: "32px",
-            flexWrap: "wrap",
-            gap: "16px",
-            borderBottom: "1px solid #ede5d8",
-            paddingBottom: "18px",
-          }}
-        >
-          <div>
-            <span
-              style={{
-                color: "#2f3a27",
-                fontSize: "12px",
-                fontWeight: 800,
-                letterSpacing: "1.2px",
-                textTransform: "uppercase",
-              }}
-            >
-              CURATED PRODUCE
-            </span>
-            <h2
-              style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
-                fontSize: "clamp(28px, 3.4vw, 40px)",
-                fontWeight: 800,
-                color: "#222c1d",
-                margin: "4px 0 0",
-                letterSpacing: "-0.5px",
-              }}
-            >
-              Vegetable Gallery
-            </h2>
-            <p style={{ margin: "6px 0 0", fontSize: "14px", color: "#78716c" }}>
-              Hand-picked on earthen plates, cleaned, and brought fresh every dawn from local farmers
-            </p>
-          </div>
-          <Link
-            href="/categories"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "9px 20px",
-              backgroundColor: "#ffffff",
-              border: "1.5px solid #d5ccbe",
-              borderRadius: "999px",
-              color: "#2f3a27",
-              fontWeight: 700,
-              fontSize: "13px",
-              textDecoration: "none",
-            }}
-          >
-            View Full Harvest Catalog <ChevronRight size={16} />
-          </Link>
-        </div>
-
-        {/* 3x2 Ceramic Plate Cards Grid */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "24px",
-          }}
-          className="artisan-gallery-grid"
-        >
-          {ARTISAN_GALLERY_ITEMS.map((item) => (
-            <div
-              key={item.id}
-              style={{
-                backgroundColor: "#ffffff",
-                borderRadius: "20px",
-                border: "1px solid #e8e2d5",
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-                boxShadow: "0 4px 16px rgba(47, 58, 39, 0.05)",
-                transition: "transform 0.2s ease, box-shadow 0.2s ease",
-              }}
-            >
-              {/* Image with Earthen Plate presentation */}
-              <div
-                style={{
-                  height: "210px",
-                  backgroundColor: "#f7f4ed",
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
-                <img
-                  src={item.image}
-                  alt={item.name}
+                <h2
                   style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                    transition: "transform 0.3s ease",
-                  }}
-                />
-                <span
-                  style={{
-                    position: "absolute",
-                    top: "12px",
-                    left: "12px",
-                    padding: "4px 10px",
-                    borderRadius: "999px",
-                    backgroundColor: "rgba(251, 248, 242, 0.92)",
-                    backdropFilter: "blur(4px)",
-                    fontSize: "11px",
+                    margin: 0,
+                    fontSize: "19px",
                     fontWeight: 800,
-                    color: "#2f3a27",
-                    boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                    color: "#063c32",
+                    letterSpacing: "-0.02em",
                   }}
                 >
-                  🌿 {item.tag}
-                </span>
-                <span
-                  style={{
-                    position: "absolute",
-                    bottom: "10px",
-                    right: "12px",
-                    padding: "3px 9px",
-                    borderRadius: "6px",
-                    backgroundColor: "rgba(34, 44, 29, 0.82)",
-                    color: "#ffffff",
-                    fontSize: "11px",
-                    fontWeight: 700,
-                  }}
-                >
-                  {item.unit}
-                </span>
+                  {searchQuery ? `Results for "${searchQuery}"` : "Filtered Fresh Produce"}
+                </h2>
+                <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#62746a" }}>
+                  {productList.length} farm items found in Solapur
+                </p>
               </div>
 
-              {/* Card Body */}
-              <div style={{ padding: "18px 20px", flex: 1, display: "flex", flexDirection: "column" }}>
-                <div style={{ marginBottom: "12px" }}>
-                  <h3
+              <button
+                onClick={() => {
+                  setSelectedCategoryId(null);
+                  setSearchQuery("");
+                }}
+                style={{
+                  border: "none",
+                  backgroundColor: "transparent",
+                  color: "#16835b",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                Clear Filters
+              </button>
+            </div>
+
+            {productsQuery.isLoading ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                  gap: "14px",
+                }}
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                  <ProductCardSkeleton key={n} />
+                ))}
+              </div>
+            ) : productList.length === 0 ? (
+              <div
+                style={{
+                  padding: "40px 20px",
+                  textAlign: "center",
+                  backgroundColor: "#ffffff",
+                  borderRadius: "20px",
+                  border: "1px dashed #d1ded5",
+                }}
+              >
+                <span style={{ fontSize: "36px" }}>🔍</span>
+                <h4 style={{ margin: "10px 0 4px", fontSize: "16px", color: "#063c32" }}>
+                  No farm produce found
+                </h4>
+                <p style={{ margin: 0, fontSize: "13px", color: "#62746a" }}>
+                  Try a different search term or browse all vegetables and fruits.
+                </p>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                  gap: "14px",
+                }}
+              >
+                {productList.map((product) => {
+                  const cartQty = cartQuantityByProduct[product.id]?.qty ?? 0;
+                  return (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      quantity={cartQty}
+                      onChange={(newQty) => handleProductQtyChange(product, newQty)}
+                      onAddToCart={handleAddToCartDirect}
+                      onLoginRequired={() => router.push("/auth/login?role=customer")}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        ) : (
+          <>
+            {/* ── 5A. 🥬 DEDICATED FRESH VEGETABLES SECTION ─────── */}
+            <section id="vegetables-section">
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "14px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div
                     style={{
-                      margin: "0 0 3px",
-                      fontSize: "16px",
-                      fontWeight: 800,
-                      color: "#222c1d",
-                      fontFamily: "'Playfair Display', Georgia, serif",
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "12px",
+                      backgroundColor: "#ecfdf5",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "18px",
+                      border: "1px solid #a7f3d0",
                     }}
                   >
-                    {item.name}
+                    🥬
+                  </div>
+                  <div>
+                    <h2
+                      style={{
+                        margin: 0,
+                        fontSize: "19px",
+                        fontWeight: 800,
+                        color: "#063c32",
+                        letterSpacing: "-0.02em",
+                      }}
+                    >
+                      Fresh Vegetables
+                    </h2>
+                    <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
+                      Hand-plucked daily from Solapur Mandi growers
+                    </p>
+                  </div>
+                </div>
+
+                <span
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 800,
+                    color: "#16835b",
+                    backgroundColor: "#ecfdf5",
+                    padding: "4px 10px",
+                    borderRadius: "12px",
+                    border: "1px solid #a7f3d0",
+                  }}
+                >
+                  {vegetableProducts.length} items
+                </span>
+              </div>
+
+              {productsQuery.isLoading ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                    gap: "14px",
+                  }}
+                >
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <ProductCardSkeleton key={n} />
+                  ))}
+                </div>
+              ) : vegetableProducts.length === 0 ? (
+                <div
+                  style={{
+                    padding: "30px 20px",
+                    textAlign: "center",
+                    backgroundColor: "#ffffff",
+                    borderRadius: "18px",
+                    border: "1px dashed #d1ded5",
+                  }}
+                >
+                  <p style={{ margin: 0, fontSize: "13px", color: "#62746a" }}>
+                    Loading fresh farm vegetables...
+                  </p>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                    gap: "14px",
+                  }}
+                >
+                  {vegetableProducts.slice(0, 12).map((product) => {
+                    const cartQty = cartQuantityByProduct[product.id]?.qty ?? 0;
+                    return (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        quantity={cartQty}
+                        onChange={(newQty) => handleProductQtyChange(product, newQty)}
+                        onAddToCart={handleAddToCartDirect}
+                        onLoginRequired={() => router.push("/auth/login?role=customer")}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* ── 5B. 🍎 DEDICATED FRESH FRUITS SECTION ─────────── */}
+            <section id="fruits-section">
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "14px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "12px",
+                      backgroundColor: "#fff1f2",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "18px",
+                      border: "1px solid #fecdd3",
+                    }}
+                  >
+                    🍎
+                  </div>
+                  <div>
+                    <h2
+                      style={{
+                        margin: 0,
+                        fontSize: "19px",
+                        fontWeight: 800,
+                        color: "#063c32",
+                        letterSpacing: "-0.02em",
+                      }}
+                    >
+                      Fresh Farm Fruits
+                    </h2>
+                    <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
+                      Sweet, naturally ripened harvest from nearby orchards
+                    </p>
+                  </div>
+                </div>
+
+                <span
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 800,
+                    color: "#e11d48",
+                    backgroundColor: "#fff1f2",
+                    padding: "4px 10px",
+                    borderRadius: "12px",
+                    border: "1px solid #fecdd3",
+                  }}
+                >
+                  {fruitProducts.length > 0 ? `${fruitProducts.length} varieties` : "Orchard Harvest"}
+                </span>
+              </div>
+
+              {productsQuery.isLoading ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                    gap: "14px",
+                  }}
+                >
+                  {[1, 2, 3, 4].map((n) => (
+                    <ProductCardSkeleton key={n} />
+                  ))}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                    gap: "14px",
+                  }}
+                >
+                  {(fruitProducts.length > 0 ? fruitProducts : productList.slice(0, 4)).map((product) => {
+                    const cartQty = cartQuantityByProduct[product.id]?.qty ?? 0;
+                    return (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        quantity={cartQty}
+                        onChange={(newQty) => handleProductQtyChange(product, newQty)}
+                        onAddToCart={handleAddToCartDirect}
+                        onLoginRequired={() => router.push("/auth/login?role=customer")}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {/* ── 6. BEST OFFERS CARDS ──────────────────────────────── */}
+        <section>
+          <div style={{ marginBottom: "12px" }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "18px",
+                fontWeight: 800,
+                color: "#063c32",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Best Farm Deals
+            </h2>
+            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
+              Save on daily essentials direct from local farmers
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "14px",
+            }}
+          >
+            {BEST_OFFERS.map((off) => (
+              <div
+                key={off.id}
+                style={{
+                  borderRadius: "22px",
+                  padding: "20px 22px",
+                  background: off.bg,
+                  color: "#ffffff",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  boxShadow: "0 8px 24px rgba(6, 60, 50, 0.12)",
+                }}
+              >
+                <div>
+                  <span
+                    style={{
+                      fontSize: "10.5px",
+                      fontWeight: 800,
+                      backgroundColor: "rgba(255, 255, 255, 0.2)",
+                      padding: "4px 8px",
+                      borderRadius: "8px",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    {off.tag} · {off.discount}
+                  </span>
+                  <h3
+                    style={{
+                      margin: "10px 0 4px",
+                      fontSize: "17px",
+                      fontWeight: 800,
+                      color: "#ffffff",
+                    }}
+                  >
+                    {off.title}
                   </h3>
-                  <p style={{ margin: 0, fontSize: "12px", color: "#78716c" }}>
-                    {item.subtitle} · <span style={{ color: "#2f3a27", fontWeight: 600 }}>{item.farm}</span>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "12.5px",
+                      color: "rgba(255, 255, 255, 0.8)",
+                    }}
+                  >
+                    {off.desc}
                   </p>
                 </div>
 
                 <div
                   style={{
-                    marginTop: "auto",
                     display: "flex",
-                    justifyContent: "space-between",
                     alignItems: "center",
-                    paddingTop: "12px",
-                    borderTop: "1px solid #f2ece1",
+                    justifyContent: "space-between",
+                    marginTop: "16px",
                   }}
                 >
-                  <div>
-                    <span style={{ fontSize: "18px", fontWeight: 900, color: "#222c1d" }}>
-                      ₹{item.price}
-                    </span>
-                    <span style={{ fontSize: "12px", color: "#78716c" }}>/{item.unit}</span>
-                  </div>
-
+                  <span style={{ fontSize: "18px", fontWeight: 900 }}>
+                    {off.price}
+                  </span>
                   <button
-                    onClick={() => handleGalleryAdd(item)}
-                    disabled={addToCartMutation.isPending}
+                    onClick={() => {
+                      if (productList[0]?.seller_products?.[0]?.seller_product_id) {
+                        handleAddToCartDirect(
+                          productList[0].seller_products[0].seller_product_id,
+                          1
+                        );
+                      } else {
+                        router.push("/search");
+                      }
+                    }}
                     style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
                       padding: "8px 16px",
-                      borderRadius: "999px",
-                      backgroundColor: "#2f3a27",
-                      color: "#ffffff",
-                      fontSize: "12.5px",
-                      fontWeight: 700,
+                      borderRadius: "12px",
+                      backgroundColor: "#ffffff",
+                      color: "#063c32",
                       border: "none",
+                      fontSize: "12.5px",
+                      fontWeight: 800,
                       cursor: "pointer",
-                      boxShadow: "0 2px 6px rgba(47, 58, 39, 0.2)",
                     }}
                   >
-                    <ShoppingCart size={13} />
-                    Add
+                    Order Deal
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
 
-      {/* ── TODAY'S LIVE MARKETPLACE (REAL BACKEND PRODUCE) ─────── */}
-      <section
-        id="harvest"
-        style={{
-          maxWidth: "1280px",
-          margin: "0 auto 70px",
-          padding: "0 28px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            marginBottom: "28px",
-            flexWrap: "wrap",
-            gap: "14px",
-            borderBottom: "1px solid #ede5d8",
-            paddingBottom: "18px",
-          }}
-        >
-          <div>
-            <span
-              style={{
-                color: "#2f3a27",
-                fontSize: "12px",
-                fontWeight: 800,
-                letterSpacing: "1.2px",
-                textTransform: "uppercase",
-              }}
-            >
-              TODAY'S HARVEST
-            </span>
+        {/* ── 7. SMART REORDER (BUY AGAIN) ────────────────────────── */}
+        {role === "CUSTOMER" && pastOrdersQuery.data?.items && pastOrdersQuery.data.items.length > 0 && (
+          <SmartReorder
+            orders={pastOrdersQuery.data.items}
+            products={productList}
+            cartQuantities={cartQuantityByProduct}
+            onQtyChange={handleProductQtyChange}
+            onAddToCartDirect={handleAddToCartDirect}
+            onLoginRequired={() => router.push("/auth/login?role=customer")}
+          />
+        )}
+
+        {/* ── 7B. SMART BASKET BUILDER ──────────────────────────── */}
+        <section style={{ marginBottom: "8px" }}>
+          <SmartBasket
+            products={productList}
+            onSuccess={(text) => {
+              setToast({ type: "success", text });
+              setTimeout(() => setToast(null), 3000);
+            }}
+          />
+        </section>
+
+        {/* ── 7C. RECURRING GROCERY REMINDERS ────────────────────── */}
+        <section>
+          <GroceryReminders
+            products={productList}
+            onAddToCart={handleAddToCartDirect}
+          />
+        </section>
+
+        {/* ── 8. FAVORITE LOCAL FARMS ────────────────────────────── */}
+        <section>
+          <div style={{ marginBottom: "12px" }}>
             <h2
               style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
-                fontSize: "clamp(26px, 3.2vw, 36px)",
+                margin: 0,
+                fontSize: "18px",
                 fontWeight: 800,
-                color: "#222c1d",
-                margin: "4px 0 0",
+                color: "#063c32",
+                letterSpacing: "-0.02em",
               }}
             >
-              Direct Farmer Inventory
+              Verified Solapur Mandi Sellers
             </h2>
-            <p style={{ margin: "4px 0 0", fontSize: "13.5px", color: "#78716c" }}>
-              Live pricing set by verified Solapur farmers with 100% price transparency
+            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
+              Direct partnerships with genuine regional farming families
             </p>
           </div>
-          <Link
-            href="/categories"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "9px 18px",
-              backgroundColor: "#2f3a27",
-              borderRadius: "999px",
-              color: "#ffffff",
-              fontWeight: 700,
-              fontSize: "13px",
-              textDecoration: "none",
-            }}
-          >
-            Browse All <ChevronRight size={15} />
-          </Link>
-        </div>
 
-        {/* Live Product Cards */}
-        {products.isLoading ? (
-          <div style={{ textAlign: "center", padding: "40px", color: "#78716c" }}>
-            Loading live farm inventory...
-          </div>
-        ) : (products.data?.items?.length ?? 0) === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "48px",
-              backgroundColor: "#ffffff",
-              borderRadius: "20px",
-              border: "1px solid #ede5d8",
-              color: "#78716c",
-            }}
-          >
-            Vegetables are currently being harvested. Check back in a few minutes!
-          </div>
-        ) : (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-              gap: "22px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              gap: "12px",
             }}
           >
-            {products.data?.items?.map((item) => {
-              const offer = item.seller_products?.[0];
-              const sellerName = offer?.seller_business_name || "Green Farm Store";
-              const sellerRating = Number(offer?.seller_rating || 4.8).toFixed(1);
-              const price = offer?.price ? Number(offer.price) : Number(item.min_price || 40);
-              const isAvailable = offer?.is_available !== false && item.is_in_stock;
-
-              return (
-                <div
-                  key={item.id}
-                  style={{
-                    backgroundColor: "#ffffff",
-                    borderRadius: "20px",
-                    border: "1px solid #e8e2d5",
-                    overflow: "hidden",
-                    display: "flex",
-                    flexDirection: "column",
-                    boxShadow: "0 2px 10px rgba(47, 58, 39, 0.04)",
-                  }}
-                >
+            {LOCAL_FARMS.map((farm, idx) => (
+              <div
+                key={idx}
+                style={{
+                  backgroundColor: "#ffffff",
+                  borderRadius: "18px",
+                  border: "1px solid #e1e8e2",
+                  padding: "16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  boxShadow: "0 2px 8px rgba(6, 60, 50, 0.03)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <div
                     style={{
-                      height: "170px",
-                      backgroundColor: "#f7f4ed",
-                      position: "relative",
-                      overflow: "hidden",
+                      width: "42px",
+                      height: "42px",
+                      borderRadius: "14px",
+                      backgroundColor: "#f2f8f4",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "20px",
                     }}
                   >
-                    {item.images?.[0]?.image_url ? (
-                      <img
-                        src={item.images[0].image_url}
-                        alt={item.name}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "56px",
-                        }}
-                      >
-                        🥬
-                      </div>
-                    )}
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: "10px",
-                        left: "10px",
-                        padding: "3px 9px",
-                        borderRadius: "999px",
-                        backgroundColor: "rgba(251, 248, 242, 0.92)",
-                        fontSize: "11px",
-                        fontWeight: 800,
-                        color: "#2f3a27",
-                      }}
-                    >
-                      🌱 Solapur Fresh
-                    </span>
+                    🌾
                   </div>
-
-                  <div style={{ padding: "18px", flex: 1, display: "flex", flexDirection: "column" }}>
-                    <h3
-                      style={{
-                        margin: "0 0 3px",
-                        fontSize: "16px",
-                        fontWeight: 800,
-                        color: "#222c1d",
-                        fontFamily: "'Playfair Display', Georgia, serif",
-                      }}
-                    >
-                      {item.name}
-                    </h3>
-                    <p style={{ margin: "0 0 10px", fontSize: "12px", color: "#78716c" }}>
-                      Unit: {item.unit || "1 KG"}
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "13.5px", fontWeight: 800, color: "#063c32" }}>
+                      {farm.name}
+                    </h4>
+                    <p style={{ margin: "1px 0 0", fontSize: "11.5px", color: "#62746a" }}>
+                      {farm.area} · {farm.specialty}
                     </p>
-
-                    {/* Seller Transparency info */}
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        marginBottom: "14px",
-                        fontSize: "12px",
-                        color: "#222c1d",
-                        backgroundColor: "#fbf8f2",
-                        padding: "6px 10px",
-                        borderRadius: "8px",
-                        border: "1px solid #ede5d8",
-                      }}
-                    >
-                      <Store size={13} color="#2f3a27" />
-                      <span style={{ fontWeight: 700 }}>{sellerName}</span>
-                      <span style={{ color: "#d97706", fontWeight: 800, marginLeft: "auto" }}>
-                        ★ {sellerRating}
-                      </span>
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: "auto",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        paddingTop: "12px",
-                        borderTop: "1px solid #f2ece1",
-                      }}
-                    >
-                      <div>
-                        <span style={{ fontSize: "18px", fontWeight: 900, color: "#222c1d" }}>
-                          ₹{price.toFixed(0)}
-                        </span>
-                        <span style={{ fontSize: "12px", color: "#78716c" }}>/{item.unit || "kg"}</span>
-                      </div>
-
-                      <button
-                        onClick={() => handleAddToCart(item)}
-                        disabled={!isAvailable || addToCartMutation.isPending}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          padding: "8px 16px",
-                          borderRadius: "999px",
-                          backgroundColor: isAvailable ? "#2f3a27" : "#d6cebf",
-                          color: "#ffffff",
-                          fontSize: "12.5px",
-                          fontWeight: 700,
-                          border: "none",
-                          cursor: isAvailable ? "pointer" : "not-allowed",
-                        }}
-                      >
-                        <ShoppingCart size={13} />
-                        {isAvailable ? "Add" : "Sold Out"}
-                      </button>
-                    </div>
                   </div>
                 </div>
-              );
-            })}
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    padding: "3px 8px",
+                    borderRadius: "12px",
+                    backgroundColor: "#fef3c7",
+                    fontSize: "11.5px",
+                    fontWeight: 800,
+                    color: "#92400e",
+                  }}
+                >
+                  <Star size={12} fill="#f59e0b" color="#f59e0b" />
+                  <span>{farm.rating}</span>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-      </section>
+        </section>
 
-      {/* ── 4 ROLE DASHBOARDS SHOWCASE (MATCHING MOCKUP SCREENS 1,2,3,4) ─── */}
-      <section
-        id="dashboards"
-        style={{
-          backgroundColor: "#f2ece1",
-          borderTop: "1px solid #e5dcce",
-          borderBottom: "1px solid #e5dcce",
-          padding: "64px 28px",
-        }}
-      >
-        <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: "40px" }}>
-            <span
-              style={{
-                color: "#2f3a27",
-                fontSize: "12px",
-                fontWeight: 800,
-                letterSpacing: "1.2px",
-                textTransform: "uppercase",
-              }}
-            >
-              INTEGRATED PLATFORM
-            </span>
-            <h2
-              style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
-                fontSize: "clamp(28px, 3.4vw, 42px)",
-                fontWeight: 800,
-                color: "#222c1d",
-                margin: "6px 0 10px",
-                letterSpacing: "-0.5px",
-              }}
-            >
-              Unified Ecosystem Dashboards
-            </h2>
-            <p style={{ color: "#78716c", fontSize: "15px", margin: 0, maxWidth: "560px", marginInline: "auto" }}>
-              Tailored high-performance operations workspaces for Customers, Sellers, Delivery Fleet, and Platform Operations.
-            </p>
-          </div>
-
-          {/* 4 Dashboard Preview Cards Grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "20px",
-            }}
-            className="home-dashboards-grid"
-          >
-            {/* 1. Customer Dashboard Card */}
+        {/* ── 9. WHY VEGITO ─────────────────────────────────────── */}
+        <section
+          style={{
+            backgroundColor: "#ffffff",
+            borderRadius: "24px",
+            border: "1px solid #e1e8e2",
+            padding: "24px 22px",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "20px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
             <div
-              onClick={(e) => handleLaunchDashboard("customer", e)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === "Enter") handleLaunchDashboard("customer", e as any); }}
               style={{
-                backgroundColor: "#ffffff",
-                borderRadius: "20px",
-                border: "1.5px solid #d1fae5",
-                padding: "24px",
-                textDecoration: "none",
+                width: "44px",
+                height: "44px",
+                borderRadius: "14px",
+                backgroundColor: "#e9f6ee",
+                color: "#16835b",
                 display: "flex",
-                flexDirection: "column",
-                boxShadow: "0 6px 20px rgba(6, 78, 59, 0.06)",
-                transition: "transform 0.2s, box-shadow 0.2s",
-                cursor: "pointer",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "4px 12px",
-                    borderRadius: "999px",
-                    backgroundColor: "#ecfdf5",
-                    border: "1px solid #a7f3d0",
-                    color: "#065f46",
-                    fontSize: "12px",
-                    fontWeight: 800,
-                  }}
-                >
-                  👤 Customer
-                </span>
-                <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#059669" }}>
-                  Active Order
-                </span>
-              </div>
-
-              <h3
-                style={{
-                  fontFamily: "'Playfair Display', Georgia, serif",
-                  margin: "0 0 8px",
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#064e3b",
-                }}
-              >
-                Customer Portal
-              </h3>
-              <p style={{ margin: "0 0 16px", fontSize: "12.5px", color: "#64748b", lineHeight: 1.5 }}>
-                Sales &amp; Velocity wave chart, doorstep GPS live tracking, fresh catalog, and 1-click reorder.
-              </p>
-
-              <div
-                style={{
-                  marginTop: "auto",
-                  backgroundColor: "#f0fdf4",
-                  borderRadius: "12px",
-                  padding: "12px",
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: "8px",
-                  marginBottom: "16px",
-                  fontSize: "11.5px",
-                }}
-              >
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Total Orders</span>
-                  <strong style={{ color: "#065f46", fontSize: "14px" }}>5</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Delivered</span>
-                  <strong style={{ color: "#059669", fontSize: "14px" }}>3</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Out for Delivery</span>
-                  <strong style={{ color: "#d97706", fontSize: "14px" }}>1</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Cancelled</span>
-                  <strong style={{ color: "#dc2626", fontSize: "14px" }}>1</strong>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#059669", fontWeight: 800, fontSize: "13px" }}>
-                <span>Launch Customer Dashboard</span>
-                <ArrowRight size={14} />
-              </div>
+              <Leaf size={22} />
             </div>
-
-            {/* 2. Seller Dashboard Card */}
-            <div
-              onClick={(e) => handleLaunchDashboard("seller", e)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === "Enter") handleLaunchDashboard("seller", e as any); }}
-              style={{
-                backgroundColor: "#ffffff",
-                borderRadius: "20px",
-                border: "1.5px solid #fed7aa",
-                padding: "24px",
-                textDecoration: "none",
-                display: "flex",
-                flexDirection: "column",
-                boxShadow: "0 6px 20px rgba(194, 65, 12, 0.06)",
-                transition: "transform 0.2s, box-shadow 0.2s",
-                cursor: "pointer",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "4px 12px",
-                    borderRadius: "999px",
-                    backgroundColor: "#fff7ed",
-                    border: "1px solid #fed7aa",
-                    color: "#c2410c",
-                    fontSize: "12px",
-                    fontWeight: 800,
-                  }}
-                >
-                  🏪 Seller
-                </span>
-                <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#ea580c" }}>
-                  Verified
-                </span>
-              </div>
-
-              <h3
-                style={{
-                  fontFamily: "'Playfair Display', Georgia, serif",
-                  margin: "0 0 8px",
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#9a3412",
-                }}
-              >
-                Seller Central
-              </h3>
-              <p style={{ margin: "0 0 16px", fontSize: "12.5px", color: "#64748b", lineHeight: 1.5 }}>
-                Warm terracotta analytics, Sales Overview area chart, Order Status donut (26 orders), and harvest management.
+            <div>
+              <h4 style={{ margin: "0 0 3px", fontSize: "14.5px", fontWeight: 800, color: "#063c32" }}>
+                Direct Farm-to-Table
+              </h4>
+              <p style={{ margin: 0, fontSize: "12px", color: "#62746a", lineHeight: 1.45 }}>
+                Zero middlemen. Harvested morning produce arrives at your doorstep fresh and crisp.
               </p>
-
-              <div
-                style={{
-                  marginTop: "auto",
-                  backgroundColor: "#fff7ed",
-                  borderRadius: "12px",
-                  padding: "12px",
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: "8px",
-                  marginBottom: "16px",
-                  fontSize: "11.5px",
-                }}
-              >
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Total Orders</span>
-                  <strong style={{ color: "#9a3412", fontSize: "14px" }}>24</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Total Sales</span>
-                  <strong style={{ color: "#c2410c", fontSize: "14px" }}>₹13,480</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Products</span>
-                  <strong style={{ color: "#9a3412", fontSize: "14px" }}>18</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Pending</span>
-                  <strong style={{ color: "#ea580c", fontSize: "14px" }}>5</strong>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#ea580c", fontWeight: 800, fontSize: "13px" }}>
-                <span>Launch Seller Portal</span>
-                <ArrowRight size={14} />
-              </div>
-            </div>
-
-            {/* 3. Delivery Partner Dashboard Card */}
-            <div
-              onClick={(e) => handleLaunchDashboard("delivery", e)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === "Enter") handleLaunchDashboard("delivery", e as any); }}
-              style={{
-                backgroundColor: "#ffffff",
-                borderRadius: "20px",
-                border: "1.5px solid #bfdbfe",
-                padding: "24px",
-                textDecoration: "none",
-                display: "flex",
-                flexDirection: "column",
-                boxShadow: "0 6px 20px rgba(29, 78, 216, 0.06)",
-                transition: "transform 0.2s, box-shadow 0.2s",
-                cursor: "pointer",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "4px 12px",
-                    borderRadius: "999px",
-                    backgroundColor: "#eff6ff",
-                    border: "1px solid #bfdbfe",
-                    color: "#1d4ed8",
-                    fontSize: "12px",
-                    fontWeight: 800,
-                  }}
-                >
-                  🚚 Delivery
-                </span>
-                <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#2563eb" }}>
-                  Online · GPS
-                </span>
-              </div>
-
-              <h3
-                style={{
-                  fontFamily: "'Playfair Display', Georgia, serif",
-                  margin: "0 0 8px",
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#1e3a8a",
-                }}
-              >
-                Delivery Fleet
-              </h3>
-              <p style={{ margin: "0 0 16px", fontSize: "12.5px", color: "#64748b", lineHeight: 1.5 }}>
-                Royal cobalt blue theme, real-time Mapbox route card, live GPS telemetry, call customer, and OTP verification.
-              </p>
-
-              <div
-                style={{
-                  marginTop: "auto",
-                  backgroundColor: "#eff6ff",
-                  borderRadius: "12px",
-                  padding: "12px",
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: "8px",
-                  marginBottom: "16px",
-                  fontSize: "11.5px",
-                }}
-              >
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Today&apos;s Deliveries</span>
-                  <strong style={{ color: "#1e3a8a", fontSize: "14px" }}>8</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Earnings</span>
-                  <strong style={{ color: "#2563eb", fontSize: "14px" }}>₹3,240</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Active Delivery</span>
-                  <strong style={{ color: "#0284c7", fontSize: "14px" }}>1</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Delivered</span>
-                  <strong style={{ color: "#16a34a", fontSize: "14px" }}>7</strong>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#2563eb", fontWeight: 800, fontSize: "13px" }}>
-                <span>Launch Fleet Dashboard</span>
-                <ArrowRight size={14} />
-              </div>
-            </div>
-
-            {/* 4. Operations Admin Dashboard Card */}
-            <div
-              onClick={(e) => handleLaunchDashboard("admin", e)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === "Enter") handleLaunchDashboard("admin", e as any); }}
-              style={{
-                backgroundColor: "#ffffff",
-                borderRadius: "20px",
-                border: "1.5px solid #ddd6fe",
-                padding: "24px",
-                textDecoration: "none",
-                display: "flex",
-                flexDirection: "column",
-                boxShadow: "0 6px 20px rgba(109, 40, 217, 0.06)",
-                transition: "transform 0.2s, box-shadow 0.2s",
-                cursor: "pointer",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "4px 12px",
-                    borderRadius: "999px",
-                    backgroundColor: "#f5f3ff",
-                    border: "1px solid #ddd6fe",
-                    color: "#6d28d9",
-                    fontSize: "12px",
-                    fontWeight: 800,
-                  }}
-                >
-                  🛡️ Admin
-                </span>
-                <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#7c3aed" }}>
-                  Solapur HQ
-                </span>
-              </div>
-
-              <h3
-                style={{
-                  fontFamily: "'Playfair Display', Georgia, serif",
-                  margin: "0 0 8px",
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#4c1d95",
-                }}
-              >
-                Operations Command
-              </h3>
-              <p style={{ margin: "0 0 16px", fontSize: "12.5px", color: "#64748b", lineHeight: 1.5 }}>
-                Slate charcoal &amp; lavender theme, smooth purple revenue line chart, city fleet map, and vendor controls.
-              </p>
-
-              <div
-                style={{
-                  marginTop: "auto",
-                  backgroundColor: "#f5f3ff",
-                  borderRadius: "12px",
-                  padding: "12px",
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: "8px",
-                  marginBottom: "16px",
-                  fontSize: "11.5px",
-                }}
-              >
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Total Orders</span>
-                  <strong style={{ color: "#4c1d95", fontSize: "14px" }}>124</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Total Revenue</span>
-                  <strong style={{ color: "#7c3aed", fontSize: "14px" }}>₹48,220</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Customers</span>
-                  <strong style={{ color: "#4c1d95", fontSize: "14px" }}>86</strong>
-                </div>
-                <div>
-                  <span style={{ color: "#64748b", display: "block" }}>Active Sellers</span>
-                  <strong style={{ color: "#6d28d9", fontSize: "14px" }}>3</strong>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#7c3aed", fontWeight: 800, fontSize: "13px" }}>
-                <span>Launch Admin Command</span>
-                <ArrowRight size={14} />
-              </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* ── ABOUT / FARMER IMPACT SECTION ──────────────────────── */}
-      <section
-        id="about"
-        style={{
-          backgroundColor: "#242e1f",
-          color: "#ffffff",
-          padding: "70px 28px",
-        }}
-      >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+            <div
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "14px",
+                backgroundColor: "#e9f6ee",
+                color: "#16835b",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Truck size={22} />
+            </div>
+            <div>
+              <h4 style={{ margin: "0 0 3px", fontSize: "14.5px", fontWeight: 800, color: "#063c32" }}>
+                15–30 Min Express
+              </h4>
+              <p style={{ margin: 0, fontSize: "12px", color: "#62746a", lineHeight: 1.45 }}>
+                Local delivery fleet ensures vegetables reach you before morning cooking begins.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+            <div
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "14px",
+                backgroundColor: "#e9f6ee",
+                color: "#16835b",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <ShieldCheck size={22} />
+            </div>
+            <div>
+              <h4 style={{ margin: "0 0 3px", fontSize: "14.5px", fontWeight: 800, color: "#063c32" }}>
+                Honest Mandi Pricing
+              </h4>
+              <p style={{ margin: 0, fontSize: "12px", color: "#62746a", lineHeight: 1.45 }}>
+                Transparent pricing reflective of daily Solapur APMC wholesale rates.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* ── 10. STICKY MOBILE CART CHECKOUT BAR ────────────────── */}
+      {totalCartCount > 0 && (
         <div
           style={{
-            maxWidth: "1280px",
+            position: "fixed",
+            bottom: "82px",
+            left: "14px",
+            right: "14px",
+            zIndex: 150,
+            maxWidth: "520px",
             margin: "0 auto",
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "54px",
-            alignItems: "center",
           }}
-          className="home-about-grid"
         >
-          <div>
-            <span
-              style={{
-                color: "#86efac",
-                fontSize: "12px",
-                fontWeight: 800,
-                letterSpacing: "1.2px",
-                textTransform: "uppercase",
-              }}
-            >
-              SUSTAINABLE IMPACT
-            </span>
-            <h2
-              style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
-                fontSize: "clamp(30px, 3.8vw, 42px)",
-                fontWeight: 800,
-                color: "#ffffff",
-                margin: "10px 0 18px",
-                lineHeight: 1.2,
-              }}
-            >
-              Direct Fair Pricing for Solapur Vegetable Farmers
-            </h2>
-            <p style={{ fontSize: "15.5px", color: "#d6d3d1", lineHeight: 1.75, margin: "0 0 28px" }}>
-              Traditional vegetable wholesale markets charge up to 45% in commissions and middleman margins.
-              Vegito provides verified local farmers with direct catalog autonomy and fair, guaranteed pricing — delivering morning-harvested crops directly into household kitchens within hours.
-            </p>
-            <div style={{ display: "flex", gap: "32px" }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "32px", fontWeight: 900, color: "#86efac", fontFamily: "'Playfair Display', Georgia, serif" }}>
-                  100%
-                </h3>
-                <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#a8a29e" }}>
-                  Transparent Farmer Pricing
-                </p>
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "32px", fontWeight: 900, color: "#86efac", fontFamily: "'Playfair Display', Georgia, serif" }}>
-                  &lt; 30 min
-                </h3>
-                <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#a8a29e" }}>
-                  Express Doorstep Delivery
-                </p>
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "32px", fontWeight: 900, color: "#86efac", fontFamily: "'Playfair Display', Georgia, serif" }}>
-                  0%
-                </h3>
-                <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#a8a29e" }}>
-                  Hidden Middleman Cuts
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div
+          <Link
+            href="/customer/cart"
             style={{
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid rgba(255, 255, 255, 0.12)",
-              borderRadius: "24px",
-              padding: "36px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "14px 20px",
+              borderRadius: "20px",
+              backgroundColor: "#063c32",
+              color: "#ffffff",
+              textDecoration: "none",
+              boxShadow: "0 10px 30px rgba(6, 60, 50, 0.35)",
+              animation: "slideUp 0.25s ease",
             }}
           >
-            <h3
-              style={{
-                margin: "0 0 20px",
-                fontSize: "20px",
-                fontWeight: 800,
-                color: "#ffffff",
-                fontFamily: "'Playfair Display', Georgia, serif",
-              }}
-            >
-              The Vegito Promise
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px", fontSize: "14.5px", color: "#e7e5e4" }}>
-              <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                <CheckCircle2 size={20} color="#86efac" style={{ flexShrink: 0, marginTop: "2px" }} />
-                <span>Harvested fresh at dawn from certified pesticide-conscious local farms</span>
-              </div>
-              <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                <CheckCircle2 size={20} color="#86efac" style={{ flexShrink: 0, marginTop: "2px" }} />
-                <span>Real-time GPS delivery tracking with doorstep OTP security verification</span>
-              </div>
-              <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                <CheckCircle2 size={20} color="#86efac" style={{ flexShrink: 0, marginTop: "2px" }} />
-                <span>Every rupee goes directly to local farming families and verified couriers</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── FOOTER ─────────────────────────────────────────────── */}
-      <footer
-        style={{
-          background: "#192215",
-          color: "rgba(255, 255, 255, 0.7)",
-          padding: "54px 28px 30px",
-          fontSize: "13.5px",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr 1fr",
-            gap: "40px",
-            marginBottom: "40px",
-          }}
-          className="home-footer-grid"
-        >
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <div
                 style={{
                   width: "32px",
                   height: "32px",
-                  background: "#2f3a27",
-                  borderRadius: "8px",
+                  borderRadius: "10px",
+                  backgroundColor: "#16835b",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "18px",
+                  fontSize: "13px",
+                  fontWeight: 900,
                 }}
               >
-                🍃
+                {totalCartCount}
               </div>
-              <span
-                style={{
-                  fontFamily: "'Playfair Display', Georgia, serif",
-                  fontSize: "22px",
-                  fontWeight: 800,
-                  color: "#ffffff",
-                }}
-              >
-                Vegito
-              </span>
+              <div>
+                <p style={{ margin: 0, fontSize: "14px", fontWeight: 800 }}>
+                  ₹{Number(totalCartAmount).toFixed(0)}
+                </p>
+                <p style={{ margin: 0, fontSize: "11px", color: "#a7f3d0" }}>
+                  Plus applicable delivery & taxes
+                </p>
+              </div>
             </div>
-            <p style={{ margin: 0, lineHeight: 1.7, maxWidth: "340px", color: "#a8a29e" }}>
-              Fresh Vegetables Directly From Local Farmers to Your Doorstep. Operating across Solapur, Maharashtra with zero middleman exploitation.
-            </p>
-          </div>
 
-          <div>
-            <h4 style={{ margin: "0 0 14px", color: "#ffffff", fontSize: "14px", fontWeight: 800 }}>
-              Shop Produce
-            </h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
-              <Link href="/categories" style={{ color: "inherit", textDecoration: "none" }}>All Vegetables</Link>
-              <Link href="/customer/cart" style={{ color: "inherit", textDecoration: "none" }}>My Cart</Link>
-              <Link href="/customer/orders" style={{ color: "inherit", textDecoration: "none" }}>Track Order</Link>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 800, fontSize: "14px" }}>
+              <span>View Basket</span>
+              <ArrowRight size={17} />
             </div>
-          </div>
-
-          <div>
-            <h4 style={{ margin: "0 0 14px", color: "#ffffff", fontSize: "14px", fontWeight: 800 }}>
-              Partner Portals
-            </h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
-              <Link href="/seller" style={{ color: "inherit", textDecoration: "none" }}>Seller Central</Link>
-              <Link href="/delivery" style={{ color: "inherit", textDecoration: "none" }}>Delivery Fleet</Link>
-              <Link href="/admin" style={{ color: "inherit", textDecoration: "none" }}>Operations Admin</Link>
-            </div>
-          </div>
-
-          <div>
-            <h4 style={{ margin: "0 0 14px", color: "#ffffff", fontSize: "14px", fontWeight: 800 }}>
-              Solapur Hub
-            </h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: "9px", color: "#a8a29e" }}>
-              <span>📞 +91 93094 24359</span>
-              <span>📍 Solapur, Maharashtra 413001</span>
-              <span>✉️ support@vegito.in</span>
-            </div>
-          </div>
+          </Link>
         </div>
+      )}
 
+      {/* ── 11. ROLE-AWARE BOTTOM NAVIGATION ───────────────────── */}
+      <BottomNavigation basketCount={totalCartCount} />
+
+      {/* ── 12. TOAST NOTIFICATION ─────────────────────────────── */}
+      {toast && (
         <div
           style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-            paddingTop: "24px",
-            textAlign: "center",
-            color: "#78716c",
-            fontSize: "12.5px",
+            position: "fixed",
+            bottom: totalCartCount > 0 ? "150px" : "94px",
+            right: "18px",
+            zIndex: 200,
+            backgroundColor: toast.type === "success" ? "#063c32" : "#dc2626",
+            color: "#ffffff",
+            padding: "12px 20px",
+            borderRadius: "16px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            fontSize: "13.5px",
+            fontWeight: 700,
+            animation: "slideUp 0.2s ease",
           }}
         >
-          © 2025 Vegito Platform · Farm-Fresh Vegetables with 100% Price Transparency. All Rights Reserved.
+          {toast.type === "success" ? <CheckCircle2 size={18} color="#34d399" /> : <AlertCircle size={18} />}
+          <span>{toast.text}</span>
         </div>
-      </footer>
+      )}
 
-      {/* Responsive adjustments */}
-      <style>{`
-        .mobile-welcome-screen { display: none; }
+      {/* Instamart-style Unified Location Modal */}
+      <LocationModal
+        isOpen={addressModalOpen}
+        onClose={() => setAddressModalOpen(false)}
+        onSelect={(loc) => setSelectedLocation(loc.address)}
+      />
 
-        @media (max-width: 640px) {
-          .mobile-welcome-screen {
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-            background: #ffffff;
-            position: fixed;
-            inset: 0;
-            z-index: 1000;
-            padding: calc(env(safe-area-inset-top) + 20px) 24px calc(env(safe-area-inset-bottom) + 24px);
-            overflow-y: auto;
-          }
-
-          .mobile-welcome-top {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-          }
-
-          .mobile-welcome-brand {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            margin-bottom: 24px;
-          }
-
-          .mobile-logo-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: #176b3a;
-          }
-
-          .mobile-logo-text {
-            font-size: 34px;
-            font-weight: 800;
-            letter-spacing: -1.5px;
-            font-family: "Plus Jakarta Sans", sans-serif;
-          }
-
-          .mobile-tagline {
-            font-size: 14px;
-            color: #62746a;
-            font-weight: 500;
-          }
-
-          .mobile-hero-container {
-            position: relative;
-            width: 100%;
-            max-width: 320px;
-            margin: 20px 0;
-            display: flex;
-            justify-content: center;
-          }
-
-          .mobile-hero-img {
-            width: 100%;
-            height: auto;
-            object-fit: contain;
-            position: relative;
-            z-index: 2;
-          }
-
-          .mobile-hero-blob {
-            position: absolute;
-            width: 200px;
-            height: 200px;
-            background: #e9f6ee;
-            border-radius: 50%;
-            filter: blur(40px);
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 1;
-          }
-
-          .mobile-content-group {
-            text-align: center;
-            margin-bottom: 24px;
-          }
-
-          .mobile-title {
-            font-size: 28px !important;
-            line-height: 1.1 !important;
-            font-weight: 800 !important;
-            color: #063c32;
-            margin-bottom: 12px;
-          }
-
-          .mobile-description {
-            font-size: 15px;
-            color: #62746a;
-            max-width: 280px;
-            line-height: 1.5;
-          }
-
-          .mobile-features-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            width: 100%;
-            gap: 12px;
-            margin-bottom: 24px;
-          }
-
-          .mobile-feature-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            gap: 8px;
-          }
-
-          .mobile-feature-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background: #f0fdf4;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #16a34a;
-            border: 1px solid #dcfce7;
-          }
-
-          .mobile-feature-item span {
-            font-size: 11px;
-            font-weight: 600;
-            color: #12221e;
-            line-height: 1.2;
-          }
-
-          .mobile-progress-dots {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 20px;
-          }
-
-          .mobile-progress-dots .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #e2e8f0;
-          }
-
-          .mobile-progress-dots .dot.active {
-            background: #16a34a;
-          }
-
-          .mobile-welcome-footer {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-          }
-
-          .mobile-cta-btn {
-            width: 100%;
-            height: 54px;
-            background: #176b3a;
-            color: #ffffff;
-            border-radius: 100px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            font-size: 16px;
-            font-weight: 700;
-            text-decoration: none;
-            box-shadow: 0 10px 20px rgba(23, 107, 58, 0.2);
-          }
-
-          .mobile-login-hint {
-            font-size: 13px;
-            color: #62746a;
-            text-align: center;
-          }
-
-          .mobile-login-hint a {
-            color: #176b3a;
-            font-weight: 700;
-            text-decoration: none;
-          }
-        }
-
-        @media (max-width: 1024px) {
-          .home-hero-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .artisan-gallery-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-          .home-dashboards-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-          .home-about-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-        @media (max-width: 640px) {
-          .artisan-gallery-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .home-dashboards-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .home-nav-links {
-            display: none !important;
-          }
-          .home-footer-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
+      {/* Voice Shopping Modal */}
+      <VoiceShoppingModal
+        isOpen={voiceModalOpen}
+        onClose={() => setVoiceModalOpen(false)}
+        products={productList}
+        onSuccess={(text) => {
+          setToast({ type: "success", text });
+          setTimeout(() => setToast(null), 3000);
+        }}
+      />
     </div>
   );
 }
+export default PublicHome;

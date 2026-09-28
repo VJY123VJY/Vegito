@@ -7,7 +7,26 @@ import { App } from "@capacitor/app";
 import { useRouter } from "next/navigation";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
-  const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 60_000 } } }));
+  const [client] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: (failureCount, error: any) => {
+              if (
+                error?.response?.status === 401 ||
+                error?.response?.status === 403 ||
+                error?.response?.status === 404
+              ) {
+                return false;
+              }
+              return failureCount < 1;
+            },
+            staleTime: 60_000,
+          },
+        },
+      })
+  );
   const router = useRouter();
 
   useEffect(() => {

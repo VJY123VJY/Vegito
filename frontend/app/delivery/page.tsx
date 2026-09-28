@@ -105,12 +105,22 @@ export default function DeliveryDashboardPage() {
   const [pickupOtpError, setPickupOtpError] = useState<Record<number, string | null>>({});
   const [pickupOtpVerified, setPickupOtpVerified] = useState<Record<number, boolean>>({});
   const [verifyOtpPending, setVerifyOtpPending] = useState(false);
-  const [isSoundMuted, setIsSoundMuted] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [isSoundMuted, setIsSoundMuted] = useState(false);
+  const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
 
   useEffect(() => {
     setPartnerName(getStoredUserName() || "Delivery Partner");
     setIsSoundMuted(isAudioMuted());
+
+    if (typeof navigator !== "undefined" && (navigator as any).getBattery) {
+      (navigator as any).getBattery().then((battery: any) => {
+        setBatteryLevel(Math.round(battery.level * 100));
+        battery.addEventListener("levelchange", () => {
+          setBatteryLevel(Math.round(battery.level * 100));
+        });
+      }).catch(() => {});
+    }
   }, []);
 
   // Real-time Delivery Dashboard WebSocket Subscription for ORDER_PACKED & ringtone
@@ -424,6 +434,43 @@ export default function DeliveryDashboardPage() {
               </button>
             </div>
 
+            {/* PWA Device Health Strip */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                flexWrap: "wrap",
+                backgroundColor: "#f4f8f5",
+                borderRadius: "14px",
+                padding: "8px 16px",
+                border: "1px solid #dce8df",
+                marginBottom: "16px",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#063c32",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>GPS:</span>
+                <span style={{ color: currentGps ? "#16835b" : "#d97706" }}>
+                  {currentGps ? "🟢 High Accuracy Live" : "🟡 Acquiring satellites..."}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>Network:</span>
+                <span style={{ color: isOffline ? "#dc2626" : "#16835b" }}>
+                  {isOffline ? "🔴 Disconnected" : "🟢 4G/Wi-Fi Connected"}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>Battery:</span>
+                <span style={{ color: batteryLevel && batteryLevel < 20 ? "#dc2626" : "#16835b" }}>
+                  🔋 {batteryLevel !== null ? `${batteryLevel}%` : "Normal"}
+                </span>
+              </div>
+            </div>
+
             {/* Offline Alert */}
             {isOffline && (
               <div
@@ -617,10 +664,10 @@ export default function DeliveryDashboardPage() {
                 >
                   <div>
                     <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                      Pickup OTP (Show to Seller at Shop)
+                      Shop Pickup Verification
                     </span>
-                    <div style={{ fontSize: "24px", fontWeight: 900, color: "#047857", letterSpacing: "3px", fontFamily: "monospace" }}>
-                      {pickupNotification.otp}
+                    <div style={{ fontSize: "14px", fontWeight: 800, color: "#047857", marginTop: "2px" }}>
+                      Ask seller at shop for the verbal 6-digit pickup code
                     </div>
                   </div>
 

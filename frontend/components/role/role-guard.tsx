@@ -36,6 +36,43 @@ export function RoleGuard({
     setReady(true);
   }, [allow, redirectTo, router]);
 
-  if (!ready) return null;
+  if (!ready) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#f8faf7",
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          padding: "24px",
+        }}
+      >
+        <div
+          style={{
+            width: "64px",
+            height: "64px",
+            borderRadius: "20px",
+            backgroundColor: "#063c32",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 12px 30px rgba(6, 60, 50, 0.18)",
+            marginBottom: "16px",
+          }}
+        >
+          <span style={{ fontSize: "30px" }}>🥬</span>
+        </div>
+        <div style={{ fontSize: "19px", fontWeight: 800, color: "#063c32", letterSpacing: "-0.02em" }}>
+          Vegito
+        </div>
+        <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#62746a", fontWeight: 600 }}>
+          Fresh vegetables, straight from Solapur farms
+        </p>
+      </div>
+    );
+  }
   return <>{children}</>;
 }

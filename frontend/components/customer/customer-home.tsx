@@ -37,6 +37,9 @@ import { CustomerLocationMap } from "@/components/map/customer-location-map";
 import { AddressSelector } from "@/components/customer/address-selector";
 import { RoleGuard } from "@/components/role/role-guard";
 import { getErrorMessage } from "@/lib/api/client";
+import { CustomerInsights } from "@/components/customer/customer-insights";
+import { OrderComplaintModal } from "@/components/order/order-complaint-modal";
+import { DeliveryReviewModal } from "@/components/order/delivery-review-modal";
 
 const VEGGIE_EMOJIS: Record<string, string> = {
   "Leafy Vegetables": "🥬",
@@ -73,6 +76,8 @@ export function CustomerHome() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [feedbackToast, setFeedbackToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [complaintOrder, setComplaintOrder] = useState<Order | null>(null);
+  const [reviewOrder, setReviewOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     setUserName(getStoredUserName());
@@ -374,7 +379,7 @@ export function CustomerHome() {
                     <StatusBadge status={activeOrder.status} />
                     {activeOrder.status === "OUT_FOR_DELIVERY" && (
                       <Link
-                        href="/customer/track"
+                        href={`/customer/track/${activeOrder.id}`}
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
@@ -461,18 +466,30 @@ export function CustomerHome() {
                       orderId={activeOrder.id}
                       orderNumber={activeOrder.order_number}
                       orderStatus={activeOrder.status}
-                      partnerName={activeOrderDetail.data.delivery_task?.notes || "Vegito Express Partner"}
+                      partnerName={activeOrderDetail.data.delivery_partner_name || "Vegito Delivery Partner"}
                       deliveryAddress={activeOrderDetail.data.address?.address_line1}
                       customerLocation={
-                        activeOrderDetail.data.address?.latitude && activeOrderDetail.data.address?.longitude
+                        activeOrderDetail.data.customer_latitude != null && activeOrderDetail.data.customer_longitude != null
+                          ? {
+                              lat: Number(activeOrderDetail.data.customer_latitude),
+                              lng: Number(activeOrderDetail.data.customer_longitude),
+                            }
+                          : activeOrderDetail.data.address?.latitude && activeOrderDetail.data.address?.longitude
                           ? {
                               lat: Number(activeOrderDetail.data.address.latitude),
                               lng: Number(activeOrderDetail.data.address.longitude),
                             }
                           : null
                       }
-                      partnerLocation={{ lat: 17.675, lng: 75.908 }}
-                      etaMinutes={12}
+                      partnerLocation={
+                        activeOrderDetail.data.delivery_latitude != null && activeOrderDetail.data.delivery_longitude != null
+                          ? {
+                              lat: Number(activeOrderDetail.data.delivery_latitude),
+                              lng: Number(activeOrderDetail.data.delivery_longitude),
+                            }
+                          : null
+                      }
+                      etaMinutes={15}
                     />
                   </div>
                 )}
@@ -1122,8 +1139,11 @@ export function CustomerHome() {
                 )}
               </div>
 
-              {/* Right Column: Recent Orders & Favorites Summary */}
+              {/* Right Column: Customer Insights, Recent Orders & Favorites Summary */}
               <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                {/* Customer Grocery Insights Card */}
+                <CustomerInsights orders={orderList} />
+
                 {/* Recent Orders Card */}
                 <div
                   style={{
@@ -1215,19 +1235,59 @@ export function CustomerHome() {
                             <StatusBadge status={order.status} />
                           </div>
 
-                          <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", borderTop: "1px solid #f1f5f2", paddingTop: "8px" }}>
+                          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: "6px", borderTop: "1px solid #f1f5f2", paddingTop: "8px" }}>
                             <Link
                               href={`/customer/orders/${order.id}`}
                               style={{
-                                fontSize: "11.5px",
+                                fontSize: "11px",
                                 fontWeight: 700,
                                 color: "var(--vegito-text-muted, #62746a)",
                                 textDecoration: "none",
                                 padding: "4px 8px",
                               }}
                             >
-                              View Details
+                              Details
                             </Link>
+                            <button
+                              onClick={() => setComplaintOrder(order)}
+                              title="Report item quality, missing items, or delivery issue"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                padding: "4px 8px",
+                                borderRadius: "6px",
+                                backgroundColor: "#fff1f2",
+                                color: "#e11d48",
+                                border: "1px solid #fecdd3",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                              }}
+                            >
+                              ⚠️ Report Issue
+                            </button>
+                            {(order.status === "DELIVERED" || order.status === "COMPLETED") && (
+                              <button
+                                onClick={() => setReviewOrder(order)}
+                                title="Rate delivery experience"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  padding: "4px 8px",
+                                  borderRadius: "6px",
+                                  backgroundColor: "#fef9c3",
+                                  color: "#854d0e",
+                                  border: "1px solid #fde047",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                ⭐ Rate
+                              </button>
+                            )}
                             <button
                               onClick={() => reorderMut.mutate(order.id)}
                               disabled={reorderMut.isPending}
@@ -1240,7 +1300,7 @@ export function CustomerHome() {
                                 backgroundColor: "var(--vegito-surface-muted, #e9f6ee)",
                                 color: "#16835b",
                                 border: "1px solid #c4e8d3",
-                                fontSize: "11.5px",
+                                fontSize: "11px",
                                 fontWeight: 700,
                                 cursor: "pointer",
                               }}
@@ -1425,6 +1485,34 @@ export function CustomerHome() {
             <span>Favorites</span>
           </Link>
         </nav>
+
+        {/* Order Complaint Modal */}
+        {complaintOrder && (
+          <OrderComplaintModal
+            orderId={complaintOrder.id}
+            orderNumber={complaintOrder.order_number}
+            isOpen={Boolean(complaintOrder)}
+            onClose={() => setComplaintOrder(null)}
+            onSuccess={() => {
+              setFeedbackToast({ type: "success", text: "Complaint recorded. Vegito support is reviewing it." });
+              setComplaintOrder(null);
+            }}
+          />
+        )}
+
+        {/* Delivery Review Modal */}
+        {reviewOrder && (
+          <DeliveryReviewModal
+            orderId={reviewOrder.id}
+            orderNumber={reviewOrder.order_number}
+            isOpen={Boolean(reviewOrder)}
+            onClose={() => setReviewOrder(null)}
+            onSuccess={() => {
+              setFeedbackToast({ type: "success", text: "Thank you for rating your delivery!" });
+              setReviewOrder(null);
+            }}
+          />
+        )}
 
         <style>{`
           @media (max-width: 1024px) {

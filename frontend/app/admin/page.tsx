@@ -51,10 +51,13 @@ export default function AdminDashboardPage() {
     failed_deliveries: 0,
   };
 
-  const totalOrdersVal = summary.orders > 0 ? summary.orders : 124;
-  const totalRevenueVal = Number(summary.revenue) > 0 ? `₹${Number(summary.revenue).toLocaleString("en-IN")}` : "₹48,220";
-  const customersVal = summary.customers > 0 ? summary.customers : 86;
-  const sellersVal = summary.sellers > 0 ? summary.sellers : 3;
+  const totalOrdersVal = summary.orders ?? 0;
+  const totalRevenueVal = `₹${Number(summary.revenue ?? 0).toLocaleString("en-IN")}`;
+  const customersVal = summary.customers ?? 0;
+  const sellersVal = summary.sellers ?? 0;
+  const fleetVal = summary.delivery_partners ?? 0;
+  const pendingVal = summary.pending_orders ?? 0;
+  const lowStockVal = summary.low_stock ?? 0;
 
   return (
     <RoleGuard allow={["ADMIN", "SUPER_ADMIN"]}>
@@ -66,12 +69,12 @@ export default function AdminDashboardPage() {
         subtitle="Solapur Central Operations · Vegito Marketplace Platform"
         searchPlaceholder="Search platform orders, sellers, customers..."
       >
-        {/* Primary KPI Cards (Matching Mockup Screen 4) */}
+        {/* Primary KPI Cards */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "16px",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: "14px",
             marginBottom: "16px",
           }}
         >
@@ -105,6 +108,67 @@ export default function AdminDashboardPage() {
           />
         </div>
 
+        {/* Live Operations Status Funnel */}
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            borderRadius: "18px",
+            border: "1px solid #e1e8e2",
+            padding: "18px 22px",
+            marginBottom: "24px",
+            boxShadow: "0 2px 8px rgba(6, 60, 50, 0.04)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 800, color: "#063c32" }}>
+              Live Operations Pipeline
+            </h3>
+            <span style={{ fontSize: "12px", color: "#16835b", fontWeight: 700 }}>
+              Real-time platform activity
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+              gap: "8px",
+            }}
+          >
+            {[
+              { label: "New Orders", status: "NEW", count: summary.pending_orders ?? 0, bg: "#fef3c7", color: "#92400e" },
+              { label: "Accepted", status: "ACCEPTED", count: "-", bg: "#dbeafe", color: "#1e40af" },
+              { label: "Packing", status: "PACKING", count: "-", bg: "#ede9fe", color: "#6d28d9" },
+              { label: "Ready", status: "READY", count: "-", bg: "#d1fae5", color: "#065f46" },
+              { label: "Out for Delivery", status: "OUT_FOR_DELIVERY", count: summary.delivery_partners ?? 0, bg: "#cffafe", color: "#0e7490" },
+              { label: "Delivered", status: "DELIVERED", count: summary.orders ?? 0, bg: "#dcfce7", color: "#15803d" },
+            ].map((step) => (
+              <Link
+                key={step.label}
+                href={`/admin/orders?status=${step.status}`}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: "12px",
+                  backgroundColor: step.bg,
+                  color: step.color,
+                  textDecoration: "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "2px",
+                  transition: "transform 0.15s ease",
+                }}
+              >
+                <span style={{ fontSize: "11px", fontWeight: 800, textTransform: "uppercase" }}>
+                  {step.label}
+                </span>
+                <span style={{ fontSize: "15px", fontWeight: 900 }}>
+                  {step.count}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
         {/* Secondary Operational Metrics Strip */}
         <div
           style={{
@@ -116,15 +180,15 @@ export default function AdminDashboardPage() {
         >
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Delivery Fleet</span>
-            <strong style={{ fontSize: "13.5px", color: "#1e293b" }}>{summary.delivery_partners || 4} Active</strong>
+            <strong style={{ fontSize: "13.5px", color: "#1e293b" }}>{fleetVal} Active</strong>
           </div>
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Pending Orders</span>
-            <strong style={{ fontSize: "13.5px", color: "#d97706" }}>{summary.pending_orders || 5} Queued</strong>
+            <strong style={{ fontSize: "13.5px", color: "#d97706" }}>{pendingVal} Queued</strong>
           </div>
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Low Stock Alerts</span>
-            <strong style={{ fontSize: "13.5px", color: summary.low_stock > 0 ? "#dc2626" : "#059669" }}>{summary.low_stock || 2} Items</strong>
+            <strong style={{ fontSize: "13.5px", color: lowStockVal > 0 ? "#dc2626" : "#059669" }}>{lowStockVal} Items</strong>
           </div>
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Platform Status</span>

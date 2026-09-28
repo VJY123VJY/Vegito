@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -48,28 +48,35 @@ export function DeliveryMap({
     let mapboxgl: any;
     let isCancelled = false;
 
-    import("mapbox-gl").then((module) => {
-      if (isCancelled || !containerRef.current) return;
-      mapboxgl = module.default || module;
-      if (MAPBOX_TOKEN) {
-        mapboxgl.accessToken = MAPBOX_TOKEN;
-      }
+    import("mapbox-gl")
+      .then((module) => {
+        if (isCancelled || !containerRef.current) return;
+        mapboxgl = module.default || module;
+        if (MAPBOX_TOKEN && !MAPBOX_TOKEN.includes("example")) {
+          mapboxgl.accessToken = MAPBOX_TOKEN;
+        }
 
-      const center = deliveryPosition
-        ? [deliveryPosition.lng, deliveryPosition.lat]
-        : customerPosition
-        ? [customerPosition.lng, customerPosition.lat]
-        : DEFAULT_SOLAPUR_COORDS;
+        const center = deliveryPosition
+          ? [deliveryPosition.lng, deliveryPosition.lat]
+          : customerPosition
+          ? [customerPosition.lng, customerPosition.lat]
+          : DEFAULT_SOLAPUR_COORDS;
 
-      const map = new mapboxgl.Map({
-        container: containerRef.current,
-        style: getMapStyle(),
-        center,
-        zoom: 13.5,
-        attributionControl: false,
-      });
+        let map: any;
+        try {
+          map = new mapboxgl.Map({
+            container: containerRef.current,
+            style: getMapStyle(),
+            center,
+            zoom: 13.5,
+            attributionControl: false,
+          });
+        } catch (err) {
+          console.warn("DeliveryMap Mapbox init warning:", err);
+          return;
+        }
 
-      mapRef.current = map;
+        mapRef.current = map;
 
       map.on("load", async () => {
         if (isCancelled) return;
@@ -139,6 +146,8 @@ export function DeliveryMap({
           map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
         }
       });
+    }).catch((err) => {
+      console.warn("Could not load Mapbox GL:", err);
     });
 
     return () => {
