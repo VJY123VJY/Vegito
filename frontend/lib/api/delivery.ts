@@ -8,7 +8,7 @@ export type DeliveryTask = {
   order_status?: string | null;
   customer_name?: string | null;
   customer_phone?: string | null;
-  delivery_address?: { address_line1: string; city: string; pincode: string } | null;
+  delivery_address?: { address_line1: string; city: string; pincode: string; latitude?: number | null; longitude?: number | null } | null;
   customer_latitude?: number | null;
   customer_longitude?: number | null;
   shop_name?: string | null;

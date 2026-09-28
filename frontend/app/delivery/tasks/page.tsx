@@ -449,10 +449,10 @@ export default function DeliveryTasksPage() {
                         </span>
                         <input
                           type="text"
-                          placeholder="Customer 6-digit OTP"
+                          placeholder="Customer 4-digit OTP"
                           maxLength={6}
                           value={deliveryOtpInput[t.id] || ""}
-                          onChange={(e) => setDeliveryOtpInput({ ...deliveryOtpInput, [t.id]: e.target.value })}
+                          onChange={(e) => setDeliveryOtpInput({ ...deliveryOtpInput, [t.id]: e.target.value.replace(/\D/g, "") })}
                           style={{
                             padding: "7px 12px",
                             borderRadius: "8px",
@@ -464,8 +464,8 @@ export default function DeliveryTasksPage() {
                           }}
                         />
                         <button
-                          onClick={() => completeDeliveryMutation.mutate({ taskId: t.id, otp: deliveryOtpInput[t.id] || "" })}
-                          disabled={completeDeliveryMutation.isPending || !deliveryOtpInput[t.id]}
+                          onClick={() => completeDeliveryMutation.mutate({ taskId: t.id, otp: (deliveryOtpInput[t.id] || "").trim() })}
+                          disabled={completeDeliveryMutation.isPending || (deliveryOtpInput[t.id] || "").trim().length < 4}
                           style={{
                             padding: "8px 18px",
                             borderRadius: "8px",
@@ -475,9 +475,10 @@ export default function DeliveryTasksPage() {
                             fontSize: "13px",
                             fontWeight: 800,
                             cursor: "pointer",
+                            opacity: (deliveryOtpInput[t.id] || "").trim().length < 4 ? 0.6 : 1,
                           }}
                         >
-                          Complete Delivery
+                          {completeDeliveryMutation.isPending ? "Verifying..." : "Complete Delivery"}
                         </button>
                       </div>
                     )}

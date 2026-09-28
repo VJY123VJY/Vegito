@@ -176,6 +176,9 @@ export function MapboxTrackingMap({
             .addTo(map);
         });
       }
+    } else if (deliveryMarkerRef.current) {
+      deliveryMarkerRef.current.remove();
+      deliveryMarkerRef.current = null;
     }
 
     // Update or create shop marker
@@ -192,9 +195,12 @@ export function MapboxTrackingMap({
             .addTo(map);
         });
       }
+    } else if (shopMarkerRef.current) {
+      shopMarkerRef.current.remove();
+      shopMarkerRef.current = null;
     }
 
-    // Update or create customer marker
+    // Update or create customer marker (Only when authorized and customerPosition available)
     if (customerPosition) {
       const lngLat: [number, number] = [customerPosition.lng, customerPosition.lat];
       if (customerMarkerRef.current) {
@@ -208,36 +214,60 @@ export function MapboxTrackingMap({
             .addTo(map);
         });
       }
+    } else if (customerMarkerRef.current) {
+      customerMarkerRef.current.remove();
+      customerMarkerRef.current = null;
     }
-  }, [deliveryPosition, shopPosition, customerPosition, partnerName, shopName, customerName, mapLoaded]);
 
-  // Route calculation & bounds fitting
+    // Auto-fit bounds whenever markers update
+    import("mapbox-gl").then((m) => {
+      const mb = m.default || m;
+      const bounds = new mb.LngLatBounds();
+      if (deliveryPosition) bounds.extend([deliveryPosition.lng, deliveryPosition.lat]);
+      if (shopPosition) bounds.extend([shopPosition.lng, shopPosition.lat]);
+      if (customerPosition) bounds.extend([customerPosition.lng, customerPosition.lat]);
+
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, { padding: { top: 60, bottom: 60, left: 60, right: 60 }, maxZoom: 15 });
+      }
+    });
+  }, [
+    deliveryPosition?.lat,
+    deliveryPosition?.lng,
+    shopPosition?.lat,
+    shopPosition?.lng,
+    customerPosition?.lat,
+    customerPosition?.lng,
+    partnerName,
+    shopName,
+    customerName,
+    mapLoaded,
+  ]);
+
+  // Route calculation
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return;
     const map = mapRef.current;
 
-    // Determine route start and end based on order status:
-    // READY_FOR_PICKUP: Delivery Partner -> Shop
-    // PICKED_UP: Shop -> Customer
-    // OUT_FOR_DELIVERY: Delivery Partner -> Customer
+    // Determine route start and end:
+    // Before pickup verification (READY/READY_FOR_PICKUP): Partner -> Shop
+    // After pickup verification (PICKED_UP / OUT_FOR_DELIVERY / STARTED): (Partner || Shop) -> Customer
     let startCoords: [number, number] | null = null;
     let endCoords: [number, number] | null = null;
 
-    if (orderStatus === "READY_FOR_PICKUP" || orderStatus === "READY") {
+    if (orderStatus === "READY_FOR_PICKUP" || orderStatus === "READY" || orderStatus === "ASSIGNED") {
+      // Prior to pickup verification: only navigate to Shop
       if (deliveryPosition && shopPosition) {
         startCoords = [deliveryPosition.lng, deliveryPosition.lat];
         endCoords = [shopPosition.lng, shopPosition.lat];
-      } else if (shopPosition && customerPosition) {
-        startCoords = [shopPosition.lng, shopPosition.lat];
-        endCoords = [customerPosition.lng, customerPosition.lat];
       }
-    } else if (orderStatus === "PICKED_UP") {
-      if (shopPosition && customerPosition) {
-        startCoords = [shopPosition.lng, shopPosition.lat];
-        endCoords = [customerPosition.lng, customerPosition.lat];
-      }
-    } else {
-      // OUT_FOR_DELIVERY or general active tracking
+    } else if (
+      orderStatus === "PICKED_UP" ||
+      orderStatus === "OUT_FOR_DELIVERY" ||
+      orderStatus === "STARTED" ||
+      orderStatus === "DELIVERED"
+    ) {
+      // After pickup verification: navigate to Customer destination
       if (deliveryPosition && customerPosition) {
         startCoords = [deliveryPosition.lng, deliveryPosition.lat];
         endCoords = [customerPosition.lng, customerPosition.lat];
@@ -247,7 +277,16 @@ export function MapboxTrackingMap({
       }
     }
 
-    if (!startCoords || !endCoords) return;
+    if (!startCoords || !endCoords) {
+      if (map.getSource("tracking-route")) {
+        map.getSource("tracking-route").setData({
+          type: "FeatureCollection",
+          features: [],
+        });
+      }
+      setRouteInfo(null);
+      return;
+    }
 
     let isCancelled = false;
 
