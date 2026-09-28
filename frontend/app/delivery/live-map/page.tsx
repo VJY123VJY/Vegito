@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Compass, MapPin, Navigation, AlertTriangle, RefreshCw, CheckCircle2, Phone } from "lucide-react";
+import { Compass, MapPin, Navigation, AlertTriangle, RefreshCw, CheckCircle2, Phone, Lock } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { MapboxTrackingMap, type LatLng } from "@/components/map/mapbox-tracking-map";
 import { listDeliveryTasks, getDeliveryProfile, postPartnerGpsLocation } from "@/lib/api/delivery";
@@ -27,7 +27,13 @@ export default function DeliveryLiveMapPage() {
 
   const partnerName = profile.data?.name || userName || "Delivery Partner";
   const activeTask = (tasks.data ?? []).find(
-    (t) => t.status === "OUT_FOR_DELIVERY" || t.order_status === "OUT_FOR_DELIVERY" || t.status === "PICKED_UP" || t.status === "READY_FOR_PICKUP"
+    (t) =>
+      t.status === "OUT_FOR_DELIVERY" ||
+      t.order_status === "OUT_FOR_DELIVERY" ||
+      t.status === "PICKED_UP" ||
+      t.order_status === "PICKED_UP" ||
+      t.status === "STARTED" ||
+      t.status === "READY_FOR_PICKUP"
   );
 
   // Watch GPS Geolocation
@@ -111,11 +117,20 @@ export default function DeliveryLiveMapPage() {
     };
   }, [activeTask?.order_id, token]);
 
+  const isPickedUp =
+    Boolean(activeTask?.pickup_verified) ||
+    activeTask?.status === "PICKED_UP" ||
+    activeTask?.status === "IN_TRANSIT" ||
+    activeTask?.status === "STARTED" ||
+    activeTask?.order_status === "OUT_FOR_DELIVERY" ||
+    activeTask?.order_status === "DELIVERED";
+
   const shopCoords: LatLng | null = activeTask?.shop_latitude && activeTask?.shop_longitude
     ? { lat: Number(activeTask.shop_latitude), lng: Number(activeTask.shop_longitude) }
     : null;
 
-  const customerCoords: LatLng | null = activeTask?.customer_latitude && activeTask?.customer_longitude
+  // Strict Privacy: Only disclose customer destination coordinates to the map once seller pickup is verified
+  const customerCoords: LatLng | null = isPickedUp && activeTask?.customer_latitude && activeTask?.customer_longitude
     ? { lat: Number(activeTask.customer_latitude), lng: Number(activeTask.customer_longitude) }
     : null;
 
@@ -234,30 +249,42 @@ export default function DeliveryLiveMapPage() {
                 <strong style={{ display: "block", fontSize: "14px", color: "#111827" }}>
                   {activeTask.customer_name || "Customer"}
                 </strong>
-                {activeTask.customer_phone && (
-                  <a
-                    href={`tel:${activeTask.customer_phone}`}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      marginTop: "4px",
-                      color: "#0284c7",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      textDecoration: "none",
-                    }}
-                  >
-                    <Phone size={12} /> {activeTask.customer_phone}
-                  </a>
+                {isPickedUp ? (
+                  activeTask.customer_phone ? (
+                    <a
+                      href={`tel:${activeTask.customer_phone}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        marginTop: "4px",
+                        color: "#0284c7",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        textDecoration: "none",
+                      }}
+                    >
+                      <Phone size={12} /> {activeTask.customer_phone}
+                    </a>
+                  ) : null
+                ) : (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "4px", fontSize: "11px", color: "#9ca3af", fontWeight: 600 }}>
+                    <Lock size={11} /> Phone hidden until pickup
+                  </span>
                 )}
               </div>
 
               <div>
                 <span style={{ fontSize: "12px", color: "#62746a", fontWeight: 600 }}>Destination Address</span>
-                <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#374151" }}>
-                  {activeTask.delivery_address?.address_line1 || "Customer Address"}, {activeTask.delivery_address?.city || "Solapur"} {activeTask.delivery_address?.pincode || ""}
-                </p>
+                {isPickedUp ? (
+                  <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#374151" }}>
+                    {activeTask.delivery_address?.address_line1 || "Customer Address"}, {activeTask.delivery_address?.city || "Solapur"} {activeTask.delivery_address?.pincode || ""}
+                  </p>
+                ) : (
+                  <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#9ca3af", fontStyle: "italic", display: "flex", alignItems: "center", gap: "5px" }}>
+                    <Lock size={12} /> Hidden until seller pickup verification
+                  </p>
+                )}
               </div>
 
               <div>

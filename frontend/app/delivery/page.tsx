@@ -43,6 +43,7 @@ import {
   Navigation,
   Phone,
   AlertTriangle,
+  AlertCircle,
   Radio,
   Store,
   ArrowRight,
@@ -108,6 +109,12 @@ export default function DeliveryDashboardPage() {
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [isSoundMuted, setIsSoundMuted] = useState(false);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
+
+  // Dedicated states for Customer Delivery OTP (Completely separate from Seller OTP)
+  const [customerDeliveryOtp, setCustomerDeliveryOtp] = useState<Record<number, string>>({});
+  const [customerOtpError, setCustomerOtpError] = useState<Record<number, string | null>>({});
+  const [customerOtpSuccess, setCustomerOtpSuccess] = useState<Record<number, boolean>>({});
+  const [verifyCustomerOtpPending, setVerifyCustomerOtpPending] = useState(false);
 
   useEffect(() => {
     setPartnerName(getStoredUserName() || "Delivery Partner");
@@ -197,6 +204,38 @@ export default function DeliveryDashboardPage() {
       }));
     } finally {
       setVerifyOtpPending(false);
+    }
+  };
+
+  const handleVerifyCustomerOtp = async (taskId: number) => {
+    const enteredOtp = (customerDeliveryOtp[taskId] || "").trim();
+    if (!enteredOtp || enteredOtp.length < 4) {
+      setCustomerOtpError((prev) => ({
+        ...prev,
+        [taskId]: "Please enter the complete 4-digit OTP provided by the customer.",
+      }));
+      return;
+    }
+
+    setVerifyCustomerOtpPending(true);
+    setCustomerOtpError((prev) => ({ ...prev, [taskId]: null }));
+
+    try {
+      await completeDelivery(taskId, enteredOtp);
+      setCustomerOtpSuccess((prev) => ({ ...prev, [taskId]: true }));
+      // Refresh task list and stats from backend
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["delivery-tasks"] }),
+        client.invalidateQueries({ queryKey: ["delivery-earnings"] }),
+        client.invalidateQueries({ queryKey: ["delivery-performance"] }),
+      ]);
+    } catch (err: any) {
+      setCustomerOtpError((prev) => ({
+        ...prev,
+        [taskId]: getErrorMessage(err) || "Invalid delivery OTP. Please verify with customer.",
+      }));
+    } finally {
+      setVerifyCustomerOtpPending(false);
     }
   };
 
@@ -319,19 +358,30 @@ export default function DeliveryDashboardPage() {
   const isDisplayTaskPickupVerified = Boolean(
     displayTask?.pickup_verified ||
     displayTask?.pickup_otp_verified_at ||
+    (displayTask && pickupOtpVerified[displayTask.order_id]) ||
     displayTask?.status === "STARTED" ||
-    displayTask?.status === "OUT_FOR_DELIVERY" ||
-    displayTask?.status === "DELIVERED"
+    displayTask?.order_status === "PICKED_UP" ||
+    displayTask?.order_status === "OUT_FOR_DELIVERY" ||
+    displayTask?.status === "DELIVERED" ||
+    displayTask?.order_status === "DELIVERED"
   );
 
-  const customerPosition: LatLng | null = (isDisplayTaskPickupVerified && displayTask?.customer_latitude && displayTask?.customer_longitude)
+  const customerPosition: LatLng | null = (isDisplayTaskPickupVerified && (displayTask?.customer_latitude || displayTask?.delivery_address?.latitude))
     ? {
-        lat: Number(displayTask.customer_latitude),
-        lng: Number(displayTask.customer_longitude),
+        lat: Number(displayTask?.customer_latitude || displayTask?.delivery_address?.latitude),
+        lng: Number(displayTask?.customer_longitude || displayTask?.delivery_address?.longitude),
       }
     : null;
 
-  const currentStatus = displayTask?.order_status || (displayTask?.status === "STARTED" ? "OUT_FOR_DELIVERY" : "READY_FOR_PICKUP");
+  const isDelivered = Boolean(
+    displayTask?.status === "DELIVERED" ||
+    displayTask?.order_status === "DELIVERED" ||
+    (displayTask && customerOtpSuccess[displayTask.id])
+  );
+
+  const currentStatus = isDelivered
+    ? "DELIVERED"
+    : displayTask?.order_status || (displayTask?.status === "STARTED" ? "OUT_FOR_DELIVERY" : "READY_FOR_PICKUP");
 
   return (
     <RoleGuard allow={["DELIVERY_PARTNER", "ADMIN", "SUPER_ADMIN"]}>
@@ -864,236 +914,80 @@ export default function DeliveryDashboardPage() {
                   />
                 </div>
 
-                {/* Lifecycle Action Buttons */}
+                {/* Lifecycle Action Buttons & Customer Delivery Verification */}
                 <div
                   style={{
                     backgroundColor: "#f8fafc",
-                    padding: "18px 20px",
-                    borderRadius: "14px",
+                    padding: "20px 22px",
+                    borderRadius: "16px",
                     border: "1px solid #e2e8f0",
                     display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
+                    flexDirection: "column",
                     gap: "16px",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                    {displayTask.customer_phone && (
-                      <a
-                        href={`tel:${displayTask.customer_phone}`}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          padding: "10px 18px",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
-                          borderRadius: "10px",
-                          color: "#1e3a8a",
-                          fontSize: "13px",
-                          fontWeight: 700,
-                          textDecoration: "none",
-                        }}
-                      >
-                        <Phone size={15} /> Call Customer ({displayTask.customer_phone})
-                      </a>
-                    )}
-                  </div>
-
-                  {/* Flow Action: Accept Delivery -> Picked Up -> Start Delivery -> Out For Delivery -> Delivered */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                    {/* 1. If order is READY / READY_FOR_PICKUP: Show Accept & Pickup OTP verification */}
-                    {(displayTask.order_status === "READY" || displayTask.order_status === "READY_FOR_PICKUP") && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                        {/* Accept button */}
-                        <button
-                          onClick={() => {
-                            stopNotificationSound();
-                            acceptMutation.mutate(displayTask.order_id);
-                          }}
-                          disabled={acceptMutation.isPending}
+                  {/* Top Bar: Contact Customer & Status Information */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                      {isDisplayTaskPickupVerified && displayTask.customer_phone ? (
+                        <a
+                          href={`tel:${displayTask.customer_phone}`}
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: "8px",
-                            padding: "11px 20px",
-                            backgroundColor: "#059669",
-                            color: "#ffffff",
-                            border: "none",
+                            gap: "6px",
+                            padding: "9px 16px",
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #cbd5e1",
                             borderRadius: "10px",
-                            fontSize: "13.5px",
-                            fontWeight: 800,
-                            cursor: "pointer",
-                            boxShadow: "0 2px 8px rgba(5, 150, 105, 0.25)",
+                            color: "#1e3a8a",
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            textDecoration: "none",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
                           }}
                         >
-                          <Store size={16} />
-                          {acceptMutation.isPending ? "Accepting..." : "Accept Delivery"}
-                        </button>
-
-                        {/* Pickup OTP verification form at Shop */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                          <span style={{ fontSize: "12px", color: "#475569", fontWeight: 700 }}>
-                            Ask seller for their 6-digit Pickup Verification Code:
-                          </span>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                            <input
-                              type="text"
-                              maxLength={6}
-                              placeholder="Enter 6-digit code"
-                              value={pickupOtpInput[displayTask.order_id] || ""}
-                              onChange={(e) =>
-                                setPickupOtpInput({
-                                  ...pickupOtpInput,
-                                  [displayTask.order_id]: e.target.value.replace(/\D/g, ""),
-                                })
-                              }
-                            style={{
-                              padding: "10px 14px",
-                              border: pickupOtpError[displayTask.order_id] ? "1.5px solid #dc2626" : "1.5px solid #cbd5e1",
-                              borderRadius: "10px",
-                              fontSize: "14px",
-                              fontWeight: 700,
-                              width: "160px",
-                              outline: "none",
-                            }}
-                          />
-                          <button
-                            onClick={() => handleVerifyPickupOtp(displayTask.order_id)}
-                            disabled={verifyOtpPending || !(pickupOtpInput[displayTask.order_id] || "").trim()}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              padding: "11px 20px",
-                              backgroundColor: "#059669",
-                              color: "#ffffff",
-                              border: "none",
-                              borderRadius: "10px",
-                              fontSize: "13.5px",
-                              fontWeight: 800,
-                              cursor: "pointer",
-                              boxShadow: "0 2px 8px rgba(5, 150, 105, 0.25)",
-                            }}
-                          >
-                            <ShieldCheck size={16} /> {verifyOtpPending ? "Verifying..." : "Verify Pickup OTP"}
-                          </button>
-                        </div>
-                        {pickupOtpError[displayTask.order_id] && (
-                          <div style={{ width: "100%", color: "#dc2626", fontSize: "12.5px", fontWeight: 700, marginTop: "2px" }}>
-                            {pickupOtpError[displayTask.order_id]}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                    {/* 2. If order is PICKED_UP (or verified): Show Start Delivery */}
-                    {(displayTask.order_status === "PICKED_UP" || pickupOtpVerified[displayTask.order_id]) && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                          <Phone size={15} /> Call Customer ({displayTask.customer_phone})
+                        </a>
+                      ) : !isDisplayTaskPickupVerified ? (
                         <span
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
                             gap: "6px",
-                            padding: "8px 14px",
-                            backgroundColor: "#ecfdf5",
-                            border: "1px solid #a7f3d0",
-                            borderRadius: "10px",
-                            fontSize: "13px",
-                            fontWeight: 800,
-                            color: "#047857",
+                            padding: "6px 12px",
+                            backgroundColor: "#f1f5f9",
+                            color: "#64748b",
+                            borderRadius: "8px",
+                            fontSize: "12px",
+                            fontWeight: 600,
                           }}
                         >
-                          <Check size={16} /> OTP Verified · Package Picked Up
+                          🔒 Customer phone locked until seller pickup
                         </span>
-                        <button
-                          onClick={() => startDeliveryMutation.mutate(displayTask.order_id)}
-                          disabled={startDeliveryMutation.isPending}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "8px",
-                            padding: "11px 22px",
-                            backgroundColor: "#1d4ed8",
-                            color: "#ffffff",
-                            border: "none",
-                            borderRadius: "10px",
-                            fontSize: "13.5px",
-                            fontWeight: 800,
-                            cursor: "pointer",
-                            boxShadow: "0 2px 8px rgba(29, 78, 216, 0.25)",
-                          }}
-                        >
-                          <Navigation size={16} />
-                          {startDeliveryMutation.isPending ? "Starting..." : "Start Delivery to Customer"}
-                        </button>
-                      </div>
-                    )}
+                      ) : null}
 
-                    {/* 3. If order is OUT_FOR_DELIVERY (or task STARTED): OTP Verification */}
-                    {(displayTask.order_status === "OUT_FOR_DELIVERY" || displayTask.status === "STARTED") && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                        <input
-                          type="text"
-                          maxLength={6}
-                          placeholder="6-digit Customer OTP"
-                          value={otp[displayTask.id] || ""}
-                          onChange={(e) =>
-                            setOtp({ ...otp, [displayTask.id]: e.target.value.replace(/\D/g, "") })
-                          }
-                          style={{
-                            padding: "10px 14px",
-                            border: "1.5px solid #cbd5e1",
-                            borderRadius: "10px",
-                            fontSize: "14px",
-                            fontWeight: 700,
-                            width: "180px",
-                            outline: "none",
-                          }}
-                        />
-                        <button
-                          onClick={() =>
-                            completeMutation.mutate({
-                              id: displayTask.id,
-                              code: otp[displayTask.id] || "",
-                            })
-                          }
-                          disabled={completeMutation.isPending || (otp[displayTask.id] || "").length < 4}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            padding: "11px 20px",
-                            backgroundColor: "#15803d",
-                            color: "#ffffff",
-                            border: "none",
-                            borderRadius: "10px",
-                            fontSize: "13.5px",
-                            fontWeight: 800,
-                            cursor: "pointer",
-                          }}
-                        >
-                          <CheckCircle2 size={16} /> {completeMutation.isPending ? "Verifying..." : "Mark Delivered"}
-                        </button>
-                      </div>
-                    )}
+                      {isDisplayTaskPickupVerified && displayTask.delivery_address && (
+                        <div style={{ fontSize: "12.5px", color: "#334155" }}>
+                          📍 <b>Destination:</b> {displayTask.delivery_address.address_line1}, {displayTask.delivery_address.city} {displayTask.delivery_address.pincode}
+                        </div>
+                      )}
+                    </div>
 
                     {/* Report Issue / Fail Delivery Button */}
-                    {(["READY", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY"].includes(displayTask.order_status || "") || displayTask.status === "STARTED") && (
+                    {!isDelivered && (
                       <button
                         onClick={() => {
                           setFailTaskId(displayTask.id);
                           setFailModalOpen(true);
                         }}
                         style={{
-                          padding: "10px 18px",
+                          padding: "8px 14px",
                           backgroundColor: "#fef2f2",
                           border: "1px solid #fecaca",
-                          borderRadius: "10px",
+                          borderRadius: "8px",
                           color: "#dc2626",
-                          fontSize: "13px",
+                          fontSize: "12.5px",
                           fontWeight: 700,
                           cursor: "pointer",
                         }}
@@ -1102,11 +996,359 @@ export default function DeliveryDashboardPage() {
                       </button>
                     )}
                   </div>
+
+                  {/* MAIN WORKFLOW STAGES */}
+
+                  {/* STAGE 4: ALREADY DELIVERED */}
+                  {isDelivered ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "14px",
+                        padding: "16px 20px",
+                        backgroundColor: "#ecfdf5",
+                        border: "1.5px solid #10b981",
+                        borderRadius: "14px",
+                        color: "#065f46",
+                      }}
+                    >
+                      <CheckCircle2 size={28} color="#059669" style={{ flexShrink: 0 }} />
+                      <div>
+                        <strong style={{ fontSize: "15px", display: "block", color: "#064e3b" }}>
+                          ✓ Order #{displayTask.order_number || displayTask.order_id} Delivered Successfully
+                        </strong>
+                        <p style={{ margin: "3px 0 0", fontSize: "13px", color: "#047857" }}>
+                          Customer doorstep OTP has been verified. The delivery has been recorded on the Vegito network.
+                        </p>
+                      </div>
+                    </div>
+                  ) : !isDisplayTaskPickupVerified ? (
+                    /* STAGE 1: BEFORE PICKUP VERIFICATION (At Seller Shop) */
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+                      <div
+                        style={{
+                          backgroundColor: "#fffbeb",
+                          border: "1.5px solid #fde68a",
+                          borderRadius: "14px",
+                          padding: "16px 18px",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                          <Store size={18} color="#b45309" />
+                          <strong style={{ fontSize: "14px", color: "#92400e" }}>
+                            Step 1: Collect Harvest from Seller ({displayTask.shop_name || "Vegito Fresh Farm"})
+                          </strong>
+                        </div>
+                        <p style={{ margin: "0 0 12px", fontSize: "12.5px", color: "#78350f" }}>
+                          Reach the seller store, collect the packaged vegetables, and verify the seller's 6-digit pickup code.
+                        </p>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                          {/* If not accepted yet, show Accept button */}
+                          {(displayTask.order_status === "READY" || displayTask.order_status === "READY_FOR_PICKUP") && (
+                            <button
+                              onClick={() => {
+                                stopNotificationSound();
+                                acceptMutation.mutate(displayTask.order_id);
+                              }}
+                              disabled={acceptMutation.isPending}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                padding: "10px 18px",
+                                backgroundColor: "#059669",
+                                color: "#ffffff",
+                                border: "none",
+                                borderRadius: "10px",
+                                fontSize: "13px",
+                                fontWeight: 800,
+                                cursor: "pointer",
+                                boxShadow: "0 2px 8px rgba(5, 150, 105, 0.2)",
+                              }}
+                            >
+                              <Store size={15} />
+                              {acceptMutation.isPending ? "Accepting..." : "Accept Delivery"}
+                            </button>
+                          )}
+
+                          {/* Pickup verification code from seller */}
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <input
+                              type="text"
+                              maxLength={6}
+                              placeholder="Seller 6-digit Code"
+                              value={pickupOtpInput[displayTask.order_id] || ""}
+                              onChange={(e) =>
+                                setPickupOtpInput({
+                                  ...pickupOtpInput,
+                                  [displayTask.order_id]: e.target.value.replace(/\D/g, ""),
+                                })
+                              }
+                              style={{
+                                padding: "10px 14px",
+                                border: pickupOtpError[displayTask.order_id] ? "2px solid #dc2626" : "1.5px solid #cbd5e1",
+                                borderRadius: "10px",
+                                fontSize: "14px",
+                                fontWeight: 700,
+                                width: "170px",
+                                outline: "none",
+                              }}
+                            />
+                            <button
+                              onClick={() => handleVerifyPickupOtp(displayTask.order_id)}
+                              disabled={verifyOtpPending || !(pickupOtpInput[displayTask.order_id] || "").trim()}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                padding: "10px 18px",
+                                backgroundColor: "#ea580c",
+                                color: "#ffffff",
+                                border: "none",
+                                borderRadius: "10px",
+                                fontSize: "13px",
+                                fontWeight: 800,
+                                cursor: "pointer",
+                                boxShadow: "0 2px 8px rgba(234, 88, 12, 0.25)",
+                              }}
+                            >
+                              <ShieldCheck size={16} />
+                              {verifyOtpPending ? "Verifying..." : "Verify Pickup OTP"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {pickupOtpError[displayTask.order_id] && (
+                          <div style={{ color: "#dc2626", fontSize: "12.5px", fontWeight: 700, marginTop: "8px" }}>
+                            ⚠️ {pickupOtpError[displayTask.order_id]}
+                          </div>
+                        )}
+
+                        <div style={{ marginTop: "12px", padding: "8px 12px", backgroundColor: "#fef3c7", borderRadius: "8px", fontSize: "12px", color: "#92400e" }}>
+                          🔒 <b>Customer privacy active:</b> Customer exact destination and delivery OTP verification are locked until you verify pickup at the seller store.
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* STAGE 2 & 3: AFTER PICKUP VERIFICATION (Navigating to Customer & Doorstep Delivery OTP) */
+                    <div style={{ display: "flex", flexDirection: "column", gap: "14px", width: "100%" }}>
+                      {/* Pickup Confirmation & Start Navigation */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "12px 18px",
+                          backgroundColor: "#f0fdf4",
+                          border: "1px solid #bbf7d0",
+                          borderRadius: "12px",
+                          flexWrap: "wrap",
+                          gap: "10px",
+                        }}
+                      >
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 800, color: "#166534" }}>
+                          <Check size={16} /> Pickup Verified · Package with Delivery Partner
+                        </span>
+
+                        {displayTask.order_status !== "OUT_FOR_DELIVERY" && displayTask.status !== "STARTED" && (
+                          <button
+                            onClick={() => startDeliveryMutation.mutate(displayTask.order_id)}
+                            disabled={startDeliveryMutation.isPending}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              padding: "9px 18px",
+                              backgroundColor: "#1d4ed8",
+                              color: "#ffffff",
+                              border: "none",
+                              borderRadius: "10px",
+                              fontSize: "13px",
+                              fontWeight: 800,
+                              cursor: "pointer",
+                            }}
+                          >
+                            <Navigation size={15} />
+                            {startDeliveryMutation.isPending ? "Starting Navigation..." : "Start Delivery to Customer"}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* DEDICATED CUSTOMER DELIVERY OTP VERIFICATION BOX */}
+                      <div
+                        style={{
+                          backgroundColor: "#ffffff",
+                          border: "2px solid #10b981",
+                          borderRadius: "14px",
+                          padding: "18px 20px",
+                          boxShadow: "0 2px 10px rgba(16, 185, 129, 0.1)",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+                          <div>
+                            <span style={{ fontSize: "14.5px", fontWeight: 800, color: "#065f46", display: "flex", alignItems: "center", gap: "6px" }}>
+                              <ShieldCheck size={18} color="#059669" /> Customer Delivery Verification
+                            </span>
+                            <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#475569" }}>
+                              Ask customer for their 4-digit doorstep delivery OTP from their order screen.
+                            </p>
+                          </div>
+                          <span
+                            style={{
+                              fontSize: "11.5px",
+                              fontWeight: 800,
+                              padding: "3px 10px",
+                              backgroundColor: "#ecfdf5",
+                              color: "#047857",
+                              borderRadius: "999px",
+                              border: "1px solid #a7f3d0",
+                            }}
+                          >
+                            📍 Doorstep Verification
+                          </span>
+                        </div>
+
+                        {/* Segmented 4-Digit OTP Input Controls */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginTop: "10px" }}>
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            {[0, 1, 2, 3].map((digitIdx) => {
+                              const currentVal = customerDeliveryOtp[displayTask.id] || "";
+                              const char = currentVal[digitIdx] || "";
+                              return (
+                                <input
+                                  key={digitIdx}
+                                  id={`customer-otp-${displayTask.id}-${digitIdx}`}
+                                  type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  maxLength={1}
+                                  value={char}
+                                  disabled={verifyCustomerOtpPending || customerOtpSuccess[displayTask.id]}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, "");
+                                    const prev = customerDeliveryOtp[displayTask.id] || "";
+                                    const arr = prev.split("");
+                                    if (val) {
+                                      arr[digitIdx] = val;
+                                      const nextVal = arr.join("").slice(0, 4);
+                                      setCustomerDeliveryOtp({ ...customerDeliveryOtp, [displayTask.id]: nextVal });
+                                      if (digitIdx < 3) {
+                                        const nextInput = document.getElementById(`customer-otp-${displayTask.id}-${digitIdx + 1}`);
+                                        nextInput?.focus();
+                                      }
+                                    } else {
+                                      arr[digitIdx] = "";
+                                      setCustomerDeliveryOtp({ ...customerDeliveryOtp, [displayTask.id]: arr.join("") });
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Backspace" && !char && digitIdx > 0) {
+                                      const prevInput = document.getElementById(`customer-otp-${displayTask.id}-${digitIdx - 1}`);
+                                      prevInput?.focus();
+                                    }
+                                  }}
+                                  onPaste={(e) => {
+                                    e.preventDefault();
+                                    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
+                                    if (pasted) {
+                                      setCustomerDeliveryOtp({ ...customerDeliveryOtp, [displayTask.id]: pasted });
+                                      const targetIdx = Math.min(pasted.length - 1, 3);
+                                      const targetInput = document.getElementById(`customer-otp-${displayTask.id}-${targetIdx}`);
+                                      targetInput?.focus();
+                                    }
+                                  }}
+                                  style={{
+                                    width: "46px",
+                                    height: "50px",
+                                    textAlign: "center",
+                                    fontSize: "20px",
+                                    fontWeight: 800,
+                                    borderRadius: "10px",
+                                    border: customerOtpError[displayTask.id]
+                                      ? "2px solid #ef4444"
+                                      : char
+                                      ? "2px solid #10b981"
+                                      : "1.5px solid #cbd5e1",
+                                    backgroundColor: char ? "#f0fdf4" : "#ffffff",
+                                    color: "#063c32",
+                                    outline: "none",
+                                    transition: "border-color 0.15s",
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+
+                          <button
+                            onClick={() => handleVerifyCustomerOtp(displayTask.id)}
+                            disabled={verifyCustomerOtpPending || (customerDeliveryOtp[displayTask.id] || "").length < 4 || customerOtpSuccess[displayTask.id]}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              padding: "12px 22px",
+                              backgroundColor: "#059669",
+                              color: "#ffffff",
+                              border: "none",
+                              borderRadius: "10px",
+                              fontSize: "13.5px",
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              boxShadow: "0 2px 8px rgba(5, 150, 105, 0.25)",
+                              opacity: ((customerDeliveryOtp[displayTask.id] || "").length < 4 || verifyCustomerOtpPending) ? 0.65 : 1,
+                            }}
+                          >
+                            <CheckCircle2 size={16} />
+                            {verifyCustomerOtpPending ? "Verifying..." : "Verify Customer OTP"}
+                          </button>
+
+                          {(customerDeliveryOtp[displayTask.id] || "").length > 0 && !customerOtpSuccess[displayTask.id] && (
+                            <button
+                              onClick={() => {
+                                setCustomerDeliveryOtp({ ...customerDeliveryOtp, [displayTask.id]: "" });
+                                setCustomerOtpError({ ...customerOtpError, [displayTask.id]: null });
+                                document.getElementById(`customer-otp-${displayTask.id}-0`)?.focus();
+                              }}
+                              type="button"
+                              style={{
+                                background: "none",
+                                border: "none",
+                                color: "#64748b",
+                                fontSize: "12.5px",
+                                cursor: "pointer",
+                                textDecoration: "underline",
+                              }}
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Error Feedback */}
+                        {customerOtpError[displayTask.id] && (
+                          <div style={{ color: "#dc2626", fontSize: "12.5px", fontWeight: 700, marginTop: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                            <span>{customerOtpError[displayTask.id]}</span>
+                          </div>
+                        )}
+
+                        {/* Success Feedback */}
+                        {customerOtpSuccess[displayTask.id] && (
+                          <div style={{ color: "#059669", fontSize: "13px", fontWeight: 800, marginTop: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+                            <span>✓ Customer OTP verified! Delivery completed successfully.</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {(acceptMutation.isError || startDeliveryMutation.isError || completeMutation.isError) && (
+                {(acceptMutation.isError || startDeliveryMutation.isError) && (
                   <p style={{ color: "#dc2626", fontSize: "12.5px", marginTop: "10px", fontWeight: 600 }}>
-                    {getErrorMessage(acceptMutation.error || startDeliveryMutation.error || completeMutation.error)}
+                    {getErrorMessage(acceptMutation.error || startDeliveryMutation.error)}
                   </p>
                 )}
               </div>

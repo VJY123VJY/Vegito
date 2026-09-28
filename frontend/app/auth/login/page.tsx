@@ -113,6 +113,7 @@ function LoginContent() {
 
   // Status
   const [loading, setLoading] = useState(false);
+  const [quickLoadingRole, setQuickLoadingRole] = useState<LoginRole | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
@@ -233,7 +234,8 @@ function LoginContent() {
     }
   };
 
-  const handleQuickFill = (roleKey: LoginRole) => {
+  const handleQuickFill = async (roleKey: LoginRole) => {
+    if (loading || quickLoadingRole) return;
     const r = ROLE_META[roleKey];
     setActiveRole(roleKey);
     setPhone(r.demoPhone);
@@ -241,6 +243,20 @@ function LoginContent() {
     setAuthMethod("password");
     setError(null);
     setInfoMsg(null);
+
+    // Auto-login for fast 1-click demo test experience
+    setQuickLoadingRole(roleKey);
+    setLoading(true);
+    try {
+      const tokenRes = await loginWithPassword(r.demoPhone, r.demoPass, r.authRole);
+      saveSession(tokenRes);
+      router.push(getRoleRedirectPath(tokenRes.role));
+    } catch (err: any) {
+      const msg = getErrorMessage(err);
+      setError(msg);
+      setLoading(false);
+      setQuickLoadingRole(null);
+    }
   };
 
   return (
@@ -910,31 +926,50 @@ function LoginContent() {
           >
             {(Object.keys(ROLE_META) as LoginRole[]).map((rKey) => {
               const r = ROLE_META[rKey];
+              const isLoggingIn = quickLoadingRole === rKey;
               return (
                 <button
                   key={rKey}
                   type="button"
-                  onClick={() => handleQuickFill(rKey)}
+                  disabled={loading || quickLoadingRole !== null}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleQuickFill(rKey);
+                  }}
                   style={{
-                    padding: "8px 10px",
-                    borderRadius: "10px",
-                    border: `1px solid ${r.borderBadge}`,
+                    padding: "9px 12px",
+                    borderRadius: "12px",
+                    border: `1.5px solid ${r.borderBadge}`,
                     backgroundColor: r.bgBadge,
                     color: r.color,
-                    fontSize: "11.5px",
+                    fontSize: "12px",
                     fontWeight: 700,
-                    cursor: "pointer",
+                    cursor: loading ? "not-allowed" : "pointer",
                     display: "flex",
                     alignItems: "center",
-                    gap: "6px",
+                    gap: "8px",
                     textAlign: "left",
+                    transition: "all 0.15s ease",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                    opacity: quickLoadingRole && quickLoadingRole !== rKey ? 0.5 : 1,
                   }}
                 >
-                  <span>{r.icon}</span>
-                  <div>
-                    <div style={{ lineHeight: 1.1 }}>{r.label}</div>
-                    <div style={{ fontSize: "10px", opacity: 0.8, fontWeight: 500 }}>
-                      {r.demoPhone.slice(0, 5)}...
+                  <span style={{ fontSize: "16px", display: "flex", alignItems: "center" }}>
+                    {isLoggingIn ? (
+                      <Loader2 size={16} className="animate-spin" style={{ color: r.color }} />
+                    ) : (
+                      r.icon
+                    )}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ lineHeight: 1.2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span>{r.label}</span>
+                      {isLoggingIn && (
+                        <span style={{ fontSize: "10px", fontWeight: 800 }}>Signing in...</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "10px", opacity: 0.85, fontWeight: 500, marginTop: "2px" }}>
+                      {isLoggingIn ? "Entering dashboard..." : `1-Click Login (${r.demoPhone.slice(0, 5)}...)`}
                     </div>
                   </div>
                 </button>
