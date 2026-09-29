@@ -1,6 +1,7 @@
 import datetime
 from decimal import Decimal
 from typing import List, Optional, Tuple
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 from app.models.user import User
 from app.models.order import Order
@@ -102,22 +103,55 @@ class OrderService:
             })
 
         # Determine seller & shop info for order record
+        from app.services.location_service import LocationService
+        cust_lat, cust_lon = LocationService.resolve_address_coordinates(db, address)
+
         first_seller_id = cart_items[0].seller_product.seller_id if (cart_items and cart_items[0].seller_product) else None
         shop_id = None
         sp_prof = None
         if first_seller_id:
-            sp_prof = db.query(SellerProfile).filter(SellerProfile.user_id == first_seller_id).first()
+            sp_prof = (
+                db.query(SellerProfile)
+                .filter(or_(SellerProfile.user_id == first_seller_id, SellerProfile.id == first_seller_id))
+                .first()
+            )
             if sp_prof:
                 shop_id = sp_prof.id
         if not sp_prof:
             sp_prof = db.query(SellerProfile).first()
 
+        if not sp_prof:
+            raise BadRequestException("No eligible seller found to fulfill this order.")
+
+        # Enforce seller active status
+        seller_user = db.query(User).filter(User.id == sp_prof.user_id).first()
+        if not seller_user or not seller_user.is_active:
+            raise BadRequestException("Seller account is currently inactive. Order cannot be placed.")
+
         # Enforce seller availability: block checkout if seller is OFFLINE
-        if sp_prof and not sp_prof.is_available:
+        if not sp_prof.is_available:
             raise BadRequestException(
                 message="Seller is currently offline. Please try again later.",
                 code="SELLER_OFFLINE",
                 details={"message": "Seller is currently offline. Please try again later."}
+            )
+
+        # Resolve seller coordinates and check 1–15 km bounds
+        s_lat, s_lon = LocationService.resolve_seller_coordinates(db, sp_prof.user_id)
+        if s_lat is None or s_lon is None:
+            raise BadRequestException(
+                message="Seller location coordinates are not configured. Order cannot be routed.",
+                code="SELLER_LOCATION_MISSING",
+                details={"message": "Seller location coordinates are missing."}
+            )
+
+        seller_dist = LocationService.calculate_distance(cust_lat, cust_lon, s_lat, s_lon)
+        is_in_bounds, bounds_msg = LocationService.is_within_delivery_bounds(seller_dist, max_km=15.0)
+        if not is_in_bounds:
+            raise BadRequestException(
+                message=f"Seller is {seller_dist:.1f} km away from your delivery address, which exceeds our 15 km delivery radius.",
+                code="DELIVERY_OUT_OF_RANGE",
+                details={"distance": seller_dist, "max_distance": 15.0, "message": bounds_msg}
             )
 
         # Centralized Server-Side Distance-Based Delivery Fee (1–15 KM, >15 KM blocked)
@@ -125,7 +159,7 @@ class OrderService:
         delivery_charge, delivery_distance_km = DeliveryPricingService.calculate_delivery_distance_and_fee(
             db=db,
             address_id=order_in.address_id,
-            seller_id=first_seller_id,
+            seller_id=sp_prof.user_id,
         )
 
         # Coupon validation
@@ -146,8 +180,8 @@ class OrderService:
             order_number=order_number,
             customer_id=user.id,
             address_id=order_in.address_id,
-            seller_id=first_seller_id,
-            shop_id=shop_id,
+            seller_id=sp_prof.user_id,
+            shop_id=sp_prof.id,
             delivery_latitude=address.latitude,
             delivery_longitude=address.longitude,
             status=OrderStatus.NEW.value,
@@ -158,6 +192,7 @@ class OrderService:
             discount_amount=discount_amount,
             total_amount=total_amount,
             delivery_slot_start=order_in.delivery_slot_start,
+
             delivery_slot_end=order_in.delivery_slot_end,
             customer_note=order_in.customer_note,
             placed_at=datetime.datetime.now(datetime.timezone.utc),
@@ -277,6 +312,11 @@ class OrderService:
                     "message": f"New Order #{order.order_number} received!",
                 }
                 dispatch_seller_new_order_notification(seller_payload, seller_id=order.seller_id)
+                if sp_prof and sp_prof.id != order.seller_id:
+                    dispatch_seller_new_order_notification(seller_payload, seller_id=sp_prof.id)
+                for f in fulfillments:
+                    if f.seller_id not in [order.seller_id, getattr(sp_prof, "id", None)]:
+                        dispatch_seller_new_order_notification(seller_payload, seller_id=f.seller_id)
             except Exception as notify_err:
                 logger.warning(f"Could not dispatch seller NEW_ORDER notification: {notify_err}")
 
@@ -549,15 +589,15 @@ class OrderService:
             order.pickup_otp_max_attempts = 5
             logger.info(f"[SELLER] Marked ready order={order.order_number} pickup_code_ready=True")
 
-            # Assign nearest eligible delivery partner within 6 KM of seller shop
+            # Assign nearest eligible delivery partner within 1-15 KM of seller shop
             from app.services.delivery_service import DeliveryService
             from app.models.delivery_task_status_history import DeliveryTaskStatusHistory
             if not order.delivery_partner_id:
-                assigned_partner, dist_km = DeliveryService.find_and_assign_nearest_partner(db, order, max_radius_km=6.0)
+                assigned_partner, dist_km = DeliveryService.find_and_assign_nearest_partner(db, order, max_radius_km=15.0)
                 if assigned_partner:
                     logger.info(f"Assigned partner {assigned_partner.id} to order {order.id} (distance {dist_km} km)")
                 else:
-                    logger.info(f"No available delivery partner within 6km radius for order {order.id}. Order remains READY awaiting partner.")
+                    logger.info(f"No available delivery partner within 1-15 km radius for order {order.id}. Order remains READY awaiting partner.")
 
             # Store pickup code hash into task notes for verification while preserving any doorstep OTP
             task = db.query(DeliveryTask).filter(DeliveryTask.order_id == order.id).first()
@@ -571,7 +611,7 @@ class OrderService:
                         delivery_task_id=task.id,
                         old_status=None,
                         new_status=DeliveryTaskStatus.ASSIGNED.value,
-                        note="Assigned to nearest eligible partner within 6 km",
+                        note="Assigned to nearest eligible partner within 1-15 km",
                     ))
                 task.notes = f"pickup_hash:{order.pickup_otp_hash}"
         elif new_status in [OrderStatus.OUT_FOR_DELIVERY.value, OrderStatus.PICKED_UP.value]:

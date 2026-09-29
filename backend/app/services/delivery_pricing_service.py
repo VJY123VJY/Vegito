@@ -56,21 +56,22 @@ class DeliveryPricingService:
             "Sorry, this address is outside Vegito's current delivery area."
         """
         from app.services.mapbox_service import MapboxService
+        from app.services.location_service import LocationService
 
         address = db.query(Address).filter(Address.id == address_id).first()
         if not address:
             raise NotFoundException("Selected delivery address was not found.")
 
-        # If customer address coordinates are recorded, use them; otherwise default to Solapur residential area (1.5 km away)
-        if address.latitude and address.longitude:
-            cust_lat = float(address.latitude)
-            cust_lng = float(address.longitude)
-        else:
-            cust_lat = 17.6860
-            cust_lng = 75.9120
+        # Ensure customer address coordinates are resolved and persisted
+        cust_lat, cust_lng = LocationService.resolve_address_coordinates(db, address)
 
-        shop_lat, shop_lng = DeliveryPricingService.get_seller_shop_coordinates(db, seller_id)
+        # Resolve seller shop coordinates
+        shop_lat, shop_lng = LocationService.resolve_seller_coordinates(db, seller_id) if seller_id else (None, None)
+        if shop_lat is None or shop_lng is None:
+            shop_lat, shop_lng = DeliveryPricingService.get_seller_shop_coordinates(db, seller_id)
+
         distance_km, is_mapbox = MapboxService.get_route_distance_km(shop_lat, shop_lng, cust_lat, cust_lng)
+
 
         max_radius = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 15.0))
         if distance_km > max_radius:

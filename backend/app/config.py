@@ -66,8 +66,11 @@ class Settings(BaseSettings):
     # Delivery
     # =========================
     DELIVERY_ASSIGNMENT_RADIUS_KM: float = 15.0
-    MIN_DELIVERY_RADIUS_KM: float = 0.0
+    MIN_DELIVERY_DISTANCE_KM: float = 1.0
+    MIN_DELIVERY_RADIUS_KM: float = 1.0
     DELIVERY_MAX_DISTANCE_KM: float = 15.0
+    ALLOW_SAME_BUILDING_DELIVERY: bool = True
+
 
     DELIVERY_FEE_0_TO_1_KM: float = 20.0
     DELIVERY_FEE_1_TO_3_KM: float = 30.0

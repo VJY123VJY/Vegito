@@ -109,6 +109,7 @@ export function SellerDashboard() {
   const orders = useQuery({
     queryKey: ["seller-orders"],
     queryFn: () => listSellerOrders(),
+    refetchInterval: 5000,
   });
 
   // Seller inventory

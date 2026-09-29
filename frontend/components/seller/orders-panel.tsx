@@ -94,7 +94,7 @@ export function OrdersPanel() {
   const orders = useQuery({
     queryKey: ["seller-orders", statusFilter],
     queryFn: () => listSellerOrders(statusFilter === "ALL" ? undefined : statusFilter),
-    refetchInterval: 20000,
+    refetchInterval: 5000,
   });
 
   const items = (orders.data?.items ?? []).filter((o) =>

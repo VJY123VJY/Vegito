@@ -273,9 +273,13 @@ def get_dashboard_summary(current_user: User = Depends(require_seller), db: Sess
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = now - timedelta(days=7)
-    month_start = now - timedelta(days=30)
-    
-    orders = db.query(Order).filter(Order.seller_id == current_user.id).all()
+    profile = db.query(SellerProfile).filter(SellerProfile.user_id == current_user.id).first()
+    seller_ids = [current_user.id]
+    if profile and profile.id not in seller_ids:
+        seller_ids.append(profile.id)
+
+    from sqlalchemy import or_
+    orders = db.query(Order).filter(or_(Order.seller_id.in_(seller_ids), Order.shop_id.in_(seller_ids))).all()
     
     live_orders = pending_orders = ready_orders = today_orders = 0
     today_revenue = weekly_revenue = monthly_revenue = 0.0
@@ -306,7 +310,7 @@ def get_dashboard_summary(current_user: User = Depends(require_seller), db: Sess
 
     avg_prep = sum(prep_times) / len(prep_times) if prep_times else None
 
-    sps = db.query(SellerProduct).filter(SellerProduct.seller_id == current_user.id).all()
+    sps = db.query(SellerProduct).filter(SellerProduct.seller_id.in_(seller_ids)).all()
     low_stock_count = sum(1 for sp in sps if sp.stock_quantity <= (sp.low_stock_threshold or 10))
     profile = db.query(SellerProfile).filter(SellerProfile.user_id == current_user.id).first()
     
@@ -423,7 +427,13 @@ def get_orders_queue(status: str = None, current_user: User = Depends(require_se
     from app.models.order import Order
     from datetime import datetime, timezone
     
-    q = db.query(Order).filter(Order.seller_id == current_user.id)
+    profile = db.query(SellerProfile).filter(SellerProfile.user_id == current_user.id).first()
+    seller_ids = [current_user.id]
+    if profile and profile.id not in seller_ids:
+        seller_ids.append(profile.id)
+
+    from sqlalchemy import or_
+    q = db.query(Order).filter(or_(Order.seller_id.in_(seller_ids), Order.shop_id.in_(seller_ids)))
     if status: q = q.filter(Order.status == status)
     orders = q.all()
     

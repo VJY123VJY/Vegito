@@ -86,7 +86,7 @@ def register_main_event_loop(loop: Optional[asyncio.AbstractEventLoop] = None) -
 
 async def broadcast_order_packed_notification(payload: dict, partner_id: Optional[int] = None) -> None:
     """Broadcasts ORDER_PACKED notification to assigned partner and general delivery subscribers."""
-    message_text = json.dumps(payload)
+    message_text = json.dumps(payload, default=str)
     targets: List[WebSocket] = []
     if partner_id and partner_id in DELIVERY_DASHBOARD_SUBSCRIBERS:
         targets.extend(DELIVERY_DASHBOARD_SUBSCRIBERS[partner_id])
@@ -146,7 +146,7 @@ def dispatch_order_packed_notification(payload: dict, partner_id: Optional[int] 
 
 async def broadcast_seller_new_order_notification(payload: dict, seller_id: Optional[int] = None) -> None:
     """Broadcasts NEW_ORDER notification to seller dashboard WebSocket subscribers."""
-    message_text = json.dumps(payload)
+    message_text = json.dumps(payload, default=str)
     targets: List[WebSocket] = []
     if seller_id and seller_id in SELLER_DASHBOARD_SUBSCRIBERS:
         targets.extend(SELLER_DASHBOARD_SUBSCRIBERS[seller_id])
@@ -617,20 +617,43 @@ async def seller_dashboard_notifications_ws(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        seller_id = current_user.id
+        profile = db.query(SellerProfile).filter(SellerProfile.user_id == seller_id).first()
+        profile_id = profile.id if profile else None
+
         if seller_id not in SELLER_DASHBOARD_SUBSCRIBERS:
             SELLER_DASHBOARD_SUBSCRIBERS[seller_id] = []
         SELLER_DASHBOARD_SUBSCRIBERS[seller_id].append(websocket)
+        if profile_id:
+            if profile_id not in SELLER_DASHBOARD_SUBSCRIBERS:
+                SELLER_DASHBOARD_SUBSCRIBERS[profile_id] = []
+            SELLER_DASHBOARD_SUBSCRIBERS[profile_id].append(websocket)
 
         # Recovery on reconnect: Send recent pending NEW orders
         from app.models.order_item import OrderItem
+        from app.models.seller_product import SellerProduct
+        from app.models.seller_order_fulfillment import SellerOrderFulfillment
+        from sqlalchemy import or_
+
+        seller_ids = [seller_id]
+        if profile_id and profile_id not in seller_ids:
+            seller_ids.append(profile_id)
+
         query = (
             db.query(Order)
+            .outerjoin(OrderItem, Order.id == OrderItem.order_id)
+            .outerjoin(SellerProduct, OrderItem.seller_product_id == SellerProduct.id)
+            .outerjoin(SellerOrderFulfillment, Order.id == SellerOrderFulfillment.order_id)
             .filter(
-                Order.seller_id == seller_id,
+                or_(
+                    Order.seller_id.in_(seller_ids),
+                    Order.shop_id.in_(seller_ids),
+                    SellerProduct.seller_id.in_(seller_ids),
+                    SellerOrderFulfillment.seller_id.in_(seller_ids),
+                ),
                 Order.status.in_([OrderStatus.NEW.value, OrderStatus.ORDER_PLACED.value]),
             )
-            .order_by(Order.placed_at.desc())
+            .distinct()
+            .order_by(Order.id.desc())
             .limit(10)
         )
         pending_new = query.all()
@@ -642,7 +665,7 @@ async def seller_dashboard_notifications_ws(
             for item in o.items:
                 items_summary.append({
                     "name": item.product_name,
-                    "quantity": item.quantity,
+                    "quantity": float(item.quantity) if item.quantity is not None else 1.0,
                     "unit": item.unit,
                 })
             recovery_items.append({
@@ -665,7 +688,7 @@ async def seller_dashboard_notifications_ws(
             "seller_id": seller_id,
             "message": "Seller dashboard live notification stream active",
             "pending_new_orders": recovery_items,
-        }))
+        }, default=str))
 
         while True:
             try:

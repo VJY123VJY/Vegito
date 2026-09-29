@@ -82,12 +82,27 @@ def toggle_order_urgent(
     from app.models.order_item import OrderItem
     from app.models.seller_product import SellerProduct
 
+    from app.models.seller_profile import SellerProfile
+    from sqlalchemy import or_
+
+    profile = db.query(SellerProfile).filter(SellerProfile.user_id == current_user.id).first()
+    seller_ids = [current_user.id]
+    if profile and profile.id not in seller_ids:
+        seller_ids.append(profile.id)
+
     # Verify seller owns the order
     order = (
         db.query(Order)
-        .join(OrderItem, OrderItem.order_id == Order.id)
-        .join(SellerProduct, OrderItem.seller_product_id == SellerProduct.id)
-        .filter(Order.id == order_id, SellerProduct.seller_id == current_user.id)
+        .outerjoin(OrderItem, OrderItem.order_id == Order.id)
+        .outerjoin(SellerProduct, OrderItem.seller_product_id == SellerProduct.id)
+        .filter(
+            Order.id == order_id,
+            or_(
+                Order.seller_id.in_(seller_ids),
+                Order.shop_id.in_(seller_ids),
+                SellerProduct.seller_id.in_(seller_ids),
+            )
+        )
         .first()
     )
     if not order:

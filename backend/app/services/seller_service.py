@@ -55,10 +55,14 @@ class SellerService:
 
     @staticmethod
     def list_seller_products(db: Session, user: User) -> List[SellerProduct]:
+        profile = db.query(SellerProfile).filter(SellerProfile.user_id == user.id).first()
+        seller_ids = [user.id]
+        if profile and profile.id not in seller_ids:
+            seller_ids.append(profile.id)
         return (
             db.query(SellerProduct)
             .options(joinedload(SellerProduct.product).joinedload(Product.images))
-            .filter(SellerProduct.seller_id == user.id)
+            .filter(SellerProduct.seller_id.in_(seller_ids))
             .all()
         )
 
@@ -246,12 +250,30 @@ class SellerService:
     def list_orders(
         db: Session, user: User, pagination: PaginationParams, status: Optional[str] = None
     ) -> Tuple[List[Order], int]:
-        """Lists orders that contain products from this seller."""
+        """Lists orders that contain products from or are routed/assigned to this seller."""
+        from sqlalchemy import or_
+        from app.models.seller_order_fulfillment import SellerOrderFulfillment
+
+        profile = db.query(SellerProfile).filter(SellerProfile.user_id == user.id).first()
+        profile_id = profile.id if profile else None
+
+        seller_ids = [user.id]
+        if profile_id and profile_id not in seller_ids:
+            seller_ids.append(profile_id)
+
         query = (
             db.query(Order)
-            .join(OrderItem, Order.id == OrderItem.order_id)
-            .join(SellerProduct, OrderItem.seller_product_id == SellerProduct.id)
-            .filter(SellerProduct.seller_id == user.id)
+            .outerjoin(OrderItem, Order.id == OrderItem.order_id)
+            .outerjoin(SellerProduct, OrderItem.seller_product_id == SellerProduct.id)
+            .outerjoin(SellerOrderFulfillment, Order.id == SellerOrderFulfillment.order_id)
+            .filter(
+                or_(
+                    Order.seller_id.in_(seller_ids),
+                    Order.shop_id.in_(seller_ids),
+                    SellerProduct.seller_id.in_(seller_ids),
+                    SellerOrderFulfillment.seller_id.in_(seller_ids),
+                )
+            )
             .distinct()
         )
         if status:
@@ -259,12 +281,13 @@ class SellerService:
 
         total_count = query.count()
         orders = (
-            query.order_by(Order.placed_at.desc())
+            query.order_by(Order.id.desc())
             .offset(pagination.offset)
             .limit(pagination.limit)
             .all()
         )
         return orders, total_count
+
 
     @staticmethod
     def delete_product(db: Session, user: User, seller_product_id: int) -> bool:

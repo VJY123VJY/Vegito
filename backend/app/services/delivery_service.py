@@ -125,44 +125,54 @@ class DeliveryService:
           2. Partner must be available (is_available is True).
           3. Partner must NOT have an ongoing active delivery (concurrency control).
           4. Distance from partner's latest recorded location to the Seller's Shop
-             must be <= DELIVERY_ASSIGNMENT_RADIUS_KM (1–7 KM).
+             must be within 1.0 km to 15.0 km (MIN_DISTANCE = 1.0, MAX_DISTANCE = 15.0).
+             Distance < 1.0 km -> Not eligible.
+             Distance > 15.0 km -> Not eligible.
+             Partner location missing -> Not eligible.
           5. Returns the closest eligible partner, or (None, None) if no partner is available.
         """
         import logging
         logger = logging.getLogger(__name__)
         from app.models.delivery_partner_location import DeliveryPartnerLocation
-        from app.services.mapbox_service import MapboxService
-        radius_limit = max_radius_km or float(getattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 6.0))
-        logger.info(f"[DELIVERY] Searching partner order={order.order_number or order.id} within {radius_limit}km")
+        from app.services.location_service import LocationService, calculate_haversine_distance_km
 
-        # 1. Determine Seller Shop coordinates
-        shop_lat = 17.6805  # Default Solapur center
-        shop_lng = 75.9064
-        shop_prof = order.shop
-        if not shop_prof and order.seller_id:
-            shop_prof = db.query(SellerProfile).filter(SellerProfile.user_id == order.seller_id).first()
+        min_radius = 1.0
+        max_radius = max_radius_km if max_radius_km is not None else float(getattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 15.0))
 
-        if shop_prof:
-            if shop_prof.latitude and shop_prof.longitude:
-                shop_lat = float(shop_prof.latitude)
-                shop_lng = float(shop_prof.longitude)
-            elif shop_prof.address_id:
-                shop_addr = db.query(Address).filter(Address.id == shop_prof.address_id).first()
-                if shop_addr and shop_addr.latitude and shop_addr.longitude:
-                    shop_lat = float(shop_addr.latitude)
-                    shop_lng = float(shop_addr.longitude)
+        # 1. Determine Seller Shop coordinates via LocationService
+        shop_lat, shop_lng = LocationService.resolve_seller_coordinates(db, order.seller_id, fallback_to_default=False) if order.seller_id else (None, None)
+        if shop_lat is None or shop_lng is None:
+            logger.warning("[DELIVERY ASSIGNMENT] Seller pickup location is unavailable.")
+            return None, None
 
-        # 2. Query candidate delivery partners (available + user active)
-        candidates = (
+        order_ref = order.order_number or str(order.id)
+        logger.info(
+            f"[DELIVERY ASSIGNMENT]\n"
+            f"Order: {order_ref}\n"
+            f"Seller: {order.seller_id}\n"
+            f"Seller Latitude: {shop_lat}\n"
+            f"Seller Longitude: {shop_lng}\n"
+            f"Searching available delivery partners..."
+        )
+
+        # 2. Query candidate delivery partners
+        partners = (
             db.query(DeliveryPartner)
             .join(User, DeliveryPartner.user_id == User.id)
-            .filter(DeliveryPartner.is_available == True, User.is_active == True)
             .all()
         )
 
         eligible_partners: List[Tuple[DeliveryPartner, float]] = []
 
-        for partner in candidates:
+        for partner in partners:
+            # Partner user active & partner availability check
+            user = db.query(User).filter(User.id == partner.user_id).first()
+            if not user or not user.is_active or not partner.is_available:
+                logger.info(
+                    f"[DELIVERY ASSIGNMENT] Partner: {partner.id} Distance: None Available: False Eligible: False Reason: Partner unavailable"
+                )
+                continue
+
             # 3. Concurrency check: does partner have an active, incomplete delivery?
             active_task = (
                 db.query(DeliveryTask)
@@ -176,36 +186,59 @@ class DeliveryService:
                 .first()
             )
             if active_task:
-                # Partner is currently delivering another order! Do NOT double-assign.
+                logger.info(
+                    f"[DELIVERY ASSIGNMENT] Partner: {partner.id} Distance: None Available: True Eligible: False Reason: Partner has active delivery task"
+                )
                 continue
 
-            # 4. Location check: Partner location -> Seller Shop location
+            # 4. Location check: latest recorded partner GPS trace
             loc = (
                 db.query(DeliveryPartnerLocation)
                 .filter(DeliveryPartnerLocation.delivery_partner_id == partner.id)
                 .order_by(DeliveryPartnerLocation.recorded_at.desc())
                 .first()
             )
-            if loc and loc.latitude and loc.longitude:
-                dist_km, _ = MapboxService.get_route_distance_km(
-                    float(loc.latitude), float(loc.longitude), shop_lat, shop_lng
+            if not loc or loc.latitude is None or loc.longitude is None:
+                logger.info(
+                    f"[DELIVERY ASSIGNMENT] Partner: {partner.id} Distance: None Available: True Eligible: False Reason: Partner location missing"
                 )
-            else:
-                # No recorded GPS trace yet (fresh test/dev partner); treat as local base distance (1.5 km)
-                dist_km = 1.5
+                continue
 
-            if dist_km <= radius_limit:
-                eligible_partners.append((partner, dist_km))
+            # Calculate distance between Seller Shop and Partner
+            from app.services.mapbox_service import MapboxService
+            dist_km, _ = MapboxService.get_route_distance_km(
+                float(loc.latitude), float(loc.longitude), float(shop_lat), float(shop_lng)
+            )
+
+            # 5. Strict 1–15 km range check
+            if dist_km < min_radius:
+                logger.info(
+                    f"[DELIVERY ASSIGNMENT] Partner: {partner.id} Distance: {dist_km:.2f} km Available: True Eligible: False Reason: Distance below 1 km ({dist_km:.2f} km)"
+                )
+                continue
+
+            if dist_km > max_radius:
+                logger.info(
+                    f"[DELIVERY ASSIGNMENT] Partner: {partner.id} Distance: {dist_km:.2f} km Available: True Eligible: False Reason: Outside 15 km range ({dist_km:.2f} km)"
+                )
+                continue
+
+            logger.info(
+                f"[DELIVERY ASSIGNMENT] Partner: {partner.id} Distance: {dist_km:.2f} km Available: True Eligible: True"
+            )
+            eligible_partners.append((partner, dist_km))
 
         if not eligible_partners:
-            logger.info(f"[DELIVERY] No available partner found within {radius_limit}km for order={order.order_number or order.id}. Order remains READY awaiting partner.")
+            logger.info(
+                f"[DELIVERY ASSIGNMENT] No eligible delivery partner found within 1-15 km for order {order_ref}. Order remains READY awaiting partner."
+            )
             return None, None
 
-        # Sort by distance (nearest first)
+        # Sort by distance (nearest partner first)
         eligible_partners.sort(key=lambda x: x[1])
         best_partner, best_dist = eligible_partners[0]
 
-        logger.info(f"[DELIVERY] Partner found partner={best_partner.id} distance={best_dist}km")
+        logger.info(f"[DELIVERY ASSIGNMENT] Assigned Partner: {best_partner.id}")
 
         # Assign partner to order & task
         order.delivery_partner_id = best_partner.id
@@ -237,12 +270,11 @@ class DeliveryService:
                 import logging
                 logging.getLogger(__name__).warning(f"Error assigning pending orders in list_partner_tasks: {e}")
 
-        # Auto-heal any orders assigned to this partner (or ready for pickup) lacking a DeliveryTask
+        # Auto-heal any orders assigned to this partner lacking a DeliveryTask
         unlinked_orders = (
             db.query(Order)
             .filter(
-                (Order.delivery_partner_id == partner.id) |
-                (Order.status.in_([OrderStatus.READY.value, OrderStatus.READY_FOR_PICKUP.value])),
+                Order.delivery_partner_id == partner.id,
                 ~Order.id.in_(db.query(DeliveryTask.order_id))
             )
             .all()
@@ -261,13 +293,7 @@ class DeliveryService:
             )
             .filter(
                 (DeliveryTask.delivery_partner_id == partner.id) |
-                (DeliveryTask.order.has(Order.delivery_partner_id == partner.id)) |
-                (
-                    (DeliveryTask.delivery_partner_id.is_(None)) &
-                    (DeliveryTask.order.has(Order.status.in_([
-                        OrderStatus.READY.value, OrderStatus.READY_FOR_PICKUP.value
-                    ])))
-                )
+                (DeliveryTask.order.has(Order.delivery_partner_id == partner.id))
             )
         )
         if status:
@@ -500,12 +526,24 @@ class DeliveryService:
         db.refresh(order)
         db.refresh(task)
 
+        addr_data = None
+        if order.address:
+            addr_data = AddressRead.model_validate(order.address).model_dump()
+
+        cust_lat = float(order.delivery_latitude or (order.address.latitude if order.address else 0)) or None
+        cust_lng = float(order.delivery_longitude or (order.address.longitude if order.address else 0)) or None
+
         return {
             "message": "OTP Verified",
             "order_id": order.id,
             "order_number": order.order_number,
             "status": order.status,
             "pickup_otp_verified_at": order.pickup_otp_verified_at.isoformat() if order.pickup_otp_verified_at else None,
+            "customer_name": order.customer.name if order.customer else "Customer",
+            "customer_phone": order.customer.phone if order.customer else None,
+            "delivery_address": addr_data,
+            "customer_latitude": cust_lat,
+            "customer_longitude": cust_lng,
         }
 
     @staticmethod

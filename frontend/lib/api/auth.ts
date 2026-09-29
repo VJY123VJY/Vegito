@@ -179,6 +179,29 @@ export async function verifyOtp(role: "customer" | "seller" | "delivery" | "admi
   return data.data;
 }
 
+// ── CURRENT AUTHENTICATED USER VERIFICATION (/auth/me) ──────────────────────
+export async function getMe(): Promise<any | null> {
+  const token = getAuthToken();
+  if (!token) {
+    clearSession();
+    return null;
+  }
+  try {
+    const { data } = await api.get<ApiEnvelope<any>>("/auth/me");
+    if (data?.data) {
+      const user = data.data;
+      if (user.name) setStoredUserName(user.name);
+      return user;
+    }
+    return null;
+  } catch (err: any) {
+    if (err?.response?.status === 401 || err?.response?.status === 403) {
+      clearSession();
+    }
+    return null;
+  }
+}
+
 // ── SESSION MANAGEMENT (DUAL STORAGE: localStorage + sessionStorage) ────────
 export function saveSession(session: TokenResponse) {
   if (typeof window === "undefined") return;
@@ -193,10 +216,20 @@ export function saveSession(session: TokenResponse) {
     localStorage.setItem(k, v);
     sessionStorage.setItem(k, v);
   });
+  window.dispatchEvent(new CustomEvent("vegito:auth_state_changed", { detail: { loggedIn: true, role: session.role } }));
 }
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("vegito.access-token") || sessionStorage.getItem("vegito.access-token");
+}
+
+export const getStoredToken = getAuthToken;
 
 export function getStoredRole(): AuthRole | null {
   if (typeof window === "undefined") return null;
+  const token = getAuthToken();
+  if (!token) return null;
   const role = localStorage.getItem("vegito.user-role") || sessionStorage.getItem("vegito.user-role");
   return role && ["CUSTOMER", "SELLER", "DELIVERY_PARTNER", "ADMIN", "SUPER_ADMIN"].includes(role)
     ? (role as AuthRole)
@@ -204,8 +237,10 @@ export function getStoredRole(): AuthRole | null {
 }
 
 export function getStoredUserName(): string {
-  if (typeof window === "undefined") return "Customer";
-  return localStorage.getItem("vegito.user-name") || sessionStorage.getItem("vegito.user-name") || "Customer";
+  if (typeof window === "undefined") return "";
+  const token = getAuthToken();
+  if (!token) return "";
+  return localStorage.getItem("vegito.user-name") || sessionStorage.getItem("vegito.user-name") || "";
 }
 
 export function setStoredUserName(name: string): void {
@@ -216,6 +251,8 @@ export function setStoredUserName(name: string): void {
 
 export function getStoredPhone(): string {
   if (typeof window === "undefined") return "";
+  const token = getAuthToken();
+  if (!token) return "";
   return localStorage.getItem("vegito.user-phone") || sessionStorage.getItem("vegito.user-phone") || "";
 }
 
@@ -227,23 +264,18 @@ export function clearSession() {
     "vegito.user-name",
     "vegito.user-id",
     "vegito.user-phone",
+    "vegito_read_notifications",
   ];
   keys.forEach((k) => {
     localStorage.removeItem(k);
     sessionStorage.removeItem(k);
   });
+  window.dispatchEvent(new CustomEvent("vegito:auth_state_changed", { detail: { loggedIn: false } }));
 }
-
-export function getAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("vegito.access-token") || sessionStorage.getItem("vegito.access-token");
-}
-
-export const getStoredToken = getAuthToken;
 
 export function isLoggedIn(): boolean {
   if (typeof window === "undefined") return false;
-  return !!(localStorage.getItem("vegito.access-token") || sessionStorage.getItem("vegito.access-token"));
+  return !!getAuthToken();
 }
 
 export function getRoleRedirectPath(role: AuthRole | null): string {

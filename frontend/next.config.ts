@@ -3,7 +3,7 @@ import path from "path";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
-  output: "export",
+  output: process.env.NODE_ENV === "production" ? "export" : undefined,
   reactStrictMode: true,
   // Keep static Android builds reliable on Windows environments where the
   // separate webpack build worker cannot be spawned.

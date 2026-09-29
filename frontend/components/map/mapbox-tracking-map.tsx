@@ -250,30 +250,25 @@ export function MapboxTrackingMap({
     const map = mapRef.current;
 
     // Determine route start and end:
-    // Before pickup verification (READY/READY_FOR_PICKUP): Partner -> Shop
-    // After pickup verification (PICKED_UP / OUT_FOR_DELIVERY / STARTED): (Partner || Shop) -> Customer
+    // If customerPosition is present (post-pickup): navigate to Customer destination
+    // If customerPosition is null (pre-pickup): navigate to Seller Shop
     let startCoords: [number, number] | null = null;
     let endCoords: [number, number] | null = null;
 
-    if (orderStatus === "READY_FOR_PICKUP" || orderStatus === "READY" || orderStatus === "ASSIGNED") {
-      // Prior to pickup verification: only navigate to Shop
-      if (deliveryPosition && shopPosition) {
-        startCoords = [deliveryPosition.lng, deliveryPosition.lat];
-        endCoords = [shopPosition.lng, shopPosition.lat];
-      }
-    } else if (
-      orderStatus === "PICKED_UP" ||
-      orderStatus === "OUT_FOR_DELIVERY" ||
-      orderStatus === "STARTED" ||
-      orderStatus === "DELIVERED"
-    ) {
-      // After pickup verification: navigate to Customer destination
-      if (deliveryPosition && customerPosition) {
+    if (customerPosition) {
+      // After pickup verification: navigate directly to Customer destination
+      if (deliveryPosition) {
         startCoords = [deliveryPosition.lng, deliveryPosition.lat];
         endCoords = [customerPosition.lng, customerPosition.lat];
-      } else if (shopPosition && customerPosition) {
+      } else if (shopPosition) {
         startCoords = [shopPosition.lng, shopPosition.lat];
         endCoords = [customerPosition.lng, customerPosition.lat];
+      }
+    } else if (shopPosition) {
+      // Prior to pickup verification: only navigate to Seller Shop
+      if (deliveryPosition) {
+        startCoords = [deliveryPosition.lng, deliveryPosition.lat];
+        endCoords = [shopPosition.lng, shopPosition.lat];
       }
     }
 
@@ -359,7 +354,16 @@ export function MapboxTrackingMap({
     return () => {
       isCancelled = true;
     };
-  }, [deliveryPosition, shopPosition, customerPosition, orderStatus, mapLoaded]);
+  }, [
+    deliveryPosition?.lat,
+    deliveryPosition?.lng,
+    shopPosition?.lat,
+    shopPosition?.lng,
+    customerPosition?.lat,
+    customerPosition?.lng,
+    orderStatus,
+    mapLoaded,
+  ]);
 
   return (
     <div
@@ -407,22 +411,50 @@ export function MapboxTrackingMap({
               flexShrink: 0,
             }}
           />
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: "12px", fontWeight: 800, color: "#063c32" }}>
               {orderStatus === "DELIVERED"
                 ? "Order Delivered ✅"
-                : orderStatus === "READY_FOR_PICKUP"
-                ? "Ready for Pickup · Route to Shop"
-                : orderStatus === "PICKED_UP"
-                ? "Picked Up from Shop · Route to Doorstep"
-                : "Live Delivery Tracking"}
+                : customerPosition
+                ? "En Route to Customer Doorstep 📍"
+                : "En Route to Seller Shop 🏪"}
             </p>
             <p style={{ margin: "1px 0 0", fontSize: "11px", color: "#62746a" }}>
               {routeInfo
                 ? `Distance: ${routeInfo.distanceKm} km · ETA ~${routeInfo.etaMin} mins`
-                : "Connecting to live GPS..."}
+                : "Calculating road route..."}
             </p>
           </div>
+
+          {/* Direct Navigation Button */}
+          {(customerPosition || shopPosition) && (
+            <a
+              href={
+                customerPosition
+                  ? `https://www.google.com/maps/dir/?api=1&destination=${customerPosition.lat},${customerPosition.lng}`
+                  : `https://www.google.com/maps/dir/?api=1&destination=${shopPosition!.lat},${shopPosition!.lng}`
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "6px 12px",
+                borderRadius: "8px",
+                backgroundColor: "#059669",
+                color: "#ffffff",
+                fontSize: "11.5px",
+                fontWeight: 700,
+                textDecoration: "none",
+                flexShrink: 0,
+                boxShadow: "0 2px 6px rgba(5, 150, 105, 0.25)",
+              }}
+            >
+              <span>Navigate</span>
+              <span style={{ fontSize: "12px" }}>↗</span>
+            </a>
+          )}
         </div>
       )}
 

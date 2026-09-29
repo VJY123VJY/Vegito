@@ -84,7 +84,7 @@ class MapboxService:
                 logger.warning(f"[MAPBOX] Directions API request failed: {e}. Falling back to Haversine.")
 
         # 3. Fallback to Haversine great-circle calculation
-        from app.services.delivery_service import calculate_haversine_distance_km
+        from app.services.location_service import calculate_haversine_distance_km
         fallback_dist = calculate_haversine_distance_km(start_lat, start_lng, end_lat, end_lng)
         logger.info(
             f"[MAPBOX] Using fallback Haversine distance: {fallback_dist}km "

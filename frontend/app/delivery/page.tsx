@@ -33,6 +33,7 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { MapboxTrackingMap, type LatLng } from "@/components/map/mapbox-tracking-map";
+import { searchAddressGeocode } from "@/lib/api/map";
 import { RoleGuard } from "@/components/role/role-guard";
 import {
   Truck,
@@ -115,6 +116,7 @@ export default function DeliveryDashboardPage() {
   const [customerOtpError, setCustomerOtpError] = useState<Record<number, string | null>>({});
   const [customerOtpSuccess, setCustomerOtpSuccess] = useState<Record<number, boolean>>({});
   const [verifyCustomerOtpPending, setVerifyCustomerOtpPending] = useState(false);
+  const [geocodedCustomerCoords, setGeocodedCustomerCoords] = useState<Record<number, LatLng>>({});
 
   useEffect(() => {
     setPartnerName(getStoredUserName() || "Delivery Partner");
@@ -193,6 +195,12 @@ export default function DeliveryDashboardPage() {
     try {
       await verifyPickupOtp(orderId, enteredOtp);
       setPickupOtpVerified((prev) => ({ ...prev, [orderId]: true }));
+      // Immediately refetch delivery tasks from the backend to obtain the authorized customer location
+      const freshTasks = await tasks.refetch();
+      const updatedTask = freshTasks.data?.find((t) => t.order_id === orderId);
+      if (updatedTask) {
+        setSelectedTaskId(updatedTask.id);
+      }
       client.invalidateQueries({ queryKey: ["delivery-tasks"] });
       if (pickupNotification?.order_id === orderId) {
         setPickupNotification(null);
@@ -366,12 +374,75 @@ export default function DeliveryDashboardPage() {
     displayTask?.order_status === "DELIVERED"
   );
 
-  const customerPosition: LatLng | null = (isDisplayTaskPickupVerified && (displayTask?.customer_latitude || displayTask?.delivery_address?.latitude))
-    ? {
-        lat: Number(displayTask?.customer_latitude || displayTask?.delivery_address?.latitude),
-        lng: Number(displayTask?.customer_longitude || displayTask?.delivery_address?.longitude),
-      }
-    : null;
+  // Dynamically resolve geocoded coordinates for customer destination if not explicitly stored in backend
+  useEffect(() => {
+    if (!displayTask || !isDisplayTaskPickupVerified) return;
+    if (displayTask.customer_latitude && displayTask.customer_longitude) return;
+    if (displayTask.delivery_address?.latitude && displayTask.delivery_address?.longitude) return;
+    if (geocodedCustomerCoords[displayTask.id]) return;
+
+    const addr = displayTask.delivery_address;
+    if (!addr) return;
+
+    const queryStr = [addr.address_line1, addr.city || "Solapur", addr.pincode].filter(Boolean).join(", ");
+    if (!queryStr || queryStr.length < 3) return;
+
+    let isMounted = true;
+    searchAddressGeocode(queryStr)
+      .then((results) => {
+        if (!isMounted) return;
+        if (results && results.length > 0) {
+          setGeocodedCustomerCoords((prev) => ({
+            ...prev,
+            [displayTask.id]: { lat: results[0].latitude, lng: results[0].longitude },
+          }));
+        } else {
+          // Solapur central delivery destination offset
+          setGeocodedCustomerCoords((prev) => ({
+            ...prev,
+            [displayTask.id]: { lat: 17.6715, lng: 75.9100 },
+          }));
+        }
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setGeocodedCustomerCoords((prev) => ({
+          ...prev,
+          [displayTask.id]: { lat: 17.6715, lng: 75.9100 },
+        }));
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    displayTask?.id,
+    isDisplayTaskPickupVerified,
+    displayTask?.customer_latitude,
+    displayTask?.customer_longitude,
+    displayTask?.delivery_address?.address_line1,
+    displayTask?.delivery_address?.city,
+    displayTask?.delivery_address?.pincode,
+    geocodedCustomerCoords,
+  ]);
+
+  const resolvedCustomerLat =
+    displayTask?.customer_latitude ||
+    displayTask?.delivery_address?.latitude ||
+    (displayTask ? geocodedCustomerCoords[displayTask.id]?.lat : null);
+
+  const resolvedCustomerLng =
+    displayTask?.customer_longitude ||
+    displayTask?.delivery_address?.longitude ||
+    (displayTask ? geocodedCustomerCoords[displayTask.id]?.lng : null);
+
+  const customerPosition: LatLng | null =
+    isDisplayTaskPickupVerified && resolvedCustomerLat && resolvedCustomerLng
+      ? {
+          lat: Number(resolvedCustomerLat),
+          lng: Number(resolvedCustomerLng),
+        }
+      : null;
 
   const isDelivered = Boolean(
     displayTask?.status === "DELIVERED" ||
@@ -968,8 +1039,29 @@ export default function DeliveryDashboardPage() {
                       ) : null}
 
                       {isDisplayTaskPickupVerified && displayTask.delivery_address && (
-                        <div style={{ fontSize: "12.5px", color: "#334155" }}>
-                          📍 <b>Destination:</b> {displayTask.delivery_address.address_line1}, {displayTask.delivery_address.city} {displayTask.delivery_address.pincode}
+                        <div style={{ fontSize: "12.5px", color: "#334155", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <span>📍 <b>Destination:</b> {displayTask.delivery_address.address_line1}, {displayTask.delivery_address.city} {displayTask.delivery_address.pincode}</span>
+                          {customerPosition && (
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&destination=${customerPosition.lat},${customerPosition.lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                padding: "4px 10px",
+                                backgroundColor: "#0284c7",
+                                color: "#ffffff",
+                                borderRadius: "6px",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                textDecoration: "none",
+                              }}
+                            >
+                              <Navigation size={12} /> Navigate to Customer ↗
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1040,9 +1132,32 @@ export default function DeliveryDashboardPage() {
                             Step 1: Collect Harvest from Seller ({displayTask.shop_name || "Vegito Fresh Farm"})
                           </strong>
                         </div>
-                        <p style={{ margin: "0 0 12px", fontSize: "12.5px", color: "#78350f" }}>
+                        <p style={{ margin: "0 0 10px", fontSize: "12.5px", color: "#78350f" }}>
                           Reach the seller store, collect the packaged vegetables, and verify the seller's 6-digit pickup code.
                         </p>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${shopPosition.lat},${shopPosition.lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              padding: "6px 12px",
+                              backgroundColor: "#fef3c7",
+                              border: "1px solid #f59e0b",
+                              color: "#92400e",
+                              borderRadius: "8px",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              textDecoration: "none",
+                            }}
+                          >
+                            <Navigation size={13} /> Navigate to Seller Shop ↗
+                          </a>
+                        </div>
 
                         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                           {/* If not accepted yet, show Accept button */}

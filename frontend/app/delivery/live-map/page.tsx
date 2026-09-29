@@ -130,9 +130,15 @@ export default function DeliveryLiveMapPage() {
     : null;
 
   // Strict Privacy: Only disclose customer destination coordinates to the map once seller pickup is verified
-  const customerCoords: LatLng | null = isPickedUp && activeTask?.customer_latitude && activeTask?.customer_longitude
-    ? { lat: Number(activeTask.customer_latitude), lng: Number(activeTask.customer_longitude) }
-    : null;
+  const customerCoords: LatLng | null =
+    isPickedUp &&
+    (activeTask?.customer_latitude || activeTask?.delivery_address?.latitude) &&
+    (activeTask?.customer_longitude || activeTask?.delivery_address?.longitude)
+      ? {
+          lat: Number(activeTask.customer_latitude || activeTask.delivery_address?.latitude),
+          lng: Number(activeTask.customer_longitude || activeTask.delivery_address?.longitude),
+        }
+      : null;
 
   return (
     <DashboardShell

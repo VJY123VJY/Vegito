@@ -37,6 +37,8 @@ import {
   getStoredUserName,
   clearSession,
   getRoleRedirectPath,
+  getMe,
+  getAuthToken,
   type AuthRole,
 } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/client";
@@ -113,8 +115,41 @@ export function PublicHome() {
   const { language, setLanguage, t } = useTranslation();
 
   useEffect(() => {
-    setRole(getStoredRole());
-    setUserName(getStoredUserName());
+    const token = getAuthToken();
+    if (!token) {
+      setRole(null);
+      setUserName("");
+    } else {
+      getMe()
+        .then((user) => {
+          if (user) {
+            setRole(getStoredRole());
+            setUserName(user.name || getStoredUserName());
+          } else {
+            clearSession();
+            setRole(null);
+            setUserName("");
+          }
+        })
+        .catch(() => {
+          clearSession();
+          setRole(null);
+          setUserName("");
+        });
+    }
+
+    const handleAuthChanged = () => {
+      const tok = getAuthToken();
+      if (!tok) {
+        setRole(null);
+        setUserName("");
+      } else {
+        setRole(getStoredRole());
+        setUserName(getStoredUserName());
+      }
+    };
+    window.addEventListener("vegito:auth_state_changed", handleAuthChanged);
+
     const stored = getStoredLocation();
     if (stored?.address) {
       setSelectedLocation(stored.address);
@@ -126,9 +161,16 @@ export function PublicHome() {
         const timer = setTimeout(() => {
           setAddressModalOpen(true);
         }, 600);
-        return () => clearTimeout(timer);
+        return () => {
+          clearTimeout(timer);
+          window.removeEventListener("vegito:auth_state_changed", handleAuthChanged);
+        };
       }
     }
+
+    return () => {
+      window.removeEventListener("vegito:auth_state_changed", handleAuthChanged);
+    };
   }, []);
 
   useEffect(() => {

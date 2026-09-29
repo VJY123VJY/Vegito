@@ -435,10 +435,12 @@ def test_8_seller_marks_order_ready_flow(db, base_flow_data):
         assert task.notes is not None
         assert task.notes.startswith("pickup_hash:")
 
-        # Partner views task: Customer address line is MASKED before pickup
+        # Partner views task: Customer address is NOT exposed before pickup
         tasks_view = DeliveryService.list_partner_tasks(db, rider_user)
         matching = next(t for t in tasks_view if t.order_id == order.id)
-        assert matching.delivery_address.address_line1 == "Area hidden until pickup"
+        assert matching.delivery_address is None
+        assert matching.customer_latitude is None
+        assert matching.customer_longitude is None
         assert matching.customer_phone is None
         assert matching.shop_name == "Solapur Fresh Farms Central"
 

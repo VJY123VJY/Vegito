@@ -136,10 +136,8 @@ def ensure_database_schema(db_engine) -> None:
         logging.getLogger("vegito.db").warning(f"Schema safety check note: {exc}")
 
 
-try:
-    ensure_database_schema(engine)
-except Exception:
-    pass
+# DDL migrations should not run on every module import to prevent table lock deadlocks in Postgres.
+# Schema is already migrated.
 
 
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getStoredRole, getRoleRedirectPath } from "@/lib/api/auth";
+import { getStoredRole, getAuthToken, getMe, clearSession } from "@/lib/api/auth";
 
 export function RoleGuard({
   allow,
@@ -17,8 +17,10 @@ export function RoleGuard({
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    const token = getAuthToken();
     const role = getStoredRole();
-    if (!role) {
+    if (!token || !role) {
+      clearSession();
       const defaultRole = allow.includes("CUSTOMER")
         ? "customer"
         : allow.includes("SELLER")
@@ -33,7 +35,27 @@ export function RoleGuard({
       router.replace(redirectTo ?? `/unauthorized?required=${allow.join(",")}&current=${role}`);
       return;
     }
-    setReady(true);
+
+    let isMounted = true;
+    getMe()
+      .then((user) => {
+        if (!isMounted) return;
+        if (!user) {
+          clearSession();
+          router.replace(redirectTo ?? "/auth/login");
+          return;
+        }
+        setReady(true);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        clearSession();
+        router.replace(redirectTo ?? "/auth/login");
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [allow, redirectTo, router]);
 
   if (!ready) {

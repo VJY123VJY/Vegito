@@ -56,8 +56,9 @@ def get_task(
     task = db.query(DeliveryTask).filter(DeliveryTask.id == task_id).first()
     if not task:
         raise NotFoundException(f"Delivery task {task_id} not found")
-    if task.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
+    if task.delivery_partner_id is not None and task.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
         raise ForbiddenException("This task is assigned to another delivery partner")
+
 
     order = task.order
     shop = order.shop if order else None
@@ -126,10 +127,120 @@ def verify_task_pickup_otp(
     task = db.query(DeliveryTask).filter(DeliveryTask.id == task_id).first()
     if not task:
         raise NotFoundException(f"Delivery task {task_id} not found")
-    if task.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
+    if task.delivery_partner_id is None:
+        task.delivery_partner_id = partner.id
+        if task.order:
+            task.order.delivery_partner_id = partner.id
+        db.commit()
+    elif task.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
         raise ForbiddenException("This task is assigned to another delivery partner")
+
     result = DeliveryService.verify_pickup_otp(db, current_user, task.order_id, payload.otp)
     return APIResponse(message="Pickup OTP Verified", data=result)
+
+
+@router.get(
+    "/tasks/{task_id}/customer-location",
+    response_model=APIResponse[dict],
+    summary="Get customer delivery location (Locked until pickup OTP verification)",
+)
+def get_task_customer_location(
+    task_id: int,
+    current_user: User = Depends(require_delivery_partner),
+    db: Session = Depends(get_db),
+):
+    partner = DeliveryService.get_delivery_partner(db, current_user)
+    task = db.query(DeliveryTask).filter(DeliveryTask.id == task_id).first()
+    if not task:
+        raise NotFoundException(f"Delivery task {task_id} not found")
+    if task.delivery_partner_id is not None and task.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
+        raise ForbiddenException("This task is assigned to another delivery partner")
+
+    order = task.order
+    if not order:
+        raise NotFoundException("Associated order not found")
+
+    is_picked_up = bool(
+        getattr(task, "pickup_verified", False)
+        or (order.pickup_otp_verified_at is not None)
+        or (order.status in ["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"])
+    )
+
+    if not is_picked_up:
+        raise ForbiddenException(
+            "Customer delivery location is locked. Seller pickup OTP must be verified first."
+        )
+
+    addr_data = None
+    if order.address:
+        addr_data = AddressRead.model_validate(order.address).model_dump()
+
+    cust_lat = float(order.delivery_latitude or (order.address.latitude if order.address else 0)) or None
+    cust_lng = float(order.delivery_longitude or (order.address.longitude if order.address else 0)) or None
+
+    return APIResponse(
+        message="Customer delivery location authorized",
+        data={
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "customer_name": order.customer.name if order.customer else "Customer",
+            "customer_phone": order.customer.phone if order.customer else None,
+            "delivery_address": addr_data,
+            "customer_latitude": cust_lat,
+            "customer_longitude": cust_lng,
+        },
+    )
+
+
+@router.get(
+    "/orders/{order_id}/customer-location",
+    response_model=APIResponse[dict],
+    summary="Get customer delivery location by order ID (Locked until pickup OTP verification)",
+)
+def get_order_customer_location(
+    order_id: int,
+    current_user: User = Depends(require_delivery_partner),
+    db: Session = Depends(get_db),
+):
+    partner = DeliveryService.get_delivery_partner(db, current_user)
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise NotFoundException(f"Order {order_id} not found")
+    if order.delivery_partner_id is not None and order.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
+        raise ForbiddenException("This order is assigned to another delivery partner")
+
+    task = db.query(DeliveryTask).filter(DeliveryTask.order_id == order.id).first()
+
+    is_picked_up = bool(
+        (task and getattr(task, "pickup_verified", False))
+        or (order.pickup_otp_verified_at is not None)
+        or (order.status in ["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"])
+    )
+
+    if not is_picked_up:
+        raise ForbiddenException(
+            "Customer delivery location is locked. Seller pickup OTP must be verified first."
+        )
+
+    addr_data = None
+    if order.address:
+        addr_data = AddressRead.model_validate(order.address).model_dump()
+
+    cust_lat = float(order.delivery_latitude or (order.address.latitude if order.address else 0)) or None
+    cust_lng = float(order.delivery_longitude or (order.address.longitude if order.address else 0)) or None
+
+    return APIResponse(
+        message="Customer delivery location authorized",
+        data={
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "customer_name": order.customer.name if order.customer else "Customer",
+            "customer_phone": order.customer.phone if order.customer else None,
+            "delivery_address": addr_data,
+            "customer_latitude": cust_lat,
+            "customer_longitude": cust_lng,
+        },
+    )
 
 
 @router.patch("/tasks/{task_id}/status", response_model=APIResponse[bool], summary="Update delivery task status")
