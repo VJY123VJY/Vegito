@@ -118,6 +118,8 @@ def ensure_database_schema(db_engine) -> None:
         with db_engine.begin() as conn:
             # orders columns
             conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_urgent BOOLEAN NOT NULL DEFAULT FALSE;"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_delivery_address TEXT;"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS landmark VARCHAR(255);"))
             conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_otp_hash VARCHAR(255);"))
             conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_otp_expires_at TIMESTAMP WITH TIME ZONE;"))
             conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_otp_attempts INTEGER NOT NULL DEFAULT 0;"))

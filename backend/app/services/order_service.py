@@ -148,10 +148,11 @@ class OrderService:
         seller_dist = LocationService.calculate_distance(cust_lat, cust_lon, s_lat, s_lon)
         is_in_bounds, bounds_msg = LocationService.is_within_delivery_bounds(seller_dist, max_km=15.0)
         if not is_in_bounds:
+            out_msg = f"Sorry, this delivery address is outside our 15 KM delivery area. (Distance: {seller_dist:.1f} km)"
             raise BadRequestException(
-                message=f"Seller is {seller_dist:.1f} km away from your delivery address, which exceeds our 15 km delivery radius.",
+                message=out_msg,
                 code="DELIVERY_OUT_OF_RANGE",
-                details={"distance": seller_dist, "max_distance": 15.0, "message": bounds_msg}
+                details={"distance": seller_dist, "max_distance": 15.0, "message": out_msg}
             )
 
         # Centralized Server-Side Distance-Based Delivery Fee (1–15 KM, >15 KM blocked)
@@ -175,6 +176,8 @@ class OrderService:
         total_amount = round_currency(subtotal + delivery_charge - discount_amount)
         order_number = generate_order_number()
 
+        full_delivery_address = f"{address.address_line1}, {address.address_line2 or ''}, {address.city}, {address.state} - {address.pincode}".replace(", ,", ",").strip()
+
         # Create Order
         order = Order(
             order_number=order_number,
@@ -182,8 +185,10 @@ class OrderService:
             address_id=order_in.address_id,
             seller_id=sp_prof.user_id,
             shop_id=sp_prof.id,
-            delivery_latitude=address.latitude,
-            delivery_longitude=address.longitude,
+            delivery_latitude=Decimal(str(cust_lat)) if cust_lat is not None else address.latitude,
+            delivery_longitude=Decimal(str(cust_lon)) if cust_lon is not None else address.longitude,
+            customer_delivery_address=full_delivery_address,
+            landmark=address.landmark,
             status=OrderStatus.NEW.value,
             payment_method=order_in.payment_method,
             payment_status=PaymentStatus.PENDING.value,
@@ -396,14 +401,20 @@ class OrderService:
 
         if shop_prof:
             detail.shop_name = shop_prof.business_name
-            detail.shop_address = shop_prof.address or "Solapur Fresh Farm Depot"
-            detail.shop_latitude = shop_prof.latitude or Decimal("17.6805")
-            detail.shop_longitude = shop_prof.longitude or Decimal("75.9064")
+            detail.shop_address = shop_prof.address
+            detail.shop_latitude = shop_prof.latitude
+            detail.shop_longitude = shop_prof.longitude
+            if (detail.shop_latitude is None or detail.shop_longitude is None) and order.seller_id:
+                s_lat, s_lng = LocationService.resolve_seller_coordinates(db, order.seller_id, fallback_to_default=False)
+                if s_lat is not None:
+                    detail.shop_latitude = Decimal(str(s_lat))
+                if s_lng is not None:
+                    detail.shop_longitude = Decimal(str(s_lng))
         else:
             detail.shop_name = "Vegito Fresh Farm"
-            detail.shop_address = "Solapur Market Yard"
-            detail.shop_latitude = Decimal("17.6805")
-            detail.shop_longitude = Decimal("75.9064")
+            detail.shop_address = None
+            detail.shop_latitude = None
+            detail.shop_longitude = None
 
         cust_user = db.query(User).filter(User.id == order.customer_id).first()
         detail.customer_name = cust_user.name if cust_user else "Customer"
@@ -452,12 +463,14 @@ class OrderService:
 
             if is_picked_up:
                 # UNLOCKED after pickup verification
+                detail.customer_name = cust_user.name if cust_user else "Customer"
                 detail.address = AddressRead.model_validate(order.address) if order.address else None
-                detail.customer_latitude = order.delivery_latitude or (order.address.latitude if order.address else Decimal("17.6860"))
-                detail.customer_longitude = order.delivery_longitude or (order.address.longitude if order.address else Decimal("75.9120"))
+                detail.customer_latitude = order.delivery_latitude if order.delivery_latitude is not None else (order.address.latitude if order.address else None)
+                detail.customer_longitude = order.delivery_longitude if order.delivery_longitude is not None else (order.address.longitude if order.address else None)
                 detail.customer_phone = cust_user.phone if cust_user else None
             else:
                 # LOCKED / HIDDEN before pickup verification
+                detail.customer_name = None
                 detail.address = None
                 detail.customer_latitude = None
                 detail.customer_longitude = None
@@ -468,8 +481,8 @@ class OrderService:
         elif user.role_id == 1:
             # CUSTOMER: Sees own address and doorstep delivery OTP; NEVER sees pickup OTP
             detail.address = AddressRead.model_validate(order.address) if order.address else None
-            detail.customer_latitude = order.delivery_latitude or (order.address.latitude if order.address else Decimal("17.6860"))
-            detail.customer_longitude = order.delivery_longitude or (order.address.longitude if order.address else Decimal("75.9120"))
+            detail.customer_latitude = order.delivery_latitude if order.delivery_latitude is not None else (order.address.latitude if order.address else None)
+            detail.customer_longitude = order.delivery_longitude if order.delivery_longitude is not None else (order.address.longitude if order.address else None)
             detail.customer_phone = cust_user.phone if cust_user else None
             detail.pickup_otp = None
 

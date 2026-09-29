@@ -77,6 +77,14 @@ def setup_solapur_v1(db: Session):
     db.add_all([shop, delivery_partner, product])
     db.flush()
 
+    loc = DeliveryPartnerLocation(
+        delivery_partner_id=delivery_partner.id,
+        latitude=Decimal("17.7100"),
+        longitude=Decimal("75.9200"),
+    )
+    db.add(loc)
+    db.flush()
+
     seller_product = SellerProduct(
         seller_id=seller_user.id,
         product_id=product.id,

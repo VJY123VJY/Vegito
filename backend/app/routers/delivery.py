@@ -73,15 +73,25 @@ def get_task(
         ))
     )
 
-    cust_name = order.customer.name if (order and order.customer) else "Customer"
+    cust_name = (order.customer.name if (order and order.customer) else "Customer") if is_picked_up else None
     cust_phone = (order.customer.phone if (order and order.customer) else None) if is_picked_up else None
 
     addr_obj = None
     if order and order.address and is_picked_up:
         addr_obj = AddressRead.model_validate(order.address)
 
-    cust_lat = (order.delivery_latitude or (order.address.latitude if order and order.address else None)) if is_picked_up else None
-    cust_lng = (order.delivery_longitude or (order.address.longitude if order and order.address else None)) if is_picked_up else None
+    cust_lat = (order.delivery_latitude if (order and order.delivery_latitude is not None) else (order.address.latitude if (order and order.address) else None)) if is_picked_up else None
+    cust_lng = (order.delivery_longitude if (order and order.delivery_longitude is not None) else (order.address.longitude if (order and order.address) else None)) if is_picked_up else None
+
+    shop_lat = shop.latitude if (shop and shop.latitude is not None) else None
+    shop_lng = shop.longitude if (shop and shop.longitude is not None) else None
+    if (shop_lat is None or shop_lng is None) and order and order.seller_id:
+        from app.services.location_service import LocationService
+        s_lat, s_lng = LocationService.resolve_seller_coordinates(db, order.seller_id, fallback_to_default=False)
+        if s_lat is not None:
+            shop_lat = Decimal(str(s_lat))
+        if s_lng is not None:
+            shop_lng = Decimal(str(s_lng))
 
     read_task = DeliveryTaskRead(
         id=task.id,
@@ -95,8 +105,8 @@ def get_task(
         customer_longitude=cust_lng,
         shop_name=shop.business_name if shop else "Vegito Fresh Farm",
         shop_address=shop.address if shop else "Solapur Market Depot",
-        shop_latitude=shop.latitude if (shop and shop.latitude) else Decimal("17.6805"),
-        shop_longitude=shop.longitude if (shop and shop.longitude) else Decimal("75.9064"),
+        shop_latitude=shop_lat,
+        shop_longitude=shop_lng,
         delivery_partner_id=task.delivery_partner_id,
         status=task.status,
         pickup_otp=None,
@@ -175,8 +185,10 @@ def get_task_customer_location(
     if order.address:
         addr_data = AddressRead.model_validate(order.address).model_dump()
 
-    cust_lat = float(order.delivery_latitude or (order.address.latitude if order.address else 0)) or None
-    cust_lng = float(order.delivery_longitude or (order.address.longitude if order.address else 0)) or None
+    raw_lat = order.delivery_latitude if order.delivery_latitude is not None else (order.address.latitude if order.address else None)
+    cust_lat = float(raw_lat) if raw_lat is not None else None
+    raw_lng = order.delivery_longitude if order.delivery_longitude is not None else (order.address.longitude if order.address else None)
+    cust_lng = float(raw_lng) if raw_lng is not None else None
 
     return APIResponse(
         message="Customer delivery location authorized",
@@ -226,8 +238,10 @@ def get_order_customer_location(
     if order.address:
         addr_data = AddressRead.model_validate(order.address).model_dump()
 
-    cust_lat = float(order.delivery_latitude or (order.address.latitude if order.address else 0)) or None
-    cust_lng = float(order.delivery_longitude or (order.address.longitude if order.address else 0)) or None
+    raw_lat = order.delivery_latitude if order.delivery_latitude is not None else (order.address.latitude if order.address else None)
+    cust_lat = float(raw_lat) if raw_lat is not None else None
+    raw_lng = order.delivery_longitude if order.delivery_longitude is not None else (order.address.longitude if order.address else None)
+    cust_lng = float(raw_lng) if raw_lng is not None else None
 
     return APIResponse(
         message="Customer delivery location authorized",

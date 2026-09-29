@@ -308,17 +308,24 @@ async def delivery_partner_ws(
             if not is_v1_seller and (not partner or order.delivery_partner_id != partner.id):
                 await websocket.send_text(json.dumps({"error": "Forbidden: Not assigned to this order"}))
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-                return
+        partner_id = partner.id if partner else None
+        partner_name = current_user.name or "Delivery Partner"
+        order_status = order.status
+    finally:
+        if should_close:
+            db.rollback()
+            db.close()
 
-        # Acknowledge connection
-        await websocket.send_text(json.dumps({
-            "type": "connection_ack",
-            "status": "connected",
-            "order_id": order_id,
-            "message": "GPS stream ready"
-        }))
+    # Acknowledge connection
+    await websocket.send_text(json.dumps({
+        "type": "connection_ack",
+        "status": "connected",
+        "order_id": order_id,
+        "message": "GPS stream ready"
+    }))
 
-        # Loop receiving GPS frames from Delivery Partner
+    # Loop receiving GPS frames from Delivery Partner
+    try:
         while True:
             raw_data = await websocket.receive_text()
             if raw_data == "ping":
@@ -353,8 +360,8 @@ async def delivery_partner_ws(
                 "accuracy": data.get("accuracy"),
                 "heading": data.get("heading"),
                 "speed": data.get("speed"),
-                "status": order.status,
-                "partner_name": current_user.name or "Delivery Partner",
+                "status": order_status,
+                "partner_name": partner_name,
                 "timestamp": now_iso,
             }
 
@@ -365,29 +372,30 @@ async def delivery_partner_ws(
             await broadcast_order_location(order_id, location_payload)
 
             # Persist latest location to database
-            try:
-                if partner:
-                    partner_loc = DeliveryPartnerLocation(
-                        delivery_partner_id=partner.id,
-                        latitude=Decimal(str(round(lat, 7))),
-                        longitude=Decimal(str(round(lng, 7))),
-                        accuracy_meters=Decimal(str(round(data.get("accuracy", 0), 2))) if data.get("accuracy") is not None else None,
-                        heading=Decimal(str(round(data.get("heading", 0), 2))) if data.get("heading") is not None else None,
-                        speed_kmh=Decimal(str(round(data.get("speed", 0), 2))) if data.get("speed") is not None else None,
-                    )
-                    db.add(partner_loc)
-                    db.commit()
-            except Exception as db_err:
-                logger.warning(f"Error persisting partner GPS location: {db_err}")
-                db.rollback()
+            if partner_id:
+                try:
+                    p_db, p_should_close = get_ws_db()
+                    try:
+                        partner_loc = DeliveryPartnerLocation(
+                            delivery_partner_id=partner_id,
+                            latitude=Decimal(str(round(lat, 7))),
+                            longitude=Decimal(str(round(lng, 7))),
+                            accuracy_meters=Decimal(str(round(data.get("accuracy", 0), 2))) if data.get("accuracy") is not None else None,
+                            heading=Decimal(str(round(data.get("heading", 0), 2))) if data.get("heading") is not None else None,
+                            speed_kmh=Decimal(str(round(data.get("speed", 0), 2))) if data.get("speed") is not None else None,
+                        )
+                        p_db.add(partner_loc)
+                        p_db.commit()
+                    finally:
+                        if p_should_close:
+                            p_db.close()
+                except Exception as db_err:
+                    logger.warning(f"Error persisting partner GPS location: {db_err}")
 
     except WebSocketDisconnect:
         logger.info(f"Delivery partner disconnected for order {order_id}")
     except Exception as e:
         logger.error(f"WebSocket error in delivery_partner_ws: {e}")
-    finally:
-        if should_close:
-            db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -440,11 +448,34 @@ async def customer_tracking_ws(
 
         # 4. Send initial state immediately
         cached_location = ORDER_LOCATION_CACHE.get(order_id)
+        if not cached_location and order.delivery_partner_id and order.status in ["PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"]:
+            db_loc = (
+                db.query(DeliveryPartnerLocation)
+                .filter(DeliveryPartnerLocation.delivery_partner_id == order.delivery_partner_id)
+                .order_by(DeliveryPartnerLocation.recorded_at.desc())
+                .first()
+            )
+            if db_loc:
+                now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                cached_location = {
+                    "type": "location_update",
+                    "order_id": order_id,
+                    "latitude": float(db_loc.latitude),
+                    "longitude": float(db_loc.longitude),
+                    "accuracy": float(db_loc.accuracy_meters) if db_loc.accuracy_meters is not None else None,
+                    "heading": float(db_loc.heading) if db_loc.heading is not None else None,
+                    "speed": float(db_loc.speed_kmh) if db_loc.speed_kmh is not None else None,
+                    "status": order.status,
+                    "partner_name": order.delivery_partner.user.name if (order.delivery_partner and order.delivery_partner.user) else "Delivery Partner",
+                    "timestamp": db_loc.recorded_at.isoformat() if db_loc.recorded_at else now_iso,
+                }
+                ORDER_LOCATION_CACHE[order_id] = cached_location
+
         if cached_location:
             await websocket.send_text(json.dumps(cached_location))
         else:
             # Never substitute the customer's address (or a city default) for
-            # the courier's GPS.  Doing so made the customer marker appear live
+            # the courier's GPS. Doing so made the customer marker appear live
             # before the seller had granted location permission.
             await websocket.send_text(json.dumps({
                 "type": "initial_state",
@@ -454,8 +485,13 @@ async def customer_tracking_ws(
                 "message": "Live location temporarily unavailable.",
                 "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
             }))
+    finally:
+        if should_close:
+            db.rollback()
+            db.close()
 
-        # 5. Keep alive and handle pings
+    # 5. Keep alive and handle pings
+    try:
         while True:
             try:
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
@@ -473,8 +509,6 @@ async def customer_tracking_ws(
         subscribers = CUSTOMER_SUBSCRIBERS.get(order_id, [])
         if websocket in subscribers:
             subscribers.remove(websocket)
-        if should_close:
-            db.close()
 
 
 # ---------------------------------------------------------------------------

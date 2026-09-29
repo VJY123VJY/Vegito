@@ -47,11 +47,11 @@ def setup_flow_data(db):
     # In single partner V1: make other partners unavailable
     db.query(DeliveryPartner).filter(DeliveryPartner.id != partner.id).update({"is_available": False})
 
-    # Partner GPS location at shop (1.0 km)
+    # Partner GPS location (~3.5 km from shop)
     loc = DeliveryPartnerLocation(
         delivery_partner_id=partner.id,
-        latitude=Decimal("17.6810"),
-        longitude=Decimal("75.9070"),
+        latitude=Decimal("17.7100"),
+        longitude=Decimal("75.9200"),
     )
     db.add(loc)
 

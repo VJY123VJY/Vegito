@@ -18,6 +18,8 @@ class Order(Base):
     shop_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("seller_profiles.id"), nullable=True, index=True)
     delivery_latitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 7), nullable=True)
     delivery_longitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 7), nullable=True)
+    customer_delivery_address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    landmark: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="NEW", nullable=False, index=True)
     pickup_otp: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     pickup_otp_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

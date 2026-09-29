@@ -57,11 +57,11 @@ def test_full_order_seller_delivery_customer_flow_and_concurrency(client: TestCl
     # In V1 single delivery partner setup: ensure only this test partner is available
     db.query(DeliveryPartner).filter(DeliveryPartner.id != partner.id).update({"is_available": False})
 
-    # Partner initial GPS location: right outside shop (0.02 km)
+    # Partner initial GPS location: ~3.58 km from seller shop (within 1-15 km boundary)
     loc = DeliveryPartnerLocation(
         delivery_partner_id=partner.id,
-        latitude=Decimal("17.6806"),
-        longitude=Decimal("75.9065"),
+        latitude=Decimal("17.7100"),
+        longitude=Decimal("75.9200"),
         accuracy_meters=Decimal("5.00"),
     )
     db.add(loc)

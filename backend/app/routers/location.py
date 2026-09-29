@@ -25,6 +25,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.delivery_task import DeliveryTask
 from app.models.delivery_partner import DeliveryPartner
+from app.models.delivery_partner_location import DeliveryPartnerLocation
 from app.core.constants import DeliveryTaskStatus
 from app.schemas.common import APIResponse
 
@@ -132,12 +133,32 @@ async def update_location(
     response_model=APIResponse[Optional[LocationResponse]],
     summary="Get the last known location for a delivery task",
 )
-def get_current_location(task_id: int):
+def get_current_location(task_id: int, db: Session = Depends(get_db)):
     """
     Returns the last known GPS position for a task.
     Used by customer on initial page load before WebSocket connects.
     """
     loc = LOCATION_STORE.get(task_id)
+    if not loc:
+        task = db.query(DeliveryTask).filter(DeliveryTask.id == task_id).first()
+        if task and task.delivery_partner_id:
+            db_loc = (
+                db.query(DeliveryPartnerLocation)
+                .filter(DeliveryPartnerLocation.delivery_partner_id == task.delivery_partner_id)
+                .order_by(DeliveryPartnerLocation.recorded_at.desc())
+                .first()
+            )
+            if db_loc:
+                loc = {
+                    "lat": float(db_loc.latitude),
+                    "lng": float(db_loc.longitude),
+                    "accuracy": float(db_loc.accuracy_meters) if db_loc.accuracy_meters is not None else None,
+                    "ts": db_loc.recorded_at.isoformat() if db_loc.recorded_at else datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "partner_name": task.delivery_partner.user.name if (task.delivery_partner and task.delivery_partner.user) else "Delivery Partner",
+                    "task_id": task_id,
+                }
+                LOCATION_STORE[task_id] = loc
+
     if not loc:
         return APIResponse(data=None, message="No location data available yet")
     return APIResponse(data=LocationResponse(**{k: loc[k] for k in LocationResponse.model_fields if k in loc}))
@@ -157,9 +178,38 @@ async def websocket_track(task_id: int, websocket: WebSocket):
     LOCATION_SUBSCRIBERS[task_id].append(websocket)
 
     try:
-        # Send last known location immediately
-        if task_id in LOCATION_STORE:
-            await websocket.send_text(json.dumps(LOCATION_STORE[task_id]))
+        # Check cache or DB for last known location immediately
+        loc = LOCATION_STORE.get(task_id)
+        if not loc:
+            try:
+                db_gen = get_db()
+                db = next(db_gen)
+                try:
+                    task = db.query(DeliveryTask).filter(DeliveryTask.id == task_id).first()
+                    if task and task.delivery_partner_id:
+                        db_loc = (
+                            db.query(DeliveryPartnerLocation)
+                            .filter(DeliveryPartnerLocation.delivery_partner_id == task.delivery_partner_id)
+                            .order_by(DeliveryPartnerLocation.recorded_at.desc())
+                            .first()
+                        )
+                        if db_loc:
+                            loc = {
+                                "lat": float(db_loc.latitude),
+                                "lng": float(db_loc.longitude),
+                                "accuracy": float(db_loc.accuracy_meters) if db_loc.accuracy_meters is not None else None,
+                                "ts": db_loc.recorded_at.isoformat() if db_loc.recorded_at else datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                                "partner_name": task.delivery_partner.user.name if (task.delivery_partner and task.delivery_partner.user) else "Delivery Partner",
+                                "task_id": task_id,
+                            }
+                            LOCATION_STORE[task_id] = loc
+                finally:
+                    db.close()
+            except Exception as e:
+                pass
+
+        if loc:
+            await websocket.send_text(json.dumps(loc))
         else:
             await websocket.send_text(json.dumps({"status": "waiting", "message": "Waiting for partner location..."}))
 

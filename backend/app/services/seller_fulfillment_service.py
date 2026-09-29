@@ -169,7 +169,6 @@ class SellerFulfillmentService:
             try:
                 from app.models.delivery_task import DeliveryTask
                 from app.services.delivery_service import DeliveryService
-                from app.services.notification_service import NotificationService
                 from app.models.seller_profile import SellerProfile
 
                 # Idempotent: only create task if one doesn't exist yet

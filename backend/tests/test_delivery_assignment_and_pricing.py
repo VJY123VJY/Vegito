@@ -172,8 +172,8 @@ def test_seller_ready_assigns_partner_and_enforces_concurrency(client: TestClien
 
     # Rider busy location: 0.5 km from shop
     loc_busy = DeliveryPartnerLocation(delivery_partner_id=p_busy.id, latitude=Decimal("17.6840"), longitude=Decimal("75.9064"))
-    # Rider free location: 1.0 km from shop
-    loc_free = DeliveryPartnerLocation(delivery_partner_id=p_free.id, latitude=Decimal("17.6890"), longitude=Decimal("75.9064"))
+    # Rider free location: ~2.16 km from shop (>= 1.0 km)
+    loc_free = DeliveryPartnerLocation(delivery_partner_id=p_free.id, latitude=Decimal("17.7000"), longitude=Decimal("75.9064"))
     db.add_all([loc_busy, loc_free])
 
     # Address

@@ -22,6 +22,7 @@ from app.schemas.delivery import DeliveryTaskRead, DeliveryBatchCreate, Delivery
 from app.schemas.address import AddressRead
 from app.utils.pagination import PaginationParams
 from app.services.notification_service import NotificationService
+from app.services.location_service import LocationService
 from app.config import settings
 
 
@@ -210,6 +211,18 @@ class DeliveryService:
                 float(loc.latitude), float(loc.longitude), float(shop_lat), float(shop_lng)
             )
 
+            is_eligible = (dist_km >= min_radius and dist_km <= max_radius)
+            logger.info(
+                f"[DELIVERY_ASSIGNMENT]\n"
+                f"Order: {order_ref}\n"
+                f"Seller: {order.seller_id}\n"
+                f"Seller Location: {shop_lat}, {shop_lng}\n"
+                f"Partner: {partner.id}\n"
+                f"Partner Location: {loc.latitude}, {loc.longitude}\n"
+                f"Distance: {dist_km:.2f} KM\n"
+                f"Eligible: {is_eligible}"
+            )
+
             # 5. Strict 1–15 km range check
             if dist_km < min_radius:
                 logger.info(
@@ -223,9 +236,6 @@ class DeliveryService:
                 )
                 continue
 
-            logger.info(
-                f"[DELIVERY ASSIGNMENT] Partner: {partner.id} Distance: {dist_km:.2f} km Available: True Eligible: True"
-            )
             eligible_partners.append((partner, dist_km))
 
         if not eligible_partners:
@@ -321,15 +331,24 @@ class DeliveryService:
                 ))
             )
 
-            cust_name = order.customer.name if (order and order.customer) else "Customer"
+            cust_name = (order.customer.name if (order and order.customer) else "Customer") if is_picked_up else None
             cust_phone = (order.customer.phone if (order and order.customer) else None) if is_picked_up else None
 
             addr_obj = None
             if order and order.address and is_picked_up:
                 addr_obj = AddressRead.model_validate(order.address)
 
-            cust_lat = (order.delivery_latitude or (order.address.latitude if order and order.address else None)) if is_picked_up else None
-            cust_lng = (order.delivery_longitude or (order.address.longitude if order and order.address else None)) if is_picked_up else None
+            cust_lat = (order.delivery_latitude if (order and order.delivery_latitude is not None) else (order.address.latitude if (order and order.address) else None)) if is_picked_up else None
+            cust_lng = (order.delivery_longitude if (order and order.delivery_longitude is not None) else (order.address.longitude if (order and order.address) else None)) if is_picked_up else None
+
+            shop_lat = shop.latitude if (shop and shop.latitude is not None) else None
+            shop_lng = shop.longitude if (shop and shop.longitude is not None) else None
+            if (shop_lat is None or shop_lng is None) and order and order.seller_id:
+                s_lat, s_lng = LocationService.resolve_seller_coordinates(db, order.seller_id, fallback_to_default=False)
+                if s_lat is not None:
+                    shop_lat = Decimal(str(s_lat))
+                if s_lng is not None:
+                    shop_lng = Decimal(str(s_lng))
 
             results.append(
                 DeliveryTaskRead(
@@ -344,8 +363,8 @@ class DeliveryService:
                     customer_longitude=cust_lng,
                     shop_name=shop.business_name if shop else "Vegito Fresh Farm",
                     shop_address=shop.address if shop else "Solapur Market Depot",
-                    shop_latitude=shop.latitude if (shop and shop.latitude) else Decimal("17.6805"),
-                    shop_longitude=shop.longitude if (shop and shop.longitude) else Decimal("75.9064"),
+                    shop_latitude=shop_lat,
+                    shop_longitude=shop_lng,
                     delivery_partner_id=t.delivery_partner_id,
                     status=t.status,
                     pickup_otp=None,  # Delivery partner must obtain pickup code verbally from seller at shop
@@ -530,8 +549,10 @@ class DeliveryService:
         if order.address:
             addr_data = AddressRead.model_validate(order.address).model_dump()
 
-        cust_lat = float(order.delivery_latitude or (order.address.latitude if order.address else 0)) or None
-        cust_lng = float(order.delivery_longitude or (order.address.longitude if order.address else 0)) or None
+        raw_lat = order.delivery_latitude if order.delivery_latitude is not None else (order.address.latitude if order.address else None)
+        cust_lat = float(raw_lat) if raw_lat is not None else None
+        raw_lng = order.delivery_longitude if order.delivery_longitude is not None else (order.address.longitude if order.address else None)
+        cust_lng = float(raw_lng) if raw_lng is not None else None
 
         return {
             "message": "OTP Verified",
