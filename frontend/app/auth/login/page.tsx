@@ -24,6 +24,9 @@ import {
   verifyLoginOtp,
   saveSession,
   getRoleRedirectPath,
+  getStoredUserName,
+  getStoredRole,
+  clearSession,
   type AuthRole,
 } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/client";
@@ -116,6 +119,17 @@ function LoginContent() {
   const [quickLoadingRole, setQuickLoadingRole] = useState<LoginRole | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
+  const [alreadyLoggedInUser, setAlreadyLoggedInUser] = useState<string | null>(null);
+  const [alreadyLoggedInRole, setAlreadyLoggedInRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const user = getStoredUserName();
+    const r = getStoredRole();
+    if (user && r) {
+      setAlreadyLoggedInUser(user);
+      setAlreadyLoggedInRole(r);
+    }
+  }, []);
 
   useEffect(() => {
     if (queryRole && ROLE_META[queryRole]) {
@@ -336,6 +350,53 @@ function LoginContent() {
             Select your account type to continue
           </p>
         </div>
+
+        {/* Active Session Notice with 1-click Sign Out */}
+        {alreadyLoggedInUser && (
+          <div
+            style={{
+              padding: "12px 14px",
+              backgroundColor: "#fef3c7",
+              border: "1px solid #fde68a",
+              borderRadius: "14px",
+              marginBottom: "20px",
+              fontSize: "12.5px",
+              color: "#92400e",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "10px",
+            }}
+          >
+            <div>
+              <span>Currently signed in as </span>
+              <strong>{alreadyLoggedInUser}</strong>
+              <span style={{ opacity: 0.85 }}> ({alreadyLoggedInRole})</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                clearSession();
+                setAlreadyLoggedInUser(null);
+                setAlreadyLoggedInRole(null);
+                setInfoMsg("Signed out. Please enter credentials for your new account.");
+              }}
+              style={{
+                backgroundColor: "#ffffff",
+                border: "1px solid #d97706",
+                color: "#b45309",
+                borderRadius: "8px",
+                padding: "4px 10px",
+                fontSize: "11px",
+                fontWeight: 800,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        )}
 
         {/* Prominent Role Selector Cards (2x2 Grid) */}
         <div style={{ marginBottom: "22px" }}>

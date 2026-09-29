@@ -25,6 +25,9 @@ import {
   Star,
   Mic,
   Languages,
+  LogOut,
+  ChevronDown,
+  ExternalLink,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCategories, ApiCategory } from "@/lib/api/categories";
@@ -35,6 +38,7 @@ import {
   isLoggedIn,
   getStoredRole,
   getStoredUserName,
+  getStoredPhone,
   clearSession,
   getRoleRedirectPath,
   getMe,
@@ -112,7 +116,29 @@ export function PublicHome() {
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState("Solapur Central Mandi · 413001");
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = React.useRef<HTMLDivElement>(null);
   const { language, setLanguage, t } = useTranslation();
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = () => {
+    clearSession();
+    setRole(null);
+    setUserName("");
+    setUserMenuOpen(false);
+    queryClient.clear();
+    setToast({ type: "success", text: "Signed out successfully." });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const token = getAuthToken();
@@ -326,6 +352,93 @@ export function PublicHome() {
         overflowX: "hidden",
       }}
     >
+      {/* ── ROLE ALERT BANNER FOR NON-CUSTOMER ROLES ── */}
+      {role && role !== "CUSTOMER" && (
+        <div
+          style={{
+            backgroundColor:
+              role === "SELLER"
+                ? "#fff7ed"
+                : role === "DELIVERY_PARTNER"
+                ? "#eff6ff"
+                : "#f5f3ff",
+            borderBottom: `1px solid ${
+              role === "SELLER"
+                ? "#fed7aa"
+                : role === "DELIVERY_PARTNER"
+                ? "#bfdbfe"
+                : "#ddd6fe"
+            }`,
+            color:
+              role === "SELLER"
+                ? "#c2410c"
+                : role === "DELIVERY_PARTNER"
+                ? "#1d4ed8"
+                : "#6d28d9",
+            padding: "10px 18px",
+            fontSize: "13px",
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "10px",
+            position: "relative",
+            zIndex: 110,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "16px" }}>
+              {role === "SELLER" ? "🏪" : role === "DELIVERY_PARTNER" ? "🚚" : "🛡️"}
+            </span>
+            <span>
+              Signed in as <strong>{userName || role}</strong> ({role.replace("_", " ")}). This page is the customer store.
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <Link
+              href={getRoleRedirectPath(role)}
+              style={{
+                backgroundColor:
+                  role === "SELLER"
+                    ? "#ea580c"
+                    : role === "DELIVERY_PARTNER"
+                    ? "#2563eb"
+                    : "#7c3aed",
+                color: "#ffffff",
+                padding: "6px 14px",
+                borderRadius: "10px",
+                fontSize: "12px",
+                fontWeight: 800,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              <span>Go to {role === "SELLER" ? "Seller Dashboard" : role === "DELIVERY_PARTNER" ? "Delivery Console" : "Admin HQ"}</span>
+              <ArrowRight size={13} />
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                backgroundColor: "#ffffff",
+                border: "1px solid currentColor",
+                color: "inherit",
+                padding: "5px 12px",
+                borderRadius: "10px",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Log Out
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── 1. TOP HEADER & LOCATION ─────────────────────────────── */}
       <header
         style={{
@@ -492,29 +605,245 @@ export function PublicHome() {
               )}
             </Link>
 
-            {/* User Profile or Login */}
+            {/* User Profile Dropdown or Login */}
             {role ? (
-              <Link
-                href={getRoleRedirectPath(role)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "14px",
-                  backgroundColor: "#e9f6ee",
-                  color: "#16835b",
-                  border: "1px solid #c7e3d2",
-                  fontSize: "13px",
-                  fontWeight: 800,
-                  textDecoration: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
-              >
-                <User size={15} />
-                <span className="hidden-mobile">
-                  {userName ? userName.split(" ")[0] : "Dashboard"}
-                </span>
-              </Link>
+              <div ref={userMenuRef} style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  onClick={() => setUserMenuOpen((prev) => !prev)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "14px",
+                    backgroundColor:
+                      role === "SELLER"
+                        ? "#fff7ed"
+                        : role === "DELIVERY_PARTNER"
+                        ? "#eff6ff"
+                        : role === "ADMIN"
+                        ? "#f5f3ff"
+                        : "#e9f6ee",
+                    color:
+                      role === "SELLER"
+                        ? "#c2410c"
+                        : role === "DELIVERY_PARTNER"
+                        ? "#1d4ed8"
+                        : role === "ADMIN"
+                        ? "#6d28d9"
+                        : "#16835b",
+                    border: `1px solid ${
+                      role === "SELLER"
+                        ? "#fed7aa"
+                        : role === "DELIVERY_PARTNER"
+                        ? "#bfdbfe"
+                        : role === "ADMIN"
+                        ? "#ddd6fe"
+                        : "#c7e3d2"
+                    }`,
+                    fontSize: "13px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <User size={15} />
+                  <span className="hidden-mobile">
+                    {userName ? userName.split(" ")[0] : "Account"}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      padding: "1px 6px",
+                      borderRadius: "6px",
+                      backgroundColor:
+                        role === "SELLER"
+                          ? "#fed7aa"
+                          : role === "DELIVERY_PARTNER"
+                          ? "#bfdbfe"
+                          : role === "ADMIN"
+                          ? "#ddd6fe"
+                          : "#d1fae5",
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {role === "SELLER" ? "Seller" : role === "DELIVERY_PARTNER" ? "Rider" : role === "ADMIN" ? "Admin" : "User"}
+                  </span>
+                  <ChevronDown size={14} style={{ transform: userMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {userMenuOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 8px)",
+                      right: 0,
+                      width: "260px",
+                      backgroundColor: "#ffffff",
+                      borderRadius: "16px",
+                      boxShadow: "0 10px 30px rgba(6, 60, 50, 0.15)",
+                      border: "1px solid #e1ebe3",
+                      padding: "12px",
+                      zIndex: 1000,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                    }}
+                  >
+                    {/* User Info Header */}
+                    <div style={{ padding: "8px 10px", borderBottom: "1px solid #f0f4f1", marginBottom: "4px" }}>
+                      <div style={{ fontSize: "14px", fontWeight: 800, color: "#063c32" }}>
+                        {userName || "Logged-in User"}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#62746a", marginTop: "2px" }}>
+                        {getStoredPhone() || "Signed In"}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: "6px",
+                          display: "inline-block",
+                          padding: "2px 8px",
+                          borderRadius: "6px",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          backgroundColor:
+                            role === "SELLER"
+                              ? "#fff7ed"
+                              : role === "DELIVERY_PARTNER"
+                              ? "#eff6ff"
+                              : role === "ADMIN"
+                              ? "#f5f3ff"
+                              : "#ecfdf5",
+                          color:
+                            role === "SELLER"
+                              ? "#c2410c"
+                              : role === "DELIVERY_PARTNER"
+                              ? "#1d4ed8"
+                              : role === "ADMIN"
+                              ? "#6d28d9"
+                              : "#065f46",
+                          border: `1px solid ${
+                            role === "SELLER"
+                              ? "#fed7aa"
+                              : role === "DELIVERY_PARTNER"
+                              ? "#bfdbfe"
+                              : role === "ADMIN"
+                              ? "#ddd6fe"
+                              : "#a7f3d0"
+                          }`,
+                        }}
+                      >
+                        {role === "SELLER"
+                          ? "🏪 Seller (Store Owner)"
+                          : role === "DELIVERY_PARTNER"
+                          ? "🚚 Delivery Partner"
+                          : role === "ADMIN"
+                          ? "🛡️ Platform Admin"
+                          : "👤 Customer"}
+                      </div>
+                    </div>
+
+                    {/* Navigation Link to Dashboard */}
+                    <Link
+                      href={getRoleRedirectPath(role)}
+                      onClick={() => setUserMenuOpen(false)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "8px 10px",
+                        borderRadius: "10px",
+                        backgroundColor: "#f2f8f4",
+                        color: "#063c32",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        textDecoration: "none",
+                      }}
+                    >
+                      <span>
+                        {role === "SELLER"
+                          ? "🏪 Seller Dashboard"
+                          : role === "DELIVERY_PARTNER"
+                          ? "🚚 Delivery Console"
+                          : role === "ADMIN"
+                          ? "🛡️ Admin Panel"
+                          : "📦 Customer Orders"}
+                      </span>
+                      <ChevronRight size={15} />
+                    </Link>
+
+                    {role === "CUSTOMER" && (
+                      <Link
+                        href="/customer/profile"
+                        onClick={() => setUserMenuOpen(false)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "8px 10px",
+                          borderRadius: "10px",
+                          color: "#374151",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          textDecoration: "none",
+                        }}
+                      >
+                        <span>Profile & Settings</span>
+                        <ChevronRight size={15} />
+                      </Link>
+                    )}
+
+                    <div style={{ height: "1px", backgroundColor: "#f0f4f1", margin: "4px 0" }} />
+
+                    {/* Switch Account */}
+                    <Link
+                      href="/auth/login"
+                      onClick={() => setUserMenuOpen(false)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "8px 10px",
+                        borderRadius: "10px",
+                        color: "#4b5563",
+                        fontSize: "12.5px",
+                        fontWeight: 600,
+                        textDecoration: "none",
+                      }}
+                    >
+                      <RotateCcw size={14} />
+                      <span>Switch Account / Sign In</span>
+                    </Link>
+
+                    {/* Sign Out Button */}
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "8px 10px",
+                        borderRadius: "10px",
+                        backgroundColor: "#fef2f2",
+                        border: "1px solid #fee2e2",
+                        color: "#dc2626",
+                        fontSize: "12.5px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        width: "100%",
+                        textAlign: "left",
+                      }}
+                    >
+                      <LogOut size={14} />
+                      <span>Log Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <Link
                 href="/auth/login"

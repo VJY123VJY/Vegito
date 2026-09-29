@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Search, Menu, X, PanelLeftClose, PanelLeft, MapPin } from "lucide-react";
+import { Bell, Search, Menu, X, PanelLeftClose, PanelLeft, MapPin, LogOut, User, Settings, Home, RotateCcw } from "lucide-react";
 import { clearSession } from "@/lib/api/auth";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { useTranslation } from "@/context/i18n-context";
@@ -49,12 +49,30 @@ export function DashboardHeader({
   onCollapseToggle,
   sidebarCollapsed = false,
 }: DashboardHeaderProps) {
+  const router = useRouter();
   const { t } = useTranslation();
   const initial = userName.trim().charAt(0).toUpperCase() || "V";
   const badge = role ? ROLE_BADGES[role] : null;
 
   const [locModalOpen, setLocModalOpen] = useState(false);
   const [selectedLoc, setSelectedLoc] = useState("Solapur Central Mandi · 413001");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = () => {
+    clearSession();
+    router.replace("/auth/login");
+  };
 
   useEffect(() => {
     const saved = getStoredLocation();
@@ -228,24 +246,156 @@ export function DashboardHeader({
             />
           </button>
 
-          {/* Avatar */}
-          <div
-            style={{
-              width: "38px",
-              height: "38px",
-              borderRadius: "12px",
-              backgroundColor: "var(--vegito-primary)",
-              color: "#ffffff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 800,
-              fontSize: "14px",
-              flexShrink: 0,
-              boxShadow: "0 4px 10px rgba(10, 77, 60, 0.2)",
-            }}
-          >
-            {initial}
+          {/* Avatar & User Dropdown */}
+          <div ref={userMenuRef} style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => setUserMenuOpen((prev) => !prev)}
+              aria-label="User profile and settings"
+              style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "12px",
+                backgroundColor: "var(--vegito-primary)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 800,
+                fontSize: "14px",
+                flexShrink: 0,
+                boxShadow: "0 4px 10px rgba(10, 77, 60, 0.2)",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              {initial}
+            </button>
+
+            {/* Dropdown Menu */}
+            {userMenuOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 8px)",
+                  right: 0,
+                  width: "240px",
+                  backgroundColor: "#ffffff",
+                  borderRadius: "16px",
+                  boxShadow: "0 10px 30px rgba(6, 60, 50, 0.15)",
+                  border: "1px solid var(--vegito-border, #e1ebe3)",
+                  padding: "12px",
+                  zIndex: 1000,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px",
+                }}
+              >
+                {/* Header */}
+                <div style={{ padding: "6px 8px", borderBottom: "1px solid #f0f4f1", marginBottom: "4px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 800, color: "var(--vegito-primary, #063c32)" }}>
+                    {userName}
+                  </div>
+                  {badge && (
+                    <div
+                      style={{
+                        marginTop: "4px",
+                        display: "inline-block",
+                        padding: "2px 8px",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        backgroundColor: badge.bg,
+                        color: badge.color,
+                        border: `1px solid ${badge.border}`,
+                      }}
+                    >
+                      {badge.label}
+                    </div>
+                  )}
+                </div>
+
+                {/* Consumer store link */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    router.push("/");
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 10px",
+                    borderRadius: "10px",
+                    backgroundColor: "transparent",
+                    border: "none",
+                    color: "#374151",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    width: "100%",
+                  }}
+                >
+                  <Home size={15} color="#059669" />
+                  <span>Public Storefront</span>
+                </button>
+
+                {/* Settings link */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    router.push(`/${role ?? "customer"}/settings`);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 10px",
+                    borderRadius: "10px",
+                    backgroundColor: "transparent",
+                    border: "none",
+                    color: "#374151",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    width: "100%",
+                  }}
+                >
+                  <Settings size={15} color="#6b7280" />
+                  <span>Account Settings</span>
+                </button>
+
+                <div style={{ height: "1px", backgroundColor: "#f0f4f1", margin: "4px 0" }} />
+
+                {/* Log Out */}
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 10px",
+                    borderRadius: "10px",
+                    backgroundColor: "#fef2f2",
+                    border: "1px solid #fee2e2",
+                    color: "#dc2626",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    width: "100%",
+                  }}
+                >
+                  <LogOut size={15} />
+                  <span>Log Out</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
