@@ -12,6 +12,7 @@ from app.schemas.seller import (
 from app.schemas.product import ProductRead
 from app.schemas.common import APIResponse
 from app.services.seller_service import SellerService
+from app.services.freshness_service import FreshnessService
 
 router = APIRouter(prefix="/seller/products", tags=["Seller Products"])
 
@@ -24,8 +25,11 @@ def list_seller_products(
     results = []
     for sp in seller_products:
         read_obj = SellerProductRead.model_validate(sp)
+        read_obj.freshness = FreshnessService.calculate(sp, sp.product)
         if sp.product:
-            read_obj.product = ProductRead.model_validate(sp.product)
+            p_read = ProductRead.model_validate(sp.product)
+            p_read.freshness = read_obj.freshness
+            read_obj.product = p_read
         results.append(read_obj)
     return APIResponse(data=results)
 
@@ -38,8 +42,11 @@ def add_seller_product(
 ):
     sp = SellerService.add_product(db, current_user, payload)
     read_obj = SellerProductRead.model_validate(sp)
+    read_obj.freshness = FreshnessService.calculate(sp, sp.product)
     if sp.product:
-        read_obj.product = ProductRead.model_validate(sp.product)
+        p_read = ProductRead.model_validate(sp.product)
+        p_read.freshness = read_obj.freshness
+        read_obj.product = p_read
     return APIResponse(message="Product added to your store", data=read_obj)
 
 
@@ -52,8 +59,11 @@ def update_seller_product(
 ):
     sp = SellerService.update_product(db, current_user, seller_product_id, payload)
     read_obj = SellerProductRead.model_validate(sp)
+    read_obj.freshness = FreshnessService.calculate(sp, sp.product)
     if sp.product:
-        read_obj.product = ProductRead.model_validate(sp.product)
+        p_read = ProductRead.model_validate(sp.product)
+        p_read.freshness = read_obj.freshness
+        read_obj.product = p_read
     return APIResponse(message="Product listing updated", data=read_obj)
 
 

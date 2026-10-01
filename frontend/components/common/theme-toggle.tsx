@@ -1,25 +1,23 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Sun, Moon } from "lucide-react";
-import { useTheme } from "@/context/theme-context";
+import { Sun, Moon, Laptop } from "lucide-react";
+import { useTheme, type Theme } from "@/context/theme-context";
 
 interface ThemeToggleProps {
-  variant?: "pill" | "icon" | "full";
+  variant?: "pill" | "icon" | "full" | "dropdown";
   className?: string;
 }
 
 export function ThemeToggle({ variant = "pill", className = "" }: ThemeToggleProps) {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, resolvedTheme, toggleTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // During SSR / before hydration, read from data-theme attribute if present
-  // Show a skeleton button that matches the correct size so layout doesn't shift
-  const isDark = mounted ? theme === "dark" : false;
+  const isDark = mounted ? resolvedTheme === "dark" : false;
 
   const buttonBase: React.CSSProperties = {
     display: "inline-flex",
@@ -40,10 +38,10 @@ export function ThemeToggle({ variant = "pill", className = "" }: ThemeTogglePro
         className={className}
         style={{
           ...buttonBase,
-          width: "36px",
-          height: "36px",
-          borderRadius: "10px",
-          backgroundColor: "var(--vegito-surface, #ffffff)",
+          width: "38px",
+          height: "38px",
+          borderRadius: "12px",
+          backgroundColor: "var(--vegito-card, var(--vegito-surface, #ffffff))",
           color: isDark ? "#fbbf24" : "#4b5563",
           justifyContent: "center",
           padding: "0",
@@ -58,18 +56,19 @@ export function ThemeToggle({ variant = "pill", className = "" }: ThemeTogglePro
     <button
       type="button"
       onClick={toggleTheme}
-      aria-label="Toggle Theme"
+      aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      title={`Current: ${theme.toUpperCase()} (${resolvedTheme} mode). Click to toggle.`}
       className={className}
       style={{
         ...buttonBase,
         padding: "6px 13px",
         borderRadius: "999px",
-        backgroundColor: "var(--vegito-surface, #ffffff)",
-        color: "var(--vegito-text, #142e2b)",
+        backgroundColor: "var(--vegito-card, var(--vegito-surface, #ffffff))",
+        color: "var(--vegito-text-main, #142e2b)",
         fontSize: "12.5px",
         fontWeight: 600,
-        boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
-        minWidth: "80px",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+        minWidth: "86px",
         justifyContent: "center",
       }}
     >
@@ -86,10 +85,9 @@ export function ThemeToggle({ variant = "pill", className = "" }: ThemeTogglePro
           </>
         )
       ) : (
-        /* Show a neutral placeholder while hydrating — same size, not blank */
         <>
           <Moon size={14} color="#64748b" />
-          <span>🌙 Dark</span>
+          <span>🌙 Theme</span>
         </>
       )}
     </button>

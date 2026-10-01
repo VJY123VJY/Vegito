@@ -45,6 +45,9 @@ from app.routers.admin_sellers import router as admin_sellers_router
 from app.routers.admin_delivery import router as admin_delivery_router
 from app.routers.promotions import router as promotions_router
 from app.routers.websocket_tracking import router as websocket_tracking_router
+from app.routers.catalogue import router as catalogue_router
+from app.routers.b2b import router as b2b_router
+from app.routers.seller_bulk_orders import router as seller_bulk_orders_router
 
 
 # ---------------------------------------------------------------------------
@@ -293,6 +296,21 @@ app.include_router(
 
 app.include_router(
     admin_delivery_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    catalogue_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    b2b_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    seller_bulk_orders_router,
     prefix=API_PREFIX,
 )
 

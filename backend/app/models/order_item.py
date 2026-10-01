@@ -19,6 +19,9 @@ class OrderItem(Base):
     quantity: Mapped[Decimal] = mapped_column(Numeric(10, 3), nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    quoted_unit_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    quoted_subtotal: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    seller_notes: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now(), nullable=False)
 
     # Relationships

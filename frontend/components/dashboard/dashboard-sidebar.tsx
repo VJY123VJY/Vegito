@@ -33,6 +33,7 @@ import {
   Wheat,
   HandshakeIcon,
   BarChart3,
+  Building2,
 } from "lucide-react";
 import { clearSession } from "@/lib/api/auth";
 
@@ -47,6 +48,7 @@ interface NavItem {
 
 const CUSTOMER_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/customer", icon: <LayoutDashboard size={18} /> },
+  { label: "B2B Bulk Orders", href: "/customer/b2b", icon: <Building2 size={18} />, badge: "Mandi" },
   { label: "Browse Vegetables", href: "/products", icon: <ShoppingBasket size={18} /> },
   { label: "My Orders", href: "/customer/orders", icon: <ClipboardList size={18} /> },
   { label: "Favorites", href: "/customer/favorites", icon: <Heart size={18} /> },
@@ -59,6 +61,7 @@ const CUSTOMER_ITEMS: NavItem[] = [
 
 const SELLER_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/seller", icon: <LayoutDashboard size={18} /> },
+  { label: "B2B Bulk Orders", href: "/seller/bulk-orders", icon: <Building2 size={18} /> },
   { label: "Products", href: "/seller/products", icon: <Package size={18} /> },
   { label: "Orders", href: "/seller/orders", icon: <ClipboardList size={18} /> },
   { label: "Inventory", href: "/seller/inventory", icon: <Layers size={18} /> },

@@ -52,7 +52,7 @@ export function ProductCard({
   const [isPressing, setIsPressing] = useState(false);
 
   const favorites = useQuery({
-    queryKey: ["favorites"],
+    queryKey: ["customer-favorites"],
     queryFn: listFavorites,
     enabled: role === "CUSTOMER",
     staleTime: 60_000,
@@ -67,6 +67,7 @@ export function ProductCard({
 
   const offer = product.seller_products?.[0];
   const available = product.is_in_stock && (offer?.is_available ?? true);
+  const freshness = offer?.freshness;
   const price = offer?.price != null ? Number(offer.price) : product.min_price != null ? Number(product.min_price) : null;
   const imageUrl = getProductPhoto(product);
   const sellerName = offer?.seller_business_name || "Solapur Local Farm";
@@ -105,9 +106,9 @@ export function ProductCard({
         onClick={() => setDetailOpen(true)}
         className="vegito-product-card"
         style={{
-          backgroundColor: "#ffffff",
+          backgroundColor: "var(--vegito-card, #ffffff)",
           borderRadius: "22px",
-          border: "1px solid #e8eee9",
+          border: "1px solid var(--vegito-border, #e8eee9)",
           overflow: "hidden",
           boxShadow: isPressing
             ? "0 4px 12px rgba(6, 60, 50, 0.08)"
@@ -130,7 +131,7 @@ export function ProductCard({
             position: "relative",
             width: "100%",
             paddingTop: "80%", // 5:4 aspect ratio
-            backgroundColor: "#f4f7f4",
+            backgroundColor: "var(--vegito-surface-muted, #f4f7f4)",
             overflow: "hidden",
           }}
         >
@@ -168,9 +169,13 @@ export function ProductCard({
               letterSpacing: "0.02em",
             }}
           >
-            {available ? (
+            {freshness ? (
               <>
-                <span style={{ color: "#34d399" }}>●</span> Fresh Today
+                <span style={{ color: freshness.color }}>●</span> {freshness.score}% {freshness.status}
+              </>
+            ) : available ? (
+              <>
+                <span style={{ color: "#34d399" }}>●</span> Available
               </>
             ) : (
               "Sold Out"
@@ -228,7 +233,7 @@ export function ProductCard({
                 margin: "0 0 2px",
                 fontSize: "15px",
                 fontWeight: 800,
-                color: "#063c32",
+                color: "var(--vegito-text-main, #063c32)",
                 lineHeight: 1.25,
                 display: "-webkit-box",
                 WebkitLineClamp: 1,
@@ -241,14 +246,26 @@ export function ProductCard({
 
             <p
               style={{
-                margin: "0 0 10px",
+                margin: "0 0 6px",
                 fontSize: "12px",
-                color: "#62746a",
+                color: "var(--vegito-text-muted, #62746a)",
                 fontWeight: 600,
               }}
             >
               {sellerName} · {product.unit}
             </p>
+
+            {freshness && (
+              <div style={{ marginBottom: "10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10.5px", fontWeight: 700, color: freshness.color, marginBottom: "3px" }}>
+                  <span>● {freshness.score}% Fresh</span>
+                  <span style={{ fontSize: "10px", opacity: 0.9 }}>{freshness.status}</span>
+                </div>
+                <div style={{ width: "100%", height: "4px", backgroundColor: "rgba(0,0,0,0.06)", borderRadius: "2px", overflow: "hidden" }}>
+                  <div style={{ width: `${freshness.score}%`, height: "100%", backgroundColor: freshness.color, borderRadius: "2px" }} />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Price & Action Row */}
@@ -263,15 +280,15 @@ export function ProductCard({
             <div>
               {price != null ? (
                 <div style={{ display: "flex", alignItems: "baseline", gap: "2px" }}>
-                  <span style={{ fontSize: "17px", fontWeight: 800, color: "#063c32" }}>
+                  <span style={{ fontSize: "17px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
                     ₹{price}
                   </span>
-                  <span style={{ fontSize: "11px", color: "#62746a", fontWeight: 600 }}>
+                  <span style={{ fontSize: "11px", color: "var(--vegito-text-muted, #62746a)", fontWeight: 600 }}>
                     /{product.unit}
                   </span>
                 </div>
               ) : (
-                <span style={{ fontSize: "12.5px", color: "#62746a", fontStyle: "italic" }}>
+                <span style={{ fontSize: "12.5px", color: "var(--vegito-text-muted, #62746a)", fontStyle: "italic" }}>
                   Price soon
                 </span>
               )}
@@ -285,7 +302,7 @@ export function ProductCard({
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    backgroundColor: "#063c32",
+                    backgroundColor: "var(--vegito-primary, #063c32)",
                     borderRadius: "12px",
                     padding: "2px",
                     boxShadow: "0 4px 12px rgba(6, 60, 50, 0.2)",
@@ -350,9 +367,9 @@ export function ProductCard({
                     height: "34px",
                     padding: "0 14px",
                     borderRadius: "12px",
-                    backgroundColor: available ? "#e9f6ee" : "#f1f5f2",
-                    color: available ? "#16835b" : "#899b90",
-                    border: available ? "1.5px solid #16835b" : "1px solid #d4ded7",
+                    backgroundColor: available ? "var(--vegito-surface-muted, #e9f6ee)" : "rgba(0,0,0,0.06)",
+                    color: available ? "var(--vegito-primary, #16835b)" : "var(--vegito-text-muted, #899b90)",
+                    border: available ? "1.5px solid var(--vegito-primary, #16835b)" : "1px solid var(--vegito-border, #d4ded7)",
                     fontSize: "12.5px",
                     fontWeight: 800,
                     display: "flex",

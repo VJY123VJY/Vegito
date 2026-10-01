@@ -18,9 +18,13 @@ export type Address = {
 
 export type AddressInput = Omit<Address, "id" | "user_id" | "is_default"> & { is_default?: boolean };
 
-export async function listAddresses() {
+export async function fetchAddresses() {
   const { data } = await api.get<ApiEnvelope<Address[]>>("/addresses");
   return data.data ?? [];
+}
+
+export async function listAddresses() {
+  return fetchAddresses();
 }
 
 export async function createAddress(payload: AddressInput) {

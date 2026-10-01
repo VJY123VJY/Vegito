@@ -128,6 +128,12 @@ class SellerService:
                 existing.stock_quantity = product_in.stock_quantity
                 existing.minimum_order_quantity = product_in.minimum_order_quantity
                 existing.is_available = product_in.is_available
+                if product_in.added_date: existing.added_date = product_in.added_date
+                if product_in.added_time: existing.added_time = product_in.added_time
+                if product_in.harvest_date: existing.harvest_date = product_in.harvest_date
+                if product_in.harvest_time: existing.harvest_time = product_in.harvest_time
+                if product_in.storage_condition: existing.storage_condition = product_in.storage_condition
+                if product_in.origin: existing.origin = product_in.origin
                 inv = db.query(Inventory).filter(Inventory.seller_product_id == existing.id).first()
                 if inv:
                     inv.quantity = product_in.stock_quantity
@@ -138,13 +144,19 @@ class SellerService:
                 return existing
 
             seller_product = SellerProduct(
-            seller_id=user.id,
-            product_id=target_product_id,
-            price=product_in.price,
-            stock_quantity=product_in.stock_quantity,
-            minimum_order_quantity=product_in.minimum_order_quantity,
-            is_available=product_in.is_available,
-        )
+                seller_id=user.id,
+                product_id=target_product_id,
+                price=product_in.price,
+                stock_quantity=product_in.stock_quantity,
+                minimum_order_quantity=product_in.minimum_order_quantity,
+                is_available=product_in.is_available,
+                added_date=product_in.added_date or datetime.date.today(),
+                added_time=product_in.added_time or datetime.datetime.now().time(),
+                harvest_date=product_in.harvest_date,
+                harvest_time=product_in.harvest_time,
+                storage_condition=product_in.storage_condition,
+                origin=product_in.origin or "Solapur Local Farm",
+            )
             db.add(seller_product)
             db.flush()
 

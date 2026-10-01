@@ -1,24 +1,24 @@
-.page { min-height: 100vh; color: #18322d; background: #f5f7f2; }
+.page { min-height: 100vh; color: var(--vegito-text-main, #18322d); background: var(--vegito-bg, #f5f7f2); }
 .page :global(.simple-page) { width: min(100%, 1180px); margin: 0 auto; padding: 32px 20px 100px; }
 .page :global(.customer-header) { max-width: 1180px; padding: 18px 20px 12px; }
 .page :global(.top-row) { min-height: 48px; }
-.page :global(.search-box), .page :global(.shop-search) { border-color: #dfe7de; background: #fff; box-shadow: 0 4px 14px rgba(24, 50, 45, .04); }
-.page :global(.simple-page h1) { margin: 0 0 22px; color: #18322d; font: 600 clamp(30px, 5vw, 46px)/1.05 "DM Sans", sans-serif; letter-spacing: -1.7px; }
-.page :global(.back-link) { color: #6b7771; }
+.page :global(.search-box), .page :global(.shop-search) { border-color: var(--vegito-border, #dfe7de); background: var(--vegito-card, #fff); box-shadow: 0 4px 14px rgba(24, 50, 45, .04); color: var(--vegito-text-main, #18322d); }
+.page :global(.simple-page h1) { margin: 0 0 22px; color: var(--vegito-text-main, #18322d); font: 600 clamp(30px, 5vw, 46px)/1.05 "DM Sans", sans-serif; letter-spacing: -1.7px; }
+.page :global(.back-link) { color: var(--vegito-text-muted, #6b7771); }
 .page :global(.cart-page) { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 18px; align-content: start; }
 .page :global(.cart-page > h1), .page :global(.cart-page > .back-link) { grid-column: 1 / -1; }
 .page :global(.cart-items), .page :global(.order-list) { gap: 12px; }
-.page :global(.cart-item), .page :global(.order-card), .page :global(.checkout-panel), .page :global(.cart-total) { border-color: #dfe7de; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px rgba(24, 50, 45, .05); }
+.page :global(.cart-item), .page :global(.order-card), .page :global(.checkout-panel), .page :global(.cart-total) { border-color: var(--vegito-border, #dfe7de); border-radius: 16px; background: var(--vegito-card, #fff); color: var(--vegito-text-main, #18322d); box-shadow: 0 8px 24px rgba(24, 50, 45, .05); }
 .page :global(.cart-item) { min-height: 86px; padding: 16px; }
-.page :global(.mini-art) { background: #eaf4e8; }
-.page :global(.cart-actions button) { width: 38px; height: 38px; border-radius: 10px; background: #eaf4e8; }
-.page :global(.cart-actions .remove) { background: #fff1ed; }
+.page :global(.mini-art) { background: var(--vegito-surface-muted, #eaf4e8); }
+.page :global(.cart-actions button) { width: 38px; height: 38px; border-radius: 10px; background: var(--vegito-surface-muted, #eaf4e8); color: var(--vegito-text-main, #18322d); }
+.page :global(.cart-actions .remove) { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
 .page :global(.cart-total) { align-self: start; gap: 14px; padding: 22px; position: sticky; top: 20px; }
-.page :global(.cart-total .primary-action), .page :global(.checkout-panel .primary-action) { min-height: 50px; border-radius: 11px; background: #1d6b4f; }
-.page :global(.empty-inline), .page :global(.inline-message) { border-color: #dfe7de; border-radius: 16px; background: #fff; }
+.page :global(.cart-total .primary-action), .page :global(.checkout-panel .primary-action) { min-height: 50px; border-radius: 11px; background: var(--vegito-primary, #1d6b4f); color: #fff; }
+.page :global(.empty-inline), .page :global(.inline-message) { border-color: var(--vegito-border, #dfe7de); border-radius: 16px; background: var(--vegito-card, #fff); color: var(--vegito-text-main, #18322d); }
 .page :global(.order-card) { min-height: 76px; transition: transform 180ms ease, box-shadow 180ms ease; }.page :global(.order-card:hover) { transform: translateY(-2px); box-shadow: 0 14px 28px rgba(24, 50, 45, .09); }
-.page :global(.checkout-panel) { padding: 24px; }.page :global(.checkout-panel h2) { color: #18322d; font-family: "DM Sans", sans-serif; font-weight: 700; }
-.page :global(.address-option) { border-color: #dfe7de; background: #fbfdf9; }.page :global(.address-option.selected) { border-color: #1d6b4f; background: #eaf4e8; box-shadow: 0 0 0 3px rgba(29,107,79,.08); }
-.page :global(.timeline-step.active span) { background: #1d6b4f; border-color: #1d6b4f; }.page :global(.status-badge) { background: #eaf4e8; color: #1d6b4f; }
-.page :global(.otp-card) { background: #18322d; border-radius: 16px; }.page :global(.form-error) { padding: 12px 14px; border-radius: 10px; background: #fff1ed; }
+.page :global(.checkout-panel) { padding: 24px; }.page :global(.checkout-panel h2) { color: var(--vegito-text-main, #18322d); font-family: "DM Sans", sans-serif; font-weight: 700; }
+.page :global(.address-option) { border-color: var(--vegito-border, #dfe7de); background: var(--vegito-card, #fbfdf9); color: var(--vegito-text-main, #18322d); }.page :global(.address-option.selected) { border-color: var(--vegito-primary, #1d6b4f); background: var(--vegito-surface-muted, #eaf4e8); box-shadow: 0 0 0 3px rgba(29,107,79,.08); }
+.page :global(.timeline-step.active span) { background: var(--vegito-primary, #1d6b4f); border-color: var(--vegito-primary, #1d6b4f); }.page :global(.status-badge) { background: var(--vegito-surface-muted, #eaf4e8); color: var(--vegito-primary, #1d6b4f); }
+.page :global(.otp-card) { background: var(--vegito-surface-muted, #18322d); border-radius: 16px; }.page :global(.form-error) { padding: 12px 14px; border-radius: 10px; background: rgba(239, 68, 68, 0.12); color: #ef4444; }
 @media (max-width: 760px) { .page :global(.simple-page) { padding: 20px 14px calc(88px + env(safe-area-inset-bottom, 0px)); }.page :global(.simple-page h1) { font-size: 25px; letter-spacing: -.5px; }.page :global(.cart-page) { display: block; }.page :global(.cart-total) { position: static; margin-top: 16px; }.page :global(.cart-item) { display: grid; grid-template-columns: auto minmax(0, 1fr); padding: 12px; }.page :global(.cart-actions) { grid-column: 2; justify-content: flex-start; }.page :global(.cart-actions button) { width: 44px; height: 44px; }.page :global(.timeline) { overflow-x: auto; grid-template-columns: repeat(6, minmax(70px, 1fr)); padding-bottom: 4px; }.page :global(.order-card) { grid-template-columns: auto minmax(0, 1fr) auto; }.page :global(.checkout-panel) { padding: 16px; }.page :global(input), .page :global(select), .page :global(textarea) { min-height: 46px; font-size: 16px; } }

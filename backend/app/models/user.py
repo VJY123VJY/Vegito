@@ -26,6 +26,9 @@ class User(Base):
     customer_profile: Mapped[Optional["CustomerProfile"]] = relationship(
         "CustomerProfile", back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
+    business_profile: Mapped[Optional["BusinessProfile"]] = relationship(
+        "BusinessProfile", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
     seller_profile: Mapped[Optional["SellerProfile"]] = relationship(
         "SellerProfile", back_populates="user", uselist=False, foreign_keys="SellerProfile.user_id"
     )

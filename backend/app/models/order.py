@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 from typing import Optional, List
-from sqlalchemy import BigInteger, String, Numeric, Text, DateTime, ForeignKey, func, Boolean, Integer
+from sqlalchemy import BigInteger, String, Numeric, Text, DateTime, Date, ForeignKey, func, Boolean, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -11,7 +11,9 @@ class Order(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     order_number: Mapped[str] = mapped_column(String(30), unique=True, nullable=False, index=True)
+    order_type: Mapped[str] = mapped_column(String(20), default="RETAIL", nullable=False, index=True)
     customer_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
+    business_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("business_profiles.id", ondelete="SET NULL"), nullable=True, index=True)
     address_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("addresses.id"), nullable=False)
     seller_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=True, index=True)
     delivery_partner_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("delivery_partners.id"), nullable=True, index=True)
@@ -39,6 +41,15 @@ class Order(Base):
     customer_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     placed_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now(), nullable=False)
     is_urgent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    requested_delivery_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True, index=True)
+    requested_delivery_window: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    quote_total: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    quote_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    quote_delivery_fee: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    quote_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True, index=True)
+    quote_sent_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    quote_expires_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
     accepted_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     packed_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     ready_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
@@ -68,4 +79,6 @@ class Order(Base):
     seller_fulfillments: Mapped[List["SellerOrderFulfillment"]] = relationship(
         "SellerOrderFulfillment", back_populates="order", cascade="all, delete-orphan"
     )
+    business: Mapped[Optional["BusinessProfile"]] = relationship("BusinessProfile", back_populates="orders")
+    b2b_invoice: Mapped[Optional["B2BInvoice"]] = relationship("B2BInvoice", back_populates="order", uselist=False)
 

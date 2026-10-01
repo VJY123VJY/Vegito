@@ -13,6 +13,8 @@ class Product(Base):
     name: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     unit: Mapped[str] = mapped_column(String(30), nullable=False)  # kg, 500g, bundle, piece
+    shelf_life_days: Mapped[Optional[int]] = mapped_column(Integer, default=7, nullable=True)
+    freshness_category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now(), nullable=False)
     updated_at: Mapped[datetime.datetime] = mapped_column(

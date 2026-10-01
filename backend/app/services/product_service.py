@@ -24,6 +24,7 @@ from app.schemas.product import (
 
 from app.core.exceptions import NotFoundException, ConflictException
 from app.utils.pagination import PaginationParams
+from app.services.freshness_service import FreshnessService
 
 
 class ProductService:
@@ -165,9 +166,11 @@ class ProductService:
             )
 
         if category_id:
-            query = query.filter(
-                Product.category_id == category_id
-            )
+            if category_id == 1:
+                # Category 1 is Vegetables; include general vegetables (1), leafy (3), and root (4)
+                query = query.filter(Product.category_id.in_([1, 3, 4]))
+            else:
+                query = query.filter(Product.category_id == category_id)
 
         if search:
             query = query.filter(
@@ -269,6 +272,8 @@ class ProductService:
                         else Decimal("4.80")
                     )
 
+                    freshness_info = FreshnessService.calculate(sp, p)
+
                     offers.append(
                         ProductSellerOffer(
                             seller_product_id=sp.id,
@@ -281,6 +286,13 @@ class ProductService:
                                 sp.minimum_order_quantity
                             ),
                             is_available=sp.is_available,
+                            added_date=getattr(sp, "added_date", None),
+                            added_time=getattr(sp, "added_time", None),
+                            harvest_date=getattr(sp, "harvest_date", None),
+                            harvest_time=getattr(sp, "harvest_time", None),
+                            storage_condition=getattr(sp, "storage_condition", None),
+                            origin=getattr(sp, "origin", None),
+                            freshness=freshness_info,
                         )
                     )
 
@@ -297,6 +309,10 @@ class ProductService:
             read_obj.min_price = min_price
             read_obj.is_in_stock = is_in_stock
             read_obj.seller_products = offers
+
+            if offers:
+                best_offer = next((o for o in offers if o.is_available and o.stock_quantity > 0), offers[0])
+                read_obj.freshness = best_offer.freshness
 
             result.append(read_obj)
 
@@ -383,6 +399,8 @@ class ProductService:
                     else Decimal("4.80")
                 )
 
+                freshness_info = FreshnessService.calculate(sp, product)
+
                 offers.append(
                     ProductSellerOffer(
                         seller_product_id=sp.id,
@@ -395,6 +413,13 @@ class ProductService:
                             sp.minimum_order_quantity
                         ),
                         is_available=sp.is_available,
+                        added_date=getattr(sp, "added_date", None),
+                        added_time=getattr(sp, "added_time", None),
+                        harvest_date=getattr(sp, "harvest_date", None),
+                        harvest_time=getattr(sp, "harvest_time", None),
+                        storage_condition=getattr(sp, "storage_condition", None),
+                        origin=getattr(sp, "origin", None),
+                        freshness=freshness_info,
                     )
                 )
 
@@ -408,6 +433,10 @@ class ProductService:
 
         read_obj.is_in_stock = total_stock > 0
         read_obj.seller_products = offers
+
+        if offers:
+            best_offer = next((o for o in offers if o.is_available and o.stock_quantity > 0), offers[0])
+            read_obj.freshness = best_offer.freshness
 
         return read_obj
 

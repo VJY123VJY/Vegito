@@ -15,10 +15,15 @@
 
   /* Neutral scale */
   --vegito-bg: #f8faf7;
+  --vegito-background: #f8faf7;
   --vegito-surface: #ffffff;
+  --vegito-card: #ffffff;
+  --vegito-surface-muted: #f0f4f1;
   --vegito-border: #e8eee9;
   --vegito-text-main: #12221e;
+  --vegito-text: #12221e;
   --vegito-text-muted: #62746a;
+  --vegito-muted: #62746a;
 
   /* Elevation */
   --shadow-premium: 0 8px 30px rgba(10, 77, 60, 0.04), 0 4px 12px rgba(0, 0, 0, 0.02);
@@ -111,7 +116,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
    DARK MODE THEME SYSTEM
    ========================================================= */
 
-[data-theme="dark"] {
+[data-theme="dark"],
+.dark {
   /* Brand */
   --vegito-primary: #10b981;
   --vegito-primary-dark: #059669;
@@ -124,14 +130,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
   /* Deep charcoal/green dark background & surfaces */
   --vegito-background: #0d1512;
+  --vegito-bg: #0d1512;
   --vegito-background-soft: #141f1b;
   --vegito-surface: #182620;
+  --vegito-card: #182620;
   --vegito-surface-muted: #1e3028;
 
   /* Text */
   --vegito-text: #f0fdf4;
+  --vegito-text-main: #f0fdf4;
   --vegito-text-soft: #d1fae5;
   --vegito-muted: #94a3b8;
+  --vegito-text-muted: #94a3b8;
   --vegito-placeholder: #64748b;
 
   /* Status */
@@ -158,7 +168,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   --shadow-lg: 0 25px 70px rgba(0, 0, 0, 0.65);
 }
 
-[data-theme="dark"] body {
+[data-theme="dark"] body,
+.dark body {
   background:
     radial-gradient(
       circle at 10% 0%,

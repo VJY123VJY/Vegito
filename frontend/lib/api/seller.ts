@@ -43,6 +43,8 @@ export async function updateFulfillmentStatus(fulfillmentId: number, status: str
   return data.data;
 }
 
+import type { FreshnessInfo } from "./products";
+
 export type SellerProductItem = {
   id: number;
   seller_id: number;
@@ -56,12 +58,20 @@ export type SellerProductItem = {
   stock_quantity: number | string;
   minimum_order_quantity: number | string;
   is_available: boolean;
+  added_date?: string | null;
+  added_time?: string | null;
+  harvest_date?: string | null;
+  harvest_time?: string | null;
+  origin?: string | null;
+  storage_condition?: string | null;
+  freshness?: FreshnessInfo | null;
   product?: {
     id: number;
     name: string;
     unit: string;
     description?: string | null;
     images?: { image_url: string; is_primary: boolean }[];
+    freshness?: FreshnessInfo | null;
   };
 };
 
@@ -76,6 +86,12 @@ export type AddProductInput = {
   is_available?: boolean;
   description?: string;
   image_url?: string;
+  added_date?: string;
+  added_time?: string;
+  harvest_date?: string;
+  harvest_time?: string;
+  storage_condition?: string;
+  origin?: string;
 };
 
 export async function listSellerProducts() {

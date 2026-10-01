@@ -1,219 +1,140 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  ShoppingCart,
-  Heart,
-  Package,
-  ChevronRight,
-  Sparkles,
-  CheckCircle2,
-  Truck,
-  XCircle,
-  Plus,
-  Minus,
-  Search,
-  RotateCcw,
-  MapPin,
-  Clock,
-  ArrowRight,
-  Check,
-  AlertCircle,
-  Home,
-  User,
-} from "lucide-react";
-import { getCategories, Category } from "@/lib/api/categories";
-import { getCart, addCartItem, updateCartItem, removeCartItem } from "@/lib/api/cart";
-import { listOrders, getOrder, reorder, Order } from "@/lib/api/orders";
-import { getProducts, ApiProduct } from "@/lib/api/products";
-import { listFavorites, addFavorite, removeFavorite } from "@/lib/api/favorites";
+import { ArrowRight, Heart, MapPin, Package, ShoppingBasket, Sparkles, Truck, UserRound } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getCategories } from "@/lib/api/categories";
+import { addCartItem, getCart, removeCartItem, updateCartItem } from "@/lib/api/cart";
+import { getOrder, listOrders, Order, reorder } from "@/lib/api/orders";
+import { getProducts } from "@/lib/api/products";
+import { listFavorites } from "@/lib/api/favorites";
 import { getStoredUserName } from "@/lib/api/auth";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { StatusBadge } from "@/components/dashboard/status-badge";
-import { CustomerLocationMap } from "@/components/map/customer-location-map";
 import { AddressSelector } from "@/components/customer/address-selector";
-import { RoleGuard } from "@/components/role/role-guard";
-import { getErrorMessage } from "@/lib/api/client";
 import { CustomerInsights } from "@/components/customer/customer-insights";
+import { SmartBasket } from "@/components/customer/smart-basket";
+import { ProductCard } from "@/components/product/product-card";
+import { CustomerLocationMap } from "@/components/map/customer-location-map";
 import { OrderComplaintModal } from "@/components/order/order-complaint-modal";
 import { DeliveryReviewModal } from "@/components/order/delivery-review-modal";
+import { RoleGuard } from "@/components/role/role-guard";
+import { StatusBadge } from "@/components/dashboard/status-badge";
+import { getErrorMessage } from "@/lib/api/client";
+import { useTranslation } from "@/context/i18n-context";
+import styles from "@/styles/customer-dashboard.module.css";
 
-const VEGGIE_EMOJIS: Record<string, string> = {
-  "Leafy Vegetables": "🥬",
-  "Tomatoes": "🍅",
-  "Potatoes": "🥔",
-  "Onions": "🧅",
-  "Carrots": "🥕",
-  "Spinach": "🥬",
-  "Cabbage": "🥦",
-  "Gourds": "🥒",
-  "Root Vegetables": "🥕",
-};
+const ACTIVE_STATUSES = ["PENDING", "NEW", "ACCEPTED", "CONFIRMED", "PACKING", "READY", "OUT_FOR_DELIVERY"];
+const ORDER_STEPS = ["Confirmed", "Packing", "Ready", "Out for delivery", "Delivered"];
 
-function vegEmoji(name: string) {
-  for (const [k, v] of Object.entries(VEGGIE_EMOJIS)) {
-    if (name.toLowerCase().includes(k.toLowerCase())) return v;
-  }
+function getGreeting(name: string) {
+  const hour = new Date().getHours();
+  const period = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : hour < 21 ? "Good evening" : "Good night";
+  return `${period}, ${name || "there"}`;
+}
+
+function categoryEmoji(name: string) {
+  const value = name.toLowerCase();
+  if (value.includes("fruit")) return "🍎";
+  if (value.includes("leaf")) return "🥬";
+  if (value.includes("root")) return "🥕";
+  if (value.includes("spice")) return "🌶️";
   return "🥦";
 }
 
-function getTimeGreeting(name: string) {
-  const hour = new Date().getHours();
-  if (hour < 12) return `Good morning, ${name}`;
-  if (hour < 17) return `Good afternoon, ${name}`;
-  return `Good evening, ${name}`;
+function activeStep(status: string) {
+  if (["DELIVERED", "COMPLETED"].includes(status)) return 4;
+  if (status === "OUT_FOR_DELIVERY") return 3;
+  if (status === "READY") return 2;
+  if (status === "PACKING") return 1;
+  return 0;
 }
 
-const ACTIVE_STATUSES = ["PENDING", "NEW", "ACCEPTED", "CONFIRMED", "PACKING", "READY", "OUT_FOR_DELIVERY"];
-
 export function CustomerHome() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [userName, setUserName] = useState("Customer");
+  const [userName, setUserName] = useState("");
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [feedbackToast, setFeedbackToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [complaintOrder, setComplaintOrder] = useState<Order | null>(null);
   const [reviewOrder, setReviewOrder] = useState<Order | null>(null);
 
-  useEffect(() => {
-    setUserName(getStoredUserName());
-  }, []);
+  useEffect(() => setUserName(getStoredUserName()), []);
 
   const categories = useQuery({ queryKey: ["categories"], queryFn: getCategories });
   const cart = useQuery({ queryKey: ["cart"], queryFn: getCart });
   const orders = useQuery({ queryKey: ["customer-orders"], queryFn: () => listOrders() });
+  const favorites = useQuery({ queryKey: ["customer-favorites"], queryFn: listFavorites });
   const products = useQuery({
     queryKey: ["customer-products", selectedCategoryId, searchQuery],
-    queryFn: () =>
-      getProducts({
-        categoryId: selectedCategoryId || undefined,
-        search: searchQuery.trim() || undefined,
-        pageSize: 24,
-      }),
+    queryFn: () => getProducts({ categoryId: selectedCategoryId || undefined, search: searchQuery.trim() || undefined, pageSize: 24 }),
   });
-  const favorites = useQuery({ queryKey: ["customer-favorites"], queryFn: listFavorites });
 
   const orderList = orders.data?.items ?? [];
-  const totalOrdersCount = orders.data?.meta?.total_items ?? orderList.length;
-  const deliveredCount = orderList.filter((o) => o.status === "DELIVERED" || o.status === "COMPLETED").length;
-  const outForDeliveryCount = orderList.filter((o) => o.status === "OUT_FOR_DELIVERY").length;
-  const cancelledCount = orderList.filter((o) => o.status === "CANCELLED" || o.status === "REJECTED").length;
+  const activeOrder = orderList.find((order) => ACTIVE_STATUSES.includes(order.status));
+  const cartItems = cart.data?.items ?? [];
+  const cartCount = cart.data?.total_items_count ?? cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const favoriteCount = favorites.data?.length ?? 0;
 
-  // Active order: find latest non-delivered/non-cancelled order
-  const activeOrder = orderList.find((o) => ACTIVE_STATUSES.includes(o.status));
-
-  // Details for map if out for delivery
   const activeOrderDetail = useQuery({
-    queryKey: ["order-detail", activeOrder?.id],
-    queryFn: () => getOrder(String(activeOrder!.id)),
+    queryKey: ["customer-order-detail", activeOrder?.id],
+    queryFn: () => getOrder(activeOrder!.id),
     enabled: Boolean(activeOrder?.id && activeOrder.status === "OUT_FOR_DELIVERY"),
     refetchInterval: 10000,
   });
 
-  // Cart total items
-  const cartItems = cart.data?.items ?? [];
-  const cartItemCount = cart.data?.total_items_count ?? cartItems.reduce((acc, it) => acc + it.quantity, 0);
-  const cartTotalAmount = cart.data?.total_amount ?? cart.data?.subtotal ?? 0;
+  const showToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 2800);
+  };
 
-  // Mutations
-  const addCartMut = useMutation({
+  const addMutation = useMutation({
     mutationFn: (sellerProductId: number) => addCartItem(sellerProductId, 1),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cart"] });
-      setFeedbackToast({ type: "success", text: "Vegetable added to your basket!" });
-      setTimeout(() => setFeedbackToast(null), 2500);
+      showToast(t("customer.addedToCart", "Added to your basket"));
     },
-    onError: (err) => {
-      setFeedbackToast({ type: "error", text: getErrorMessage(err) });
-      setTimeout(() => setFeedbackToast(null), 3000);
-    },
+    onError: (error) => showToast(getErrorMessage(error)),
   });
 
-  const updateCartMut = useMutation({
+  const updateMutation = useMutation({
     mutationFn: ({ itemId, quantity }: { itemId: number; quantity: number }) =>
-      updateCartItem(itemId, quantity),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
-    },
-    onError: (err) => {
-      setFeedbackToast({ type: "error", text: getErrorMessage(err) });
-      setTimeout(() => setFeedbackToast(null), 3000);
-    },
+      quantity > 0 ? updateCartItem(itemId, quantity) : removeCartItem(itemId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cart"] }),
+    onError: (error) => showToast(getErrorMessage(error)),
   });
 
-  const removeCartMut = useMutation({
-    mutationFn: (itemId: number) => removeCartItem(itemId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
-    },
-    onError: (err) => {
-      setFeedbackToast({ type: "error", text: getErrorMessage(err) });
-      setTimeout(() => setFeedbackToast(null), 3000);
-    },
-  });
-
-  const favAddMut = useMutation({
-    mutationFn: (productId: number) => addFavorite(productId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customer-favorites"] });
-    },
-  });
-
-  const favRemoveMut = useMutation({
-    mutationFn: (productId: number) => removeFavorite(productId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customer-favorites"] });
-    },
-  });
-
-  const reorderMut = useMutation({
+  const reorderMutation = useMutation({
     mutationFn: (orderId: number) => reorder(orderId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cart"] });
-      setFeedbackToast({ type: "success", text: "Items added to basket! Ready for checkout." });
-      setTimeout(() => setFeedbackToast(null), 3000);
+      showToast(t("customer.repeatItems", "Available items added to your basket"));
     },
-    onError: (err) => {
-      setFeedbackToast({ type: "error", text: getErrorMessage(err) });
-      setTimeout(() => setFeedbackToast(null), 3000);
-    },
+    onError: (error) => showToast(getErrorMessage(error)),
   });
 
-  const favoriteIds = useMemo(() => {
-    return new Set((favorites.data ?? []).map((f) => f.product_id));
-  }, [favorites.data]);
+  const availableProducts = useMemo(() => products.data?.items ?? [], [products.data?.items]);
 
-  const toggleFavorite = (productId: number) => {
-    if (favoriteIds.has(productId)) {
-      favRemoveMut.mutate(productId);
-    } else {
-      favAddMut.mutate(productId);
-    }
+  const productQuantity = (productId: number) => {
+    const offerIds = availableProducts.find((p) => p.id === productId)?.seller_products.map((offer) => offer.seller_product_id) ?? [];
+    return cartItems.find((item) => offerIds.includes(item.seller_product_id))?.quantity ?? 0;
   };
 
-  const getActiveStepIndex = (status: string) => {
-    switch (status) {
-      case "PENDING":
-      case "NEW":
-      case "ACCEPTED":
-      case "CONFIRMED":
-        return 0;
-      case "PACKING":
-        return 1;
-      case "READY":
-        return 2;
-      case "OUT_FOR_DELIVERY":
-        return 3;
-      case "DELIVERED":
-      case "COMPLETED":
-        return 4;
-      default:
-        return 0;
-    }
+  const changeProductQuantity = (productId: number, quantity: number) => {
+    const offerIds = availableProducts.find((p) => p.id === productId)?.seller_products.map((offer) => offer.seller_product_id) ?? [];
+    const item = cartItems.find((cartItem) => offerIds.includes(cartItem.seller_product_id));
+    if (item) updateMutation.mutate({ itemId: item.id, quantity });
+  };
+
+  const getCategoryTitle = (name: string) => {
+    const lower = name.toLowerCase();
+    if (lower === "vegetables") return t("categories.vegetables", "Vegetables");
+    if (lower === "fruits") return t("categories.fruits", "Fruits");
+    if (lower.includes("leafy")) return t("categories.leafy", "Leafy Vegetables");
+    if (lower.includes("root")) return t("categories.root", "Root Vegetables");
+    return name;
   };
 
   return (
@@ -222,1310 +143,331 @@ export function CustomerHome() {
         role="customer"
         userName={userName}
         userRole="Customer"
-        greeting={getTimeGreeting(userName)}
-        subtitle="Fresh vegetables, straight from Solapur farms"
-        searchPlaceholder="Search fresh vegetables, tomatoes, greens..."
-        onSearchChange={(q) => setSearchQuery(q)}
+        greeting={getGreeting(userName)}
+        subtitle={t("customer.realStock", "Fresh vegetables, fruits and groceries from local sellers")}
+        searchPlaceholder={t("customer.searchVeg", "Search vegetables, fruits & groceries...")}
+        onSearchChange={setSearchQuery}
       >
-        {/* Feedback Toast — position:fixed, overlays everything */}
-        {feedbackToast && (
-          <div
-            style={{
-              position: "fixed",
-              bottom: "84px",
-              right: "24px",
-              zIndex: 500,
-              backgroundColor: feedbackToast.type === "success" ? "#063c32" : "#dc2626",
-              color: "#ffffff",
-              padding: "12px 20px",
-              borderRadius: "14px",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              fontSize: "13.5px",
-              fontWeight: 700,
-            }}
-          >
-            {feedbackToast.type === "success" ? <Check size={18} /> : <AlertCircle size={18} />}
-            <span>{feedbackToast.text}</span>
-            {feedbackToast.type === "success" && (
-              <Link
-                href="/customer/cart"
-                style={{
-                  color: "#a7f3d0",
-                  textDecoration: "underline",
-                  marginLeft: "6px",
-                  fontSize: "13px",
-                }}
-              >
-                View Cart
-              </Link>
-            )}
-          </div>
-        )}
+        <div className={styles.dashboard}>
+          <div className={styles.shell}>
+            <section className={styles.hero} aria-labelledby="customer-hero-title">
+              <div className={styles.heroCopy}>
+                <p className={styles.eyebrow}>
+                  <Sparkles size={14} /> {t("customer.farmToKitchen", "Farm to kitchen, with care")}
+                </p>
+                <h1 id="customer-hero-title">
+                  {t("customer.heroHeading", "Fresh choices for the way you cook.")}
+                </h1>
+                <p>
+                  {t("customer.heroSub", "Browse today's real stock from local sellers, then let Vegito bring it home.")}
+                </p>
+              </div>
+              <div className={styles.heroArt} aria-hidden="true">🥬🍅</div>
+            </section>
 
-        {/* Delivery Address Selector */}
-            <AddressSelector
-              selectedAddressId={selectedAddressId}
-              onSelectAddress={(addr) => setSelectedAddressId(addr.id)}
-            />
-
-            {/* Greeting & Subtitle */}
-            <div style={{ marginBottom: "20px" }}>
-              <h2 style={{ margin: "0 0 4px", fontSize: "24px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
-                {getTimeGreeting(userName)} 👋
-              </h2>
-              <p style={{ margin: 0, fontSize: "14px", color: "var(--vegito-text-muted, #62746a)" }}>
-                Fresh vegetables, better life. Straight from local farmers to your kitchen.
-              </p>
+            <div className={styles.location}>
+              <AddressSelector
+                selectedAddressId={selectedAddressId}
+                onSelectAddress={(address) => setSelectedAddressId(address.id)}
+              />
             </div>
 
-            {/* Quick Actions Shortcuts */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                gap: "12px",
-                marginBottom: "24px",
-              }}
-            >
-              {[
-                { label: "My Orders", href: "/customer/orders", icon: "📦", count: totalOrdersCount },
-                { label: "My Addresses", href: "/customer/addresses", icon: "📍", count: null },
-                { label: "Favorites", href: "/customer/favorites", icon: "❤️", count: favoriteIds.size },
-                { label: "Track Order", href: "/customer/track", icon: "🚚", count: outForDeliveryCount > 0 ? "Live" : null },
-                { label: "Cart & Basket", href: "/customer/cart", icon: "🛒", count: cartItemCount > 0 ? cartItemCount : null },
-              ].map((act) => (
-                <Link
-                  key={act.label}
-                  href={act.href}
-                  style={{
-                    backgroundColor: "var(--vegito-card, #ffffff)",
-                    border: "1px solid var(--vegito-border, #e1e8e2)",
-                    borderRadius: "12px",
-                    padding: "12px 14px",
-                    textDecoration: "none",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-                    transition: "transform 0.15s, border-color 0.15s",
-                  }}
-                >
-                  <span style={{ fontSize: "20px" }}>{act.icon}</span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <p style={{ margin: 0, fontSize: "12.5px", fontWeight: 700, color: "var(--vegito-text-main, #063c32)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {act.label}
-                    </p>
-                    {act.count !== null && (
-                      <span style={{ fontSize: "11px", color: "#16835b", fontWeight: 700 }}>
-                        {act.count} {typeof act.count === "number" ? "items" : ""}
-                      </span>
-                    )}
-                  </div>
+            {/* Quick Actions */}
+            <section className={styles.section} aria-labelledby="quick-actions-title">
+              <div className={styles.sectionHead}>
+                <div>
+                  <h2 id="quick-actions-title">{getGreeting(userName)} 👋</h2>
+                  <p>What would you like to do today?</p>
+                </div>
+              </div>
+              <div className={styles.quickGrid}>
+                <Link className={styles.quickAction} href="#fresh-today">
+                  <span className={styles.quickIcon}><ShoppingBasket size={19} /></span>
+                  <strong>{t("customer.shopFresh", "Shop fresh")}</strong>
+                  <span>{t("customer.freshVeg", "Farm-fresh vegetables")}</span>
                 </Link>
-              ))}
-            </div>
 
-            {/* Active Order Banner / Tracker (If Customer has active order) */}
-            {activeOrder && (
-              <div
-                style={{
-                  backgroundColor: "var(--vegito-card, #ffffff)",
-                  border: "1.5px solid #a7f3d0",
-                  borderRadius: "18px",
-                  padding: "20px 24px",
-                  marginBottom: "24px",
-                  boxShadow: "0 4px 16px rgba(6, 60, 50, 0.06)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: "10px",
-                    marginBottom: "16px",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <div
-                      style={{
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "10px",
-                        backgroundColor: "#ecfdf5",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#059669",
-                      }}
-                    >
-                      <Truck size={20} />
-                    </div>
+                <Link className={styles.quickAction} href={orderList.length ? `/customer/orders/${orderList[0].id}` : "/customer/orders"}>
+                  <span className={styles.quickIcon}><Package size={19} /></span>
+                  <strong>{t("customer.buyAgain", "Buy again")}</strong>
+                  <span>{orderList.length ? "Your recent order" : t("customer.noOrders", "No orders yet")}</span>
+                </Link>
+
+                <Link className={styles.quickAction} href="/customer/orders">
+                  <span className={styles.quickIcon}><Truck size={19} /></span>
+                  <strong>{t("customer.myOrders", "My orders")}</strong>
+                  <span>{orderList.length ? `${orderList.length} order${orderList.length === 1 ? "" : "s"}` : t("customer.noOrders", "No orders yet")}</span>
+                </Link>
+
+                <Link className={styles.quickAction} href="/customer/track">
+                  <span className={styles.quickIcon}><MapPin size={19} /></span>
+                  <strong>{t("customer.trackOrder", "Track order")}</strong>
+                  <span>{activeOrder ? "See delivery status" : t("customer.noActiveDeliveries", "No active delivery")}</span>
+                </Link>
+
+                <Link className={styles.quickAction} href="/customer/favorites">
+                  <span className={styles.quickIcon}><Heart size={19} /></span>
+                  <strong>{t("customer.favorites", "Favorites")}</strong>
+                  <span>{favoriteCount ? `${favoriteCount} saved` : t("customer.noFavorites", "Save produce you love")}</span>
+                </Link>
+              </div>
+            </section>
+
+            {/* Active Delivery Order Tracker */}
+            <section className={styles.section} aria-labelledby="delivery-title">
+              {activeOrder ? (
+                <div className={styles.orderPanel}>
+                  <div className={styles.orderTop}>
                     <div>
-                      <h3 style={{ margin: 0, fontSize: "15.5px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
-                        Active Order #{activeOrder.order_number}
-                      </h3>
-                      <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--vegito-text-muted, #62746a)" }}>
-                        Placed on {new Date(activeOrder.placed_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ₹{Number(activeOrder.total_amount).toFixed(0)}
-                      </p>
+                      <h3 id="delivery-title">Your order is moving through Vegito</h3>
+                      <p>Order #{activeOrder.order_number} · ₹{Number(activeOrder.total_amount).toFixed(0)}</p>
                     </div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                     <StatusBadge status={activeOrder.status} />
-                    {activeOrder.status === "OUT_FOR_DELIVERY" && (
-                      <Link
-                        href={`/customer/track/${activeOrder.id}`}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          padding: "6px 14px",
-                          borderRadius: "8px",
-                          backgroundColor: "#16835b",
-                          color: "#ffffff",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          textDecoration: "none",
-                        }}
-                      >
-                        <Truck size={14} /> Track Delivery
-                      </Link>
-                    )}
-                    <Link
-                      href={`/customer/orders/${activeOrder.id}`}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: "8px",
-                        backgroundColor: "var(--vegito-bg, #f4f7f3)",
-                        border: "1px solid #d8e5dc",
-                        color: "var(--vegito-text-main, #063c32)",
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        textDecoration: "none",
-                      }}
-                    >
-                      Details
-                    </Link>
                   </div>
-                </div>
-
-                {/* 5-step status progression bar */}
-                <div style={{ marginTop: "14px" }}>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(5, 1fr)",
-                      gap: "4px",
-                      position: "relative",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    {["Confirmed", "Packing", "Ready", "Out for Delivery", "Delivered"].map((step, idx) => {
-                      const currentIdx = getActiveStepIndex(activeOrder.status);
-                      const isComplete = idx <= currentIdx;
-                      const isCurrent = idx === currentIdx;
-
-                      return (
-                        <div key={step} style={{ textAlign: "center" }}>
-                          <div
-                            style={{
-                              height: "6px",
-                              borderRadius: "3px",
-                              backgroundColor: isComplete ? "#16835b" : "#e2e8f0",
-                              marginBottom: "6px",
-                            }}
-                          />
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: isCurrent ? 800 : 600,
-                              color: isCurrent ? "#16835b" : isComplete ? "#063c32" : "#94a3b8",
-                              display: "block",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {step}
-                          </span>
-                        </div>
-                      );
-                    })}
+                  <div className={styles.timeline} aria-label={`Order status: ${activeOrder.status}`}>
+                    {ORDER_STEPS.map((step, index) => (
+                      <div className={`${styles.timelineStep} ${index <= activeStep(activeOrder.status) ? styles.done : ""}`} key={step}>
+                        {step}
+                      </div>
+                    ))}
                   </div>
-                </div>
-
-                {/* Interactive delivery map if out for delivery */}
-                {activeOrder.status === "OUT_FOR_DELIVERY" && activeOrderDetail.data && (
-                  <div style={{ marginTop: "16px" }}>
+                  {activeOrder.status === "OUT_FOR_DELIVERY" && activeOrderDetail.data ? (
                     <CustomerLocationMap
                       orderId={activeOrder.id}
                       orderNumber={activeOrder.order_number}
                       orderStatus={activeOrder.status}
-                      partnerName={activeOrderDetail.data.delivery_partner_name || "Vegito Delivery Partner"}
+                      partnerName={activeOrderDetail.data.delivery_partner_name || undefined}
                       deliveryAddress={activeOrderDetail.data.address?.address_line1}
-                      customerLocation={
-                        activeOrderDetail.data.customer_latitude != null && activeOrderDetail.data.customer_longitude != null
-                          ? {
-                              lat: Number(activeOrderDetail.data.customer_latitude),
-                              lng: Number(activeOrderDetail.data.customer_longitude),
-                            }
-                          : activeOrderDetail.data.address?.latitude && activeOrderDetail.data.address?.longitude
-                          ? {
-                              lat: Number(activeOrderDetail.data.address.latitude),
-                              lng: Number(activeOrderDetail.data.address.longitude),
-                            }
-                          : null
-                      }
-                      partnerLocation={
-                        activeOrderDetail.data.delivery_latitude != null && activeOrderDetail.data.delivery_longitude != null
-                          ? {
-                              lat: Number(activeOrderDetail.data.delivery_latitude),
-                              lng: Number(activeOrderDetail.data.delivery_longitude),
-                            }
-                          : null
-                      }
-                      etaMinutes={15}
+                      customerLocation={activeOrderDetail.data.customer_latitude != null && activeOrderDetail.data.customer_longitude != null ? { lat: Number(activeOrderDetail.data.customer_latitude), lng: Number(activeOrderDetail.data.customer_longitude) } : null}
+                      partnerLocation={activeOrderDetail.data.delivery_latitude != null && activeOrderDetail.data.delivery_longitude != null ? { lat: Number(activeOrderDetail.data.delivery_latitude), lng: Number(activeOrderDetail.data.delivery_longitude) } : null}
                     />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Sticky Cart Summary Bar (When cart has items) */}
-            {cartItems.length > 0 && (
-              <div
-                style={{
-                  backgroundColor: "var(--vegito-text-main, #063c32)",
-                  color: "#ffffff",
-                  borderRadius: "16px",
-                  padding: "14px 20px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: "24px",
-                  boxShadow: "0 6px 20px rgba(6, 60, 50, 0.2)",
-                  flexWrap: "wrap",
-                  gap: "12px",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div
-                    style={{
-                      width: "38px",
-                      height: "38px",
-                      borderRadius: "10px",
-                      backgroundColor: "rgba(255, 255, 255, 0.15)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "18px",
-                    }}
-                  >
-                    🛒
-                  </div>
-                  <div>
-                    <strong style={{ fontSize: "14.5px" }}>
-                      Your Basket: {cartItemCount} {cartItemCount === 1 ? "item" : "items"}
-                    </strong>
-                    <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#a7f3d0" }}>
-                      Total: ₹{Number(cartTotalAmount).toFixed(2)} · Free Farm Delivery over ₹199
-                    </p>
-                  </div>
+                  ) : null}
                 </div>
+              ) : (
+                <div className={styles.empty}>
+                  <strong>{t("customer.noActiveDeliveries", "Your active deliveries will appear here.")}</strong>
+                  <span>{t("customer.noOrdersDesc", "Fresh products are waiting when you are ready.")}</span>
+                </div>
+              )}
+            </section>
 
-                <Link
-                  href="/customer/cart"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "9px 20px",
-                    borderRadius: "10px",
-                    backgroundColor: "#16835b",
-                    color: "#ffffff",
-                    fontSize: "13.5px",
-                    fontWeight: 800,
-                    textDecoration: "none",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-                  }}
-                >
-                  View Basket &amp; Checkout <ArrowRight size={15} />
+            {/* Product Catalogue & Category Filter */}
+            <section className={styles.section} id="fresh-today" aria-labelledby="fresh-title">
+              <div className={styles.sectionHead}>
+                <div>
+                  <h2 id="fresh-title">{t("customer.freshToday", "Fresh today")}</h2>
+                  <p>{t("customer.realStock", "Real availability and freshness indicators from Vegito sellers.")}</p>
+                </div>
+                <Link className={styles.textAction} href="/search">
+                  {t("common.all", "Explore all")} <ArrowRight size={14} />
                 </Link>
               </div>
-            )}
 
-            {/* Hero Shopping Banner */}
-            <div
-              style={{
-                borderRadius: "20px",
-                background: "linear-gradient(135deg, #063c32 0%, #16835b 70%, #34d399 100%)",
-                padding: "32px 36px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                position: "relative",
-                overflow: "hidden",
-                boxShadow: "0 8px 24px rgba(6, 60, 50, 0.12)",
-                marginBottom: "28px",
-              }}
-            >
-              <div style={{ position: "relative", zIndex: 2, maxWidth: "520px" }}>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    backgroundColor: "rgba(255, 255, 255, 0.2)",
-                    color: "#ffffff",
-                    borderRadius: "999px",
-                    padding: "4px 14px",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    marginBottom: "12px",
-                  }}
-                >
-                  <Sparkles size={13} /> Fresh Vegetables Delivered Daily
-                </span>
-                <h3
-                  style={{
-                    margin: "0 0 10px",
-                    color: "#ffffff",
-                    fontSize: "26px",
-                    fontWeight: 800,
-                    lineHeight: "1.25",
-                  }}
-                >
-                  Fresh vegetables,<br />delivered to your door.
-                </h3>
-                <p style={{ margin: "0 0 20px", fontSize: "13.5px", color: "#d1fae5", lineHeight: 1.5 }}>
-                  Straight from local Solapur farmers to your kitchen. Cleaned, graded, and delivered fast.
-                </p>
-
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                  <a
-                    href="#products-section"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "10px 22px",
-                      backgroundColor: "var(--vegito-card, #ffffff)",
-                      color: "var(--vegito-text-main, #063c32)",
-                      borderRadius: "10px",
-                      fontSize: "13.5px",
-                      fontWeight: 800,
-                      textDecoration: "none",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                    }}
-                  >
-                    Shop Now <ChevronRight size={16} />
-                  </a>
-                  <a
-                    href="#categories-section"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "10px 20px",
-                      backgroundColor: "rgba(255, 255, 255, 0.18)",
-                      color: "#ffffff",
-                      border: "1px solid rgba(255, 255, 255, 0.3)",
-                      borderRadius: "10px",
-                      fontSize: "13.5px",
-                      fontWeight: 700,
-                      textDecoration: "none",
-                    }}
-                  >
-                    View Categories
-                  </a>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  fontSize: "110px",
-                  position: "absolute",
-                  right: "24px",
-                  bottom: "-15px",
-                  opacity: 0.92,
-                  userSelect: "none",
-                }}
-              >
-                🥗
-              </div>
-            </div>
-
-            {/* Horizontal Vegetable Categories Bar */}
-            <div id="categories-section" style={{ marginBottom: "32px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "14px",
-                }}
-              >
+              <div className={styles.catalogLayout}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
-                    Vegetable Categories
-                  </h3>
-                  <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--vegito-text-muted, #62746a)" }}>
-                    Select a category to filter today&apos;s fresh harvest
-                  </p>
-                </div>
-                {selectedCategoryId && (
-                  <button
-                    onClick={() => setSelectedCategoryId(null)}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "#16835b",
-                      fontSize: "12.5px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Show All
-                  </button>
-                )}
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  overflowX: "auto",
-                  paddingBottom: "8px",
-                  scrollbarWidth: "none",
-                }}
-              >
-                {/* All Filter Pill */}
-                <button
-                  onClick={() => setSelectedCategoryId(null)}
-                  style={{
-                    flexShrink: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: "6px",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "68px",
-                      height: "68px",
-                      backgroundColor: selectedCategoryId === null ? "#16835b" : "#ffffff",
-                      color: selectedCategoryId === null ? "#ffffff" : "#063c32",
-                      borderRadius: "16px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "26px",
-                      border: selectedCategoryId === null ? "2px solid #16835b" : "1.5px solid #e1e8e2",
-                      boxShadow: selectedCategoryId === null ? "0 4px 12px rgba(22, 131, 91, 0.25)" : "none",
-                      transition: "all 0.15s ease",
-                    }}
-                  >
-                    🥬
-                  </div>
-                  <span
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: selectedCategoryId === null ? 800 : 600,
-                      color: selectedCategoryId === null ? "#16835b" : "#475569",
-                    }}
-                  >
-                    All Items
-                  </span>
-                </button>
-
-                {(categories.data ?? []).map((cat) => {
-                  const isSelected = selectedCategoryId === cat.id;
-                  return (
+                  {/* Category Rail: ALL PRODUCE, VEGETABLES, FRUITS, LEAFY VEGETABLES, ROOT VEGETABLES */}
+                  <div className={styles.categoryRail} aria-label="Product categories">
                     <button
-                      key={cat.id}
-                      onClick={() => setSelectedCategoryId(isSelected ? null : cat.id)}
-                      style={{
-                        flexShrink: 0,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: "6px",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 0,
-                      }}
+                      className={styles.categoryButton}
+                      aria-pressed={selectedCategoryId === null}
+                      onClick={() => setSelectedCategoryId(null)}
                     >
-                      <div
-                        style={{
-                          width: "68px",
-                          height: "68px",
-                          backgroundColor: isSelected ? "#16835b" : "#ffffff",
-                          borderRadius: "16px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "28px",
-                          border: isSelected ? "2px solid #16835b" : "1.5px solid #e1e8e2",
-                          boxShadow: isSelected ? "0 4px 12px rgba(22, 131, 91, 0.25)" : "none",
-                          transition: "all 0.15s ease",
-                        }}
-                      >
-                        {vegEmoji(cat.name)}
-                      </div>
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: isSelected ? 800 : 600,
-                          color: isSelected ? "#16835b" : "#475569",
-                          maxWidth: "76px",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {cat.name}
-                      </span>
+                      <span className={styles.categoryEmoji}>🌱</span>
+                      {t("categories.all", "All produce")}
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Main Products Grid & Right Sidebar (Two-column responsive layout) */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 360px",
-                gap: "24px",
-                alignItems: "start",
-              }}
-              className="customer-dashboard-grid"
-            >
-              {/* Left Column: Live Products Section */}
-              <div id="products-section" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: "10px",
-                  }}
-                >
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
-                      Today&apos;s Farm Harvest
-                    </h3>
-                    <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "var(--vegito-text-muted, #62746a)" }}>
-                      Directly priced by verified Solapur farmers
-                    </p>
-                  </div>
-
-                  {searchQuery && (
-                    <span style={{ fontSize: "12.5px", color: "#16835b", fontWeight: 700 }}>
-                      Showing results for &ldquo;{searchQuery}&rdquo;
-                    </span>
-                  )}
-                </div>
-
-                {/* Product Grid */}
-                {products.isLoading ? (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                      gap: "16px",
-                    }}
-                  >
-                    {[0, 1, 2, 3, 4, 5].map((i) => (
-                      <div
-                        key={i}
-                        style={{
-                          height: "260px",
-                          backgroundColor: "var(--vegito-card, #ffffff)",
-                          borderRadius: "16px",
-                          border: "1px solid var(--vegito-border, #e1e8e2)",
-                          animation: "pulse 1.5s infinite",
-                        }}
-                      />
+                    {(categories.data ?? []).map((category) => (
+                      <button
+                        className={styles.categoryButton}
+                        aria-pressed={selectedCategoryId === category.id}
+                        key={category.id}
+                        onClick={() => setSelectedCategoryId(category.id)}
+                      >
+                        <span className={styles.categoryEmoji}>{categoryEmoji(category.name)}</span>
+                        {getCategoryTitle(category.name)}
+                      </button>
                     ))}
                   </div>
-                ) : (products.data?.items ?? []).length === 0 ? (
-                  <div
-                    style={{
-                      backgroundColor: "var(--vegito-card, #ffffff)",
-                      borderRadius: "16px",
-                      border: "1px solid var(--vegito-border, #e1e8e2)",
-                      padding: "48px 24px",
-                      textAlign: "center",
-                      color: "var(--vegito-text-muted, #62746a)",
-                    }}
-                  >
-                    <div style={{ fontSize: "40px", marginBottom: "10px" }}>🥦</div>
-                    <p style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
-                      No vegetables found
-                    </p>
-                    <p style={{ margin: "0 0 16px", fontSize: "13px" }}>
-                      {searchQuery
-                        ? `No vegetables matching "${searchQuery}". Try a different keyword.`
-                        : "No vegetables available in this category right now."}
-                    </p>
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery("")}
-                        style={{
-                          padding: "8px 18px",
-                          borderRadius: "8px",
-                          backgroundColor: "#16835b",
-                          color: "#ffffff",
-                          border: "none",
-                          fontSize: "12.5px",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Clear Search
-                      </button>
+
+                  {products.isLoading ? (
+                    <div className={styles.productGrid}>
+                      {[1, 2, 3, 4, 5, 6].map((item) => (
+                        <div className={styles.empty} key={item}>Loading fresh stock...</div>
+                      ))}
+                    </div>
+                  ) : products.isError ? (
+                    <div className={styles.empty}>
+                      <strong>Fresh products couldn&apos;t be loaded.</strong>
+                      <span>Try searching again in a moment.</span>
+                    </div>
+                  ) : availableProducts.length === 0 ? (
+                    <div className={styles.empty}>
+                      <strong>No produce matches this search.</strong>
+                      <span>Try another category or search term.</span>
+                    </div>
+                  ) : (
+                    <div className={styles.productGrid}>
+                      {availableProducts.map((product) => {
+                        const offer =
+                          product.seller_products
+                            .filter((sellerOffer) => sellerOffer.is_available && Number(sellerOffer.stock_quantity) > 0)
+                            .sort((a, b) => Number(a.price) - Number(b.price))[0] ?? product.seller_products[0];
+                        return (
+                          <ProductCard
+                            key={product.id}
+                            product={{ ...product, seller_products: offer ? [offer] : [] }}
+                            quantity={productQuantity(product.id)}
+                            onChange={(quantity) => changeProductQuantity(product.id, quantity)}
+                            onAddToCart={(sellerProductId) => addMutation.mutate(sellerProductId)}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <aside className={styles.sideStack}>
+                  <div className={styles.insightPanel}>
+                    <CustomerInsights orders={orderList} />
+                  </div>
+                  <div className={styles.insightPanel}>
+                    <div className={styles.sectionHead}>
+                      <div>
+                        <h2>{t("customer.yourCart", "Basket")}</h2>
+                        <p>{cartCount ? `${cartCount} item${cartCount === 1 ? "" : "s"} ready` : t("customer.basketEmpty", "Your basket is empty")}</p>
+                      </div>
+                      <ShoppingBasket size={22} color="var(--dash-accent)" />
+                    </div>
+                    {cartCount ? (
+                      <Link className={styles.primaryButton} href="/customer/cart">
+                        Review basket <ArrowRight size={15} />
+                      </Link>
+                    ) : (
+                      <Link className={styles.textAction} href="#fresh-today">
+                        {t("customer.startShopping", "Start shopping")}
+                      </Link>
                     )}
                   </div>
-                ) : (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                      gap: "16px",
-                    }}
-                  >
-                    {products.data?.items.map((prod) => {
-                      // Marketplace Logic: Find best active offer (lowest price with stock)
-                      const activeOffers = (prod.seller_products || []).filter(
-                        (o) => o.is_available && Number(o.stock_quantity) > 0
-                      );
-
-                      const bestOffer = activeOffers.length > 0
-                        ? activeOffers.reduce((prev, curr) => (Number(curr.price) < Number(prev.price) ? curr : prev))
-                        : prod.seller_products?.[0]; // Fallback to first if none in stock
-
-                      const sellerProductId = bestOffer?.seller_product_id || prod.id;
-                      const sellerName = bestOffer?.seller_business_name || "Vegito Direct";
-                      const sellerRating = Number(bestOffer?.seller_rating || 4.8).toFixed(1);
-                      const price = bestOffer?.price ? Number(bestOffer.price) : Number(prod.min_price || 40);
-                      const isAvailable = activeOffers.length > 0 && prod.is_in_stock;
-                      const isFav = favoriteIds.has(prod.id);
-                      const otherSellersCount = activeOffers.length - 1;
-
-                      // Find existing cart item if any
-                      const cartItem = cartItems.find(
-                        (ci) => ci.seller_product_id === sellerProductId
-                      );
-                      const cartQty = cartItem?.quantity || 0;
-
-                      return (
-                        <div
-                          key={prod.id}
-                          style={{
-                            backgroundColor: "var(--vegito-card, #ffffff)",
-                            borderRadius: "16px",
-                            border: "1px solid var(--vegito-border, #e1e8e2)",
-                            padding: "14px",
-                            display: "flex",
-                            flexDirection: "column",
-                            boxShadow: "0 2px 8px rgba(6, 60, 50, 0.03)",
-                            position: "relative",
-                            transition: "box-shadow 0.15s ease",
-                          }}
-                        >
-                          {/* Heart Favorite Toggle Button */}
-                          <button
-                            onClick={() => toggleFavorite(prod.id)}
-                            aria-label="Toggle Favorite"
-                            style={{
-                              position: "absolute",
-                              top: "20px",
-                              right: "20px",
-                              zIndex: 10,
-                              width: "30px",
-                              height: "30px",
-                              borderRadius: "50%",
-                              backgroundColor: "rgba(255, 255, 255, 0.85)",
-                              backdropFilter: "blur(4px)",
-                              border: "none",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              cursor: "pointer",
-                              boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-                            }}
-                          >
-                            <Heart
-                              size={16}
-                              color={isFav ? "#dc2626" : "#64748b"}
-                              fill={isFav ? "#dc2626" : "none"}
-                            />
-                          </button>
-
-                          {/* Vegetable Image */}
-                          <div
-                            style={{
-                              height: "120px",
-                              backgroundColor: "var(--vegito-bg, #f4f7f3)",
-                              borderRadius: "12px",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: "48px",
-                              marginBottom: "12px",
-                              overflow: "hidden",
-                            }}
-                          >
-                            {prod.images?.[0]?.image_url ? (
-                              <img
-                                src={prod.images[0].image_url}
-                                alt={prod.name}
-                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                              />
-                            ) : (
-                              <span>{vegEmoji(prod.name)}</span>
-                            )}
-                          </div>
-
-                          {/* Details */}
-                          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                              <span style={{ fontSize: "11px", fontWeight: 700, color: "#16835b" }}>
-                                {sellerName}
-                              </span>
-                              <span style={{ fontSize: "10.5px", color: "#d97706", fontWeight: 700 }}>
-                                ★ {sellerRating}
-                              </span>
-                            </div>
-
-                            <strong style={{ fontSize: "14px", color: "var(--vegito-text-main, #063c32)", marginBottom: "2px" }}>
-                              {prod.name}
-                            </strong>
-                            <span style={{ fontSize: "11.5px", color: "var(--vegito-text-muted, #62746a)", marginBottom: "10px" }}>
-                              per {prod.unit}
-                            </span>
-
-                            {/* Price & Stock Badge */}
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "8px" }}>
-                              <div style={{ display: "flex", flexDirection: "column" }}>
-                                <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
-                                  ₹{Number(price).toFixed(0)}
-                                </span>
-                                {otherSellersCount > 0 && (
-                                  <span style={{ fontSize: "10px", color: "#16835b", fontWeight: 600 }}>
-                                    +{otherSellersCount} more sellers
-                                  </span>
-                                )}
-                              </div>
-                              <span
-                                style={{
-                                  fontSize: "10.5px",
-                                  fontWeight: 700,
-                                  padding: "2px 7px",
-                                  borderRadius: "4px",
-                                  backgroundColor: isAvailable ? "#ecfdf5" : "#fee2e2",
-                                  color: isAvailable ? "#059669" : "#dc2626",
-                                }}
-                              >
-                                {isAvailable ? "In Stock" : "Out of Stock"}
-                              </span>
-                            </div>
-
-                            {/* Quantity Controls / Add Button */}
-                            <div style={{ marginTop: "auto" }}>
-                              {cartQty > 0 ? (
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    backgroundColor: "#16835b",
-                                    borderRadius: "10px",
-                                    padding: "4px",
-                                    color: "#ffffff",
-                                  }}
-                                >
-                                  <button
-                                    onClick={() => {
-                                      if (cartQty > 1) {
-                                        updateCartMut.mutate({ itemId: cartItem!.id, quantity: cartQty - 1 });
-                                      } else {
-                                        removeCartMut.mutate(cartItem!.id);
-                                      }
-                                    }}
-                                    disabled={updateCartMut.isPending || removeCartMut.isPending}
-                                    style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      borderRadius: "6px",
-                                      backgroundColor: "rgba(255, 255, 255, 0.2)",
-                                      border: "none",
-                                      color: "#ffffff",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    <Minus size={14} />
-                                  </button>
-                                  <span style={{ fontSize: "13px", fontWeight: 800 }}>
-                                    {cartQty}
-                                  </span>
-                                  <button
-                                    onClick={() =>
-                                      updateCartMut.mutate({ itemId: cartItem!.id, quantity: cartQty + 1 })
-                                    }
-                                    disabled={updateCartMut.isPending}
-                                    style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      borderRadius: "6px",
-                                      backgroundColor: "rgba(255, 255, 255, 0.2)",
-                                      border: "none",
-                                      color: "#ffffff",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    <Plus size={14} />
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => addCartMut.mutate(sellerProductId)}
-                                  disabled={!isAvailable || addCartMut.isPending}
-                                  style={{
-                                    width: "100%",
-                                    padding: "8px 12px",
-                                    borderRadius: "10px",
-                                    backgroundColor: isAvailable ? "#e9f6ee" : "#f1f5f9",
-                                    color: isAvailable ? "#16835b" : "#94a3b8",
-                                    border: isAvailable ? "1px solid #c4e8d3" : "1px solid #e2e8f0",
-                                    fontSize: "12.5px",
-                                    fontWeight: 800,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: "6px",
-                                    cursor: isAvailable ? "pointer" : "not-allowed",
-                                    transition: "all 0.15s ease",
-                                  }}
-                                >
-                                  <Plus size={14} /> Add
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                </aside>
               </div>
+            </section>
 
-              {/* Right Column: Customer Insights, Recent Orders & Favorites Summary */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                {/* Customer Grocery Insights Card */}
-                <CustomerInsights orders={orderList} />
-
-                {/* Recent Orders Card */}
-                <div
-                  style={{
-                    backgroundColor: "var(--vegito-card, #ffffff)",
-                    border: "1px solid var(--vegito-border, #e1e8e2)",
-                    borderRadius: "18px",
-                    padding: "20px 22px",
-                    boxShadow: "0 2px 8px rgba(6, 60, 50, 0.04)",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "16px",
-                    }}
-                  >
-                    <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
-                      Recent Orders
-                    </h3>
-                    <Link
-                      href="/customer/orders"
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        color: "#16835b",
-                        textDecoration: "none",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "2px",
-                      }}
-                    >
-                      View All <ChevronRight size={14} />
-                    </Link>
+            {/* Buy Again (Previous Orders) */}
+            {orderList.length > 0 && (
+              <section className={styles.section} aria-labelledby="buy-again-title">
+                <div className={styles.sectionHead}>
+                  <div>
+                    <h2 id="buy-again-title">{t("customer.buyAgain", "Buy again")}</h2>
+                    <p>Your previous orders are ready to repeat when stock allows.</p>
                   </div>
-
-                  {orders.isLoading ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {[0, 1, 2].map((i) => (
-                        <div
-                          key={i}
-                          style={{
-                            height: "60px",
-                            backgroundColor: "var(--vegito-bg, #f4f7f3)",
-                            borderRadius: "10px",
-                            animation: "pulse 1.5s infinite",
-                          }}
-                        />
-                      ))}
-                    </div>
-                  ) : orderList.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "28px 12px", color: "var(--vegito-text-muted, #62746a)" }}>
-                      <div style={{ fontSize: "36px", marginBottom: "8px" }}>🛒</div>
-                      <p style={{ margin: "0 0 4px", fontSize: "13.5px", fontWeight: 700, color: "var(--vegito-text-main, #063c32)" }}>
-                        No orders placed yet
-                      </p>
-                      <p style={{ margin: 0, fontSize: "12px" }}>
-                        Add vegetables above to start your first farm delivery.
-                      </p>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      {orderList.slice(0, 4).map((order) => (
-                        <div
-                          key={order.id}
-                          style={{
-                            padding: "12px 14px",
-                            borderRadius: "12px",
-                            backgroundColor: "var(--vegito-surface-muted, #fafcf9)",
-                            border: "1px solid var(--vegito-border, #edf2ee)",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "8px",
-                          }}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <div>
-                              <strong style={{ fontSize: "13px", color: "var(--vegito-text-main, #063c32)" }}>
-                                #{order.order_number}
-                              </strong>
-                              <span style={{ fontSize: "11px", color: "#8b9c92", display: "block" }}>
-                                {new Date(order.placed_at).toLocaleDateString("en-IN", {
-                                  day: "2-digit",
-                                  month: "short",
-                                })} · ₹{Number(order.total_amount).toFixed(0)}
-                              </span>
-                            </div>
-                            <StatusBadge status={order.status} />
-                          </div>
-
-                          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: "6px", borderTop: "1px solid #f1f5f2", paddingTop: "8px" }}>
-                            <Link
-                              href={`/customer/orders/${order.id}`}
-                              style={{
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                color: "var(--vegito-text-muted, #62746a)",
-                                textDecoration: "none",
-                                padding: "4px 8px",
-                              }}
-                            >
-                              Details
-                            </Link>
-                            <button
-                              onClick={() => setComplaintOrder(order)}
-                              title="Report item quality, missing items, or delivery issue"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px",
-                                padding: "4px 8px",
-                                borderRadius: "6px",
-                                backgroundColor: "#fff1f2",
-                                color: "#e11d48",
-                                border: "1px solid #fecdd3",
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                              }}
-                            >
-                              ⚠️ Report Issue
-                            </button>
-                            {(order.status === "DELIVERED" || order.status === "COMPLETED") && (
-                              <button
-                                onClick={() => setReviewOrder(order)}
-                                title="Rate delivery experience"
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "3px",
-                                  padding: "4px 8px",
-                                  borderRadius: "6px",
-                                  backgroundColor: "#fef9c3",
-                                  color: "#854d0e",
-                                  border: "1px solid #fde047",
-                                  fontSize: "11px",
-                                  fontWeight: 700,
-                                  cursor: "pointer",
-                                }}
-                              >
-                                ⭐ Rate
-                              </button>
-                            )}
-                            <button
-                              onClick={() => reorderMut.mutate(order.id)}
-                              disabled={reorderMut.isPending}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "4px",
-                                padding: "4px 10px",
-                                borderRadius: "6px",
-                                backgroundColor: "var(--vegito-surface-muted, #e9f6ee)",
-                                color: "#16835b",
-                                border: "1px solid #c4e8d3",
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                              }}
-                            >
-                              <RotateCcw size={12} /> Reorder
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <Link className={styles.textAction} href="/customer/orders">
+                    View orders <ArrowRight size={14} />
+                  </Link>
                 </div>
-
-                {/* Favorites Wishlist Card */}
-                <div
-                  style={{
-                    backgroundColor: "var(--vegito-card, #ffffff)",
-                    border: "1px solid var(--vegito-border, #e1e8e2)",
-                    borderRadius: "18px",
-                    padding: "20px 22px",
-                    boxShadow: "0 2px 8px rgba(6, 60, 50, 0.04)",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "14px",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <Heart size={16} color="#dc2626" fill="#dc2626" />
-                      <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
-                        My Favorites
-                      </h3>
+                <div className={styles.orderPanel}>
+                  <div className={styles.orderTop}>
+                    <div>
+                      <h3>Order #{orderList[0].order_number}</h3>
+                      <p>{orderList[0].items_count ?? "Your"} items · ₹{Number(orderList[0].total_amount).toFixed(0)}</p>
                     </div>
-                    <Link
-                      href="/customer/favorites"
-                      style={{ fontSize: "12px", fontWeight: 700, color: "#16835b", textDecoration: "none" }}
+                    <button
+                      className={styles.primaryButton}
+                      onClick={() => reorderMutation.mutate(orderList[0].id)}
+                      disabled={reorderMutation.isPending}
                     >
-                      View All ({favoriteIds.size})
-                    </Link>
+                      {t("customer.repeatItems", "Repeat available items")}
+                    </button>
                   </div>
-
-                  {favoriteIds.size === 0 ? (
-                    <p style={{ margin: 0, fontSize: "12px", color: "var(--vegito-text-muted, #62746a)" }}>
-                      Tap the heart icon on any vegetable card to save your favorites for 1-click re-ordering!
-                    </p>
-                  ) : (
-                    <p style={{ margin: 0, fontSize: "12.5px", color: "var(--vegito-text-main, #063c32)", fontWeight: 600 }}>
-                      You have {favoriteIds.size} {favoriteIds.size === 1 ? "vegetable" : "vegetables"} saved in your favorites.
-                    </p>
-                  )}
                 </div>
-              </div>
-            </div>
-        {/* Fixed Mobile Bottom Navigation Bar (Hidden on desktop) */}
-        <nav
-          className="customer-mobile-bottom-nav"
-          aria-label="Customer Navigation"
-          style={{
-            position: "fixed",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: "64px",
-            backgroundColor: "var(--vegito-card, #ffffff)",
-            borderTop: "1px solid var(--vegito-border, #e1e8e2)",
-            display: "none",
-            alignItems: "center",
-            justifyContent: "space-around",
-            zIndex: 90,
-            boxShadow: "0 -2px 10px rgba(0,0,0,0.06)",
-          }}
-        >
-          <Link
-            href="/customer"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "2px",
-              color: "#16835b",
-              textDecoration: "none",
-              fontSize: "11px",
-              fontWeight: 700,
-            }}
-          >
-            <Home size={20} />
-            <span>Home</span>
-          </Link>
-
-          <a
-            href="#products-section"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "2px",
-              color: "var(--vegito-text-muted, #62746a)",
-              textDecoration: "none",
-              fontSize: "11px",
-              fontWeight: 600,
-            }}
-          >
-            <Search size={20} />
-            <span>Shop</span>
-          </a>
-
-          <Link
-            href="/customer/cart"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "2px",
-              color: "var(--vegito-text-muted, #62746a)",
-              textDecoration: "none",
-              fontSize: "11px",
-              fontWeight: 600,
-              position: "relative",
-            }}
-          >
-            <ShoppingCart size={20} />
-            {cartItemCount > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: "-4px",
-                  right: "4px",
-                  minWidth: "16px",
-                  height: "16px",
-                  borderRadius: "8px",
-                  backgroundColor: "#16835b",
-                  color: "#ffffff",
-                  fontSize: "10px",
-                  fontWeight: 800,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "0 3px",
-                }}
-              >
-                {cartItemCount}
-              </span>
+              </section>
             )}
-            <span>Basket</span>
-          </Link>
 
-          <Link
-            href="/customer/orders"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "2px",
-              color: "var(--vegito-text-muted, #62746a)",
-              textDecoration: "none",
-              fontSize: "11px",
-              fontWeight: 600,
-            }}
-          >
-            <Package size={20} />
-            <span>Orders</span>
-          </Link>
+            {/* Smart Basket Builder */}
+            {availableProducts.length > 0 && (
+              <section className={styles.section}>
+                <SmartBasket products={availableProducts} onSuccess={showToast} />
+              </section>
+            )}
 
-          <Link
-            href="/customer/favorites"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "2px",
-              color: "var(--vegito-text-muted, #62746a)",
-              textDecoration: "none",
-              fontSize: "11px",
-              fontWeight: 600,
-            }}
-          >
-            <Heart size={20} />
-            <span>Favorites</span>
-          </Link>
-        </nav>
+            {/* Bulk Ordering Panel */}
+            <section className={styles.section}>
+              <div className={styles.bulkPanel}>
+                <div>
+                  <h2>{t("customer.bulkOrder", "Buying for a restaurant, hotel or event?")}</h2>
+                  <p>Bulk ordering is available through our support team when your business needs a larger basket.</p>
+                </div>
+                <Link className={styles.primaryButton} href="/customer/profile">
+                  <UserRound size={16} /> {t("customer.contactVegito", "Contact Vegito")}
+                </Link>
+              </div>
+            </section>
 
-        {/* Order Complaint Modal */}
-        {complaintOrder && (
+            {/* Recent Orders List */}
+            {orderList.length > 0 && (
+              <section className={styles.section} aria-labelledby="recent-orders-title">
+                <div className={styles.sectionHead}>
+                  <div>
+                    <h2 id="recent-orders-title">{t("customer.myOrders", "Recent orders")}</h2>
+                    <p>Your account activity, kept private to you.</p>
+                  </div>
+                </div>
+                <div className={styles.sideStack}>
+                  {orderList.slice(0, 3).map((order) => (
+                    <div className={styles.orderPanel} key={order.id}>
+                      <div className={styles.orderTop}>
+                        <div>
+                          <h3>#{order.order_number}</h3>
+                          <p>{new Date(order.placed_at).toLocaleDateString("en-IN")} · ₹{Number(order.total_amount).toFixed(0)}</p>
+                        </div>
+                        <div>
+                          <StatusBadge status={order.status} />
+                          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                            <Link className={styles.textAction} href={`/customer/orders/${order.id}`}>
+                              {t("common.viewDetails", "Details")}
+                            </Link>
+                            {order.status === "DELIVERED" || order.status === "COMPLETED" ? (
+                              <button className={styles.textAction} onClick={() => setReviewOrder(order)}>
+                                Rate
+                              </button>
+                            ) : null}
+                            <button className={styles.textAction} onClick={() => setComplaintOrder(order)}>
+                              Report
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
+
+        {toast ? <div className={styles.toast} role="status">{toast}</div> : null}
+        {complaintOrder ? (
           <OrderComplaintModal
             orderId={complaintOrder.id}
             orderNumber={complaintOrder.order_number}
-            isOpen={Boolean(complaintOrder)}
+            isOpen
             onClose={() => setComplaintOrder(null)}
             onSuccess={() => {
-              setFeedbackToast({ type: "success", text: "Complaint recorded. Vegito support is reviewing it." });
               setComplaintOrder(null);
+              showToast("Your report was sent to Vegito support");
             }}
           />
-        )}
-
-        {/* Delivery Review Modal */}
-        {reviewOrder && (
+        ) : null}
+        {reviewOrder ? (
           <DeliveryReviewModal
             orderId={reviewOrder.id}
             orderNumber={reviewOrder.order_number}
-            isOpen={Boolean(reviewOrder)}
+            isOpen
             onClose={() => setReviewOrder(null)}
             onSuccess={() => {
-              setFeedbackToast({ type: "success", text: "Thank you for rating your delivery!" });
               setReviewOrder(null);
+              showToast("Thanks for rating your delivery");
             }}
           />
-        )}
-
-        <style>{`
-          @media (max-width: 1024px) {
-            .customer-dashboard-grid {
-              grid-template-columns: 1fr !important;
-            }
-          }
-          @media (max-width: 768px) {
-            .customer-mobile-bottom-nav {
-              display: flex !important;
-            }
-          }
-        `}</style>
+        ) : null}
       </DashboardShell>
     </RoleGuard>
   );

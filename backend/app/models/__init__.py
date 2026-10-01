@@ -30,6 +30,12 @@ from app.models.coupon_usage import CouponUsage
 from app.models.notification import Notification
 from app.models.delivery_partner_location import DeliveryPartnerLocation
 from app.models.seller_order_fulfillment import SellerOrderFulfillment
+from app.models.business_profile import BusinessProfile
+from app.models.bulk_pricing_rule import BulkPricingRule
+from app.models.bulk_cart_item import BulkCartItem
+from app.models.saved_shopping_list import SavedShoppingList, SavedShoppingListItem
+from app.models.recurring_bulk_order import RecurringBulkOrder, RecurringBulkOrderItem
+from app.models.b2b_invoice import B2BInvoice
 
 __all__ = [
 
@@ -69,4 +75,12 @@ __all__ = [
     "MarketIntelligence",
     "Promotion",
     "PromotionItem",
+    "BusinessProfile",
+    "BulkPricingRule",
+    "BulkCartItem",
+    "SavedShoppingList",
+    "SavedShoppingListItem",
+    "RecurringBulkOrder",
+    "RecurringBulkOrderItem",
+    "B2BInvoice",
 ]

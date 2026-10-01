@@ -30,6 +30,12 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
+    const handleAuthStateChange = () => {
+      client.clear();
+    };
+
+    window.addEventListener("vegito:auth_state_changed", handleAuthStateChange);
+
     // Android Hardware Back Button Handler
     const backListener = App.addListener("backButton", (data) => {
       if (typeof window !== "undefined") {
@@ -43,9 +49,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
+      window.removeEventListener("vegito:auth_state_changed", handleAuthStateChange);
       backListener.then((l) => l.remove());
     };
-  }, [router]);
+  }, [client, router]);
 
   return (
     <ThemeProvider>

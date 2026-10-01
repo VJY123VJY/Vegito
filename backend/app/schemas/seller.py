@@ -42,12 +42,21 @@ class SellerProfileRead(BaseSchema, SellerProfileBase):
     updated_at: datetime.datetime
 
 
+from app.schemas.freshness import FreshnessInfo
+
+
 class SellerProductBase(BaseModel):
     product_id: Optional[int] = None
     price: Decimal = Field(..., gt=0, description="Price per unit")
     stock_quantity: Decimal = Field(Decimal("0.000"), ge=0)
     minimum_order_quantity: Decimal = Field(Decimal("1.000"), gt=0)
     is_available: bool = True
+    added_date: Optional[datetime.date] = None
+    added_time: Optional[datetime.time] = None
+    harvest_date: Optional[datetime.date] = None
+    harvest_time: Optional[datetime.time] = None
+    storage_condition: Optional[str] = None
+    origin: Optional[str] = None
 
 
 class SellerProductCreate(SellerProductBase):
@@ -58,13 +67,17 @@ class SellerProductCreate(SellerProductBase):
     image_url: Optional[str] = None
 
 
-
-
 class SellerProductUpdate(BaseModel):
     price: Optional[Decimal] = Field(None, gt=0)
     stock_quantity: Optional[Decimal] = Field(None, ge=0)
     minimum_order_quantity: Optional[Decimal] = Field(None, gt=0)
     is_available: Optional[bool] = None
+    added_date: Optional[datetime.date] = None
+    added_time: Optional[datetime.time] = None
+    harvest_date: Optional[datetime.date] = None
+    harvest_time: Optional[datetime.time] = None
+    storage_condition: Optional[str] = None
+    origin: Optional[str] = None
 
 
 class SellerProductRead(BaseSchema, SellerProductBase):
@@ -73,3 +86,4 @@ class SellerProductRead(BaseSchema, SellerProductBase):
     created_at: datetime.datetime
     updated_at: datetime.datetime
     product: Optional[ProductRead] = None
+    freshness: Optional[FreshnessInfo] = None

@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
-import { Heart, Plus, Minus, Check, Star, ShieldCheck, Truck, Sparkles } from "lucide-react";
+import { Heart, Plus, Minus, Star, ShieldCheck, Truck, Sparkles, Clock, MapPin, Package, CheckCircle2 } from "lucide-react";
 import type { ApiProduct } from "@/lib/api/products";
+import { useTranslation } from "@/context/i18n-context";
 
 const VEGGIE_IMAGES: Record<string, string> = {
   tomato: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=600&auto=format&fit=crop&q=80",
@@ -48,6 +48,7 @@ export function ProductDetailSheet({
   isFavorite = false,
   onToggleFavorite,
 }: ProductDetailSheetProps) {
+  const { t } = useTranslation();
   const [selectedQty, setSelectedQty] = useState(cartQuantity > 0 ? cartQuantity : 1);
   const [selectedSellerIndex, setSelectedSellerIndex] = useState(0);
 
@@ -57,9 +58,10 @@ export function ProductDetailSheet({
   const offer = sellerOffers[selectedSellerIndex] || sellerOffers[0];
   const price = offer?.price != null ? Number(offer.price) : product.min_price != null ? Number(product.min_price) : 0;
   const inStock = product.is_in_stock && (offer?.is_available ?? true);
-  const sellerName = offer?.seller_business_name || "Solapur Local Farmers";
-  const sellerRating = offer?.seller_rating || 4.8;
+  const sellerName = offer?.seller_business_name || "Local seller";
+  const sellerRating = offer?.seller_rating != null ? Number(offer.seller_rating).toFixed(1) : null;
   const imageUrl = getProductPhoto(product);
+  const freshness = offer?.freshness;
 
   const handleAdd = () => {
     if (!offer?.seller_product_id) return;
@@ -72,16 +74,16 @@ export function ProductDetailSheet({
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose}>
-      <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "0 4px" }}>
         {/* Product Image Header with badges */}
         <div
           style={{
             position: "relative",
             width: "100%",
-            height: "240px",
-            borderRadius: "22px",
+            height: "220px",
+            borderRadius: "20px",
             overflow: "hidden",
-            backgroundColor: "#f4f7f4",
+            backgroundColor: "var(--vegito-surface-muted, #f4f7f4)",
           }}
         >
           <img
@@ -94,26 +96,28 @@ export function ProductDetailSheet({
             }}
           />
 
-          {/* Freshness Badge */}
+          {/* Freshness Badge overlay */}
           <div
             style={{
               position: "absolute",
               top: "14px",
               left: "14px",
-              backgroundColor: "rgba(6, 60, 50, 0.9)",
+              backgroundColor: "rgba(6, 60, 50, 0.92)",
               backdropFilter: "blur(8px)",
               color: "#ffffff",
               padding: "6px 12px",
               borderRadius: "12px",
-              fontSize: "11.5px",
+              fontSize: "12px",
               fontWeight: 800,
               display: "flex",
               alignItems: "center",
               gap: "6px",
             }}
           >
-            <Sparkles size={14} color="#34d399" />
-            <span>Farm Harvested Today</span>
+            <Sparkles size={14} color={freshness?.color || "#34d399"} />
+            <span>
+              {freshness ? `${freshness.score}% ${freshness.status}` : "Mandi Fresh Produce"}
+            </span>
           </div>
 
           {/* Favorite button */}
@@ -152,27 +156,181 @@ export function ProductDetailSheet({
                   margin: 0,
                   fontSize: "22px",
                   fontWeight: 800,
-                  color: "#063c32",
+                  color: "var(--vegito-text-main, #063c32)",
                   letterSpacing: "-0.02em",
                 }}
               >
                 {product.name}
               </h2>
-              <p style={{ margin: "4px 0 0", fontSize: "13.5px", color: "#62746a", fontWeight: 600 }}>
-                Net weight: {product.unit} · Sold by {sellerName}
+              <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--vegito-text-muted, #62746a)", fontWeight: 600 }}>
+                {t("common.unit", "Unit")}: {product.unit} · {sellerName}
               </p>
             </div>
 
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: "24px", fontWeight: 800, color: "#063c32" }}>
+              <div style={{ fontSize: "24px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
                 ₹{price}
               </div>
-              <div style={{ fontSize: "12px", color: "#62746a" }}>
+              <div style={{ fontSize: "12px", color: "var(--vegito-text-muted, #62746a)" }}>
                 per {product.unit}
               </div>
             </div>
           </div>
         </div>
+
+        {/* Freshness Engine Card */}
+        {freshness && (
+          <div
+            style={{
+              padding: "16px",
+              backgroundColor: "var(--vegito-surface-muted, #f4f8f5)",
+              borderRadius: "18px",
+              border: "1px solid var(--vegito-border, #e1ebe3)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "18px" }}>🌿</span>
+                <span style={{ fontSize: "14px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
+                  {t("freshness.title", "Produce Freshness & Timeline")}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "4px 10px",
+                  borderRadius: "20px",
+                  backgroundColor: "var(--vegito-card, #ffffff)",
+                  fontSize: "12px",
+                  fontWeight: 800,
+                  color: freshness.color,
+                  border: `1px solid ${freshness.color}`,
+                }}
+              >
+                <span>●</span>
+                <span>{freshness.score}% {freshness.status}</span>
+              </div>
+            </div>
+
+            {/* Visual Freshness Meter Bar */}
+            <div
+              style={{
+                width: "100%",
+                height: "10px",
+                borderRadius: "5px",
+                backgroundColor: "rgba(0,0,0,0.08)",
+                overflow: "hidden",
+                marginBottom: "14px",
+              }}
+            >
+              <div
+                style={{
+                  width: `${freshness.score}%`,
+                  height: "100%",
+                  backgroundColor: freshness.color,
+                  borderRadius: "5px",
+                  transition: "width 0.4s ease",
+                }}
+              />
+            </div>
+
+            {/* Freshness Metadata Grid */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "8px",
+                marginBottom: "14px",
+              }}
+            >
+              <div
+                style={{
+                  padding: "8px",
+                  backgroundColor: "var(--vegito-card, #ffffff)",
+                  borderRadius: "12px",
+                  border: "1px solid var(--vegito-border, #e8eee9)",
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontSize: "10.5px", color: "var(--vegito-text-muted, #62746a)", fontWeight: 700 }}>
+                  {t("freshness.shelfLife", "Shelf Life")}
+                </div>
+                <div style={{ fontSize: "12px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)", marginTop: "2px" }}>
+                  {freshness.shelf_life_days} {t("common.date", "days")}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: "8px",
+                  backgroundColor: "var(--vegito-card, #ffffff)",
+                  borderRadius: "12px",
+                  border: "1px solid var(--vegito-border, #e8eee9)",
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontSize: "10.5px", color: "var(--vegito-text-muted, #62746a)", fontWeight: 700 }}>
+                  {t("freshness.storage", "Storage")}
+                </div>
+                <div style={{ fontSize: "11px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {freshness.storage_condition || "Ambient Mandi Crate"}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: "8px",
+                  backgroundColor: "var(--vegito-card, #ffffff)",
+                  borderRadius: "12px",
+                  border: "1px solid var(--vegito-border, #e8eee9)",
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontSize: "10.5px", color: "var(--vegito-text-muted, #62746a)", fontWeight: 700 }}>
+                  {t("freshness.origin", "Origin")}
+                </div>
+                <div style={{ fontSize: "11px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {freshness.origin || "Solapur, MH"}
+                </div>
+              </div>
+            </div>
+
+            {/* Step-by-Step Harvest & Freshness Timeline */}
+            <div style={{ borderTop: "1px solid var(--vegito-border, #e1ebe3)", paddingTop: "12px" }}>
+              <div style={{ fontSize: "11.5px", fontWeight: 800, color: "var(--vegito-text-muted, #62746a)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "10px" }}>
+                Harvest Journey
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {freshness.timeline?.map((step, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      fontSize: "12px",
+                      color: "var(--vegito-text-main, #063c32)",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <CheckCircle2 size={14} color={step.is_completed ? freshness.color : "#10b981"} />
+                      <span style={{ fontWeight: step.is_completed ? 800 : 600 }}>
+                        {step.icon} {step.title}
+                      </span>
+                    </div>
+                    {(step.display_text || step.timestamp) && (
+                      <span style={{ fontSize: "11px", color: "var(--vegito-text-muted, #62746a)", fontWeight: 500 }}>
+                        {step.display_text || step.timestamp}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Seller Info Pill */}
         <div
@@ -181,19 +339,19 @@ export function ProductDetailSheet({
             alignItems: "center",
             justifyContent: "space-between",
             padding: "12px 16px",
-            backgroundColor: "#f4f8f5",
+            backgroundColor: "var(--vegito-surface-muted, #f4f8f5)",
             borderRadius: "16px",
-            border: "1px solid #e1ebe3",
+            border: "1px solid var(--vegito-border, #e1ebe3)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{ fontSize: "20px" }}>🏡</span>
             <div>
-              <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#063c32" }}>
+              <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "var(--vegito-text-main, #063c32)" }}>
                 {sellerName}
               </p>
-              <p style={{ margin: "1px 0 0", fontSize: "11.5px", color: "#62746a" }}>
-                Local Solapur Mandi Verified Seller
+              <p style={{ margin: "1px 0 0", fontSize: "11.5px", color: "var(--vegito-text-muted, #62746a)" }}>
+                {t("freshness.mandiFresh", "Direct from Solapur Mandi")}
               </p>
             </div>
           </div>
@@ -205,11 +363,11 @@ export function ProductDetailSheet({
               gap: "4px",
               padding: "4px 10px",
               borderRadius: "20px",
-              backgroundColor: "#ffffff",
+              backgroundColor: "var(--vegito-card, #ffffff)",
               boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
               fontSize: "12px",
               fontWeight: 800,
-              color: "#063c32",
+              color: "var(--vegito-text-main, #063c32)",
             }}
           >
             <Star size={13} fill="#f59e0b" color="#f59e0b" />
@@ -223,17 +381,17 @@ export function ProductDetailSheet({
             style={{
               padding: "12px 14px",
               borderRadius: "14px",
-              backgroundColor: "#ffffff",
-              border: "1px solid #e8eee9",
+              backgroundColor: "var(--vegito-card, #ffffff)",
+              border: "1px solid var(--vegito-border, #e8eee9)",
               display: "flex",
               alignItems: "center",
               gap: "10px",
             }}
           >
-            <ShieldCheck size={20} color="#16835b" />
+            <ShieldCheck size={20} color="var(--vegito-primary, #16835b)" />
             <div>
-              <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "#063c32" }}>100% Fresh</p>
-              <p style={{ margin: 0, fontSize: "11px", color: "#62746a" }}>No questions replace</p>
+              <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "var(--vegito-text-main, #063c32)" }}>100% Fresh</p>
+              <p style={{ margin: 0, fontSize: "11px", color: "var(--vegito-text-muted, #62746a)" }}>{t("freshness.guarantee", "100% Quality Guarantee")}</p>
             </div>
           </div>
 
@@ -241,29 +399,29 @@ export function ProductDetailSheet({
             style={{
               padding: "12px 14px",
               borderRadius: "14px",
-              backgroundColor: "#ffffff",
-              border: "1px solid #e8eee9",
+              backgroundColor: "var(--vegito-card, #ffffff)",
+              border: "1px solid var(--vegito-border, #e8eee9)",
               display: "flex",
               alignItems: "center",
               gap: "10px",
             }}
           >
-            <Truck size={20} color="#16835b" />
+            <Truck size={20} color="var(--vegito-primary, #16835b)" />
             <div>
-              <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "#063c32" }}>Fast Delivery</p>
-              <p style={{ margin: 0, fontSize: "11px", color: "#62746a" }}>15-30 min express</p>
+              <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "var(--vegito-text-main, #063c32)" }}>Fast Delivery</p>
+              <p style={{ margin: 0, fontSize: "11px", color: "var(--vegito-text-muted, #62746a)" }}>15-30 min express</p>
             </div>
           </div>
         </div>
 
         {/* Seller Price Comparison (When multiple sellers available) */}
         {sellerOffers.length > 1 && (
-          <div style={{ borderTop: "1px solid #f0f4f1", paddingTop: "14px" }}>
+          <div style={{ borderTop: "1px solid var(--vegito-border, #f0f4f1)", paddingTop: "14px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <h4 style={{ margin: 0, fontSize: "12.5px", fontWeight: 800, color: "#063c32", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+              <h4 style={{ margin: 0, fontSize: "12.5px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
                 Compare Local Sellers ({sellerOffers.length} available)
               </h4>
-              <span style={{ fontSize: "11px", color: "#16835b", fontWeight: 700 }}>Real Mandi Rates</span>
+              <span style={{ fontSize: "11px", color: "var(--vegito-primary, #16835b)", fontWeight: 700 }}>Real Mandi Rates</span>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -277,8 +435,8 @@ export function ProductDetailSheet({
                     style={{
                       padding: "10px 12px",
                       borderRadius: "12px",
-                      border: isSelected ? "1.5px solid #16835b" : "1px solid #e2e8e5",
-                      backgroundColor: isSelected ? "#ecfdf5" : "#ffffff",
+                      border: isSelected ? "1.5px solid var(--vegito-primary, #16835b)" : "1px solid var(--vegito-border, #e2e8e5)",
+                      backgroundColor: isSelected ? "var(--vegito-surface-muted, #ecfdf5)" : "var(--vegito-card, #ffffff)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
@@ -288,19 +446,19 @@ export function ProductDetailSheet({
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: "13px", fontWeight: 700, color: "#063c32" }}>
+                      <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--vegito-text-main, #063c32)" }}>
                         {off.seller_business_name || `Mandi Vendor #${idx + 1}`}
                       </div>
-                      <div style={{ fontSize: "11px", color: "#62746a", marginTop: "1px" }}>
+                      <div style={{ fontSize: "11px", color: "var(--vegito-text-muted, #62746a)", marginTop: "1px" }}>
                         ⭐ {off.seller_rating || 4.8} · {off.is_available ? "In Stock" : "Limited Stock"}
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "14px", fontWeight: 800, color: isSelected ? "#16835b" : "#063c32" }}>
+                      <div style={{ fontSize: "14px", fontWeight: 800, color: isSelected ? "var(--vegito-primary, #16835b)" : "var(--vegito-text-main, #063c32)" }}>
                         ₹{off.price}
                       </div>
                       {isSelected && (
-                        <span style={{ fontSize: "10px", color: "#16835b", fontWeight: 800 }}>
+                        <span style={{ fontSize: "10px", color: "var(--vegito-primary, #16835b)", fontWeight: 800 }}>
                           Selected ✓
                         </span>
                       )}
@@ -314,11 +472,11 @@ export function ProductDetailSheet({
 
         {/* Description */}
         {product.description && (
-          <div style={{ borderTop: "1px solid #f0f4f1", paddingTop: "14px" }}>
-            <h4 style={{ margin: "0 0 6px", fontSize: "13px", fontWeight: 800, color: "#063c32", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+          <div style={{ borderTop: "1px solid var(--vegito-border, #f0f4f1)", paddingTop: "14px" }}>
+            <h4 style={{ margin: "0 0 6px", fontSize: "13px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
               About this harvest
             </h4>
-            <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.6, color: "#4a5a51" }}>
+            <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.6, color: "var(--vegito-text-muted, #4a5a51)" }}>
               {product.description}
             </p>
           </div>
@@ -327,7 +485,7 @@ export function ProductDetailSheet({
         {/* Sticky Action Footer */}
         <div
           style={{
-            borderTop: "1px solid #f0f4f1",
+            borderTop: "1px solid var(--vegito-border, #f0f4f1)",
             paddingTop: "16px",
             display: "flex",
             alignItems: "center",
@@ -339,10 +497,10 @@ export function ProductDetailSheet({
             style={{
               display: "flex",
               alignItems: "center",
-              backgroundColor: "#f4f8f5",
+              backgroundColor: "var(--vegito-surface-muted, #f4f8f5)",
               borderRadius: "16px",
               padding: "4px",
-              border: "1px solid #e1ebe3",
+              border: "1px solid var(--vegito-border, #e1ebe3)",
             }}
           >
             <button
@@ -352,13 +510,13 @@ export function ProductDetailSheet({
                 width: "38px",
                 height: "38px",
                 borderRadius: "12px",
-                backgroundColor: selectedQty <= 1 ? "transparent" : "#ffffff",
+                backgroundColor: selectedQty <= 1 ? "transparent" : "var(--vegito-card, #ffffff)",
                 border: "none",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: selectedQty <= 1 ? "default" : "pointer",
-                color: selectedQty <= 1 ? "#a2b4a9" : "#063c32",
+                color: selectedQty <= 1 ? "var(--vegito-text-muted, #a2b4a9)" : "var(--vegito-text-main, #063c32)",
                 boxShadow: selectedQty > 1 ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
               }}
             >
@@ -371,7 +529,7 @@ export function ProductDetailSheet({
                 textAlign: "center",
                 fontSize: "15px",
                 fontWeight: 800,
-                color: "#063c32",
+                color: "var(--vegito-text-main, #063c32)",
               }}
             >
               {selectedQty}
@@ -383,13 +541,13 @@ export function ProductDetailSheet({
                 width: "38px",
                 height: "38px",
                 borderRadius: "12px",
-                backgroundColor: "#ffffff",
+                backgroundColor: "var(--vegito-card, #ffffff)",
                 border: "none",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: "pointer",
-                color: "#063c32",
+                color: "var(--vegito-text-main, #063c32)",
                 boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
               }}
             >
@@ -405,7 +563,7 @@ export function ProductDetailSheet({
               flex: 1,
               height: "50px",
               borderRadius: "16px",
-              backgroundColor: inStock ? "#063c32" : "#94a39b",
+              backgroundColor: inStock ? "var(--vegito-primary, #063c32)" : "var(--vegito-text-muted, #94a39b)",
               color: "#ffffff",
               border: "none",
               fontSize: "14.5px",

@@ -50,7 +50,7 @@ export function DashboardHeader({
   sidebarCollapsed = false,
 }: DashboardHeaderProps) {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, language, setLanguage } = useTranslation();
   const initial = userName.trim().charAt(0).toUpperCase() || "V";
   const badge = role ? ROLE_BADGES[role] : null;
 
@@ -97,7 +97,7 @@ export function DashboardHeader({
       style={{
         height: "auto",
         minHeight: "64px",
-        backgroundColor: "rgba(255, 255, 255, 0.97)",
+        backgroundColor: "var(--vegito-card, #ffffff)",
         backdropFilter: "blur(20px)",
         borderBottom: "1px solid var(--vegito-border)",
         display: "flex",
@@ -126,7 +126,7 @@ export function DashboardHeader({
               width: "44px",
               height: "44px",
               borderRadius: "12px",
-              background: "#f0f4f1",
+              background: "var(--vegito-surface-muted, #f0f4f1)",
               border: "none",
               color: "var(--vegito-primary)",
               cursor: "pointer",
@@ -151,7 +151,7 @@ export function DashboardHeader({
               width: "44px",
               height: "44px",
               borderRadius: "12px",
-              background: "#f0f4f1",
+              background: "var(--vegito-surface-muted, #f0f4f1)",
               border: "none",
               color: "var(--vegito-primary)",
               cursor: "pointer",
@@ -212,6 +212,25 @@ export function DashboardHeader({
 
         {/* Right Actions */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          <select
+            aria-label="Language"
+            value={language}
+            onChange={(event) => setLanguage(event.target.value as "en" | "mr" | "hi")}
+            style={{
+              height: "40px",
+              padding: "0 8px",
+              borderRadius: "10px",
+              border: "1px solid var(--vegito-border)",
+              background: "var(--vegito-surface, #fff)",
+              color: "var(--vegito-text-main, #17352d)",
+              fontSize: "12px",
+              fontWeight: 700,
+            }}
+          >
+            <option value="en">EN</option>
+            <option value="mr">मराठी</option>
+            <option value="hi">हिन्दी</option>
+          </select>
           <ThemeToggle />
 
           {/* Notification bell */}
@@ -223,12 +242,12 @@ export function DashboardHeader({
               height: "44px",
               borderRadius: "12px",
               border: "1.5px solid var(--vegito-border)",
-              background: "#fff",
+              background: "var(--vegito-card, #fff)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
-              color: "#6b7280",
+              color: "var(--vegito-text-muted, #6b7280)",
             }}
           >
             <Bell size={18} />
@@ -241,7 +260,7 @@ export function DashboardHeader({
                 height: "7px",
                 borderRadius: "50%",
                 background: "#ef4444",
-                border: "1.5px solid #fff",
+                border: "1.5px solid var(--vegito-card, #fff)",
               }}
             />
           </button>
@@ -280,7 +299,7 @@ export function DashboardHeader({
                   top: "calc(100% + 8px)",
                   right: 0,
                   width: "240px",
-                  backgroundColor: "#ffffff",
+                  backgroundColor: "var(--vegito-card, #ffffff)",
                   borderRadius: "16px",
                   boxShadow: "0 10px 30px rgba(6, 60, 50, 0.15)",
                   border: "1px solid var(--vegito-border, #e1ebe3)",
@@ -292,7 +311,7 @@ export function DashboardHeader({
                 }}
               >
                 {/* Header */}
-                <div style={{ padding: "6px 8px", borderBottom: "1px solid #f0f4f1", marginBottom: "4px" }}>
+                <div style={{ padding: "6px 8px", borderBottom: "1px solid var(--vegito-border, #f0f4f1)", marginBottom: "4px" }}>
                   <div style={{ fontSize: "14px", fontWeight: 800, color: "var(--vegito-primary, #063c32)" }}>
                     {userName}
                   </div>
@@ -330,7 +349,7 @@ export function DashboardHeader({
                     borderRadius: "10px",
                     backgroundColor: "transparent",
                     border: "none",
-                    color: "#374151",
+                    color: "var(--vegito-text-main, #374151)",
                     fontSize: "13px",
                     fontWeight: 600,
                     cursor: "pointer",
@@ -357,7 +376,7 @@ export function DashboardHeader({
                     borderRadius: "10px",
                     backgroundColor: "transparent",
                     border: "none",
-                    color: "#374151",
+                    color: "var(--vegito-text-main, #374151)",
                     fontSize: "13px",
                     fontWeight: 600,
                     cursor: "pointer",
@@ -369,7 +388,7 @@ export function DashboardHeader({
                   <span>Account Settings</span>
                 </button>
 
-                <div style={{ height: "1px", backgroundColor: "#f0f4f1", margin: "4px 0" }} />
+                <div style={{ height: "1px", backgroundColor: "var(--vegito-border, #f0f4f1)", margin: "4px 0" }} />
 
                 {/* Log Out */}
                 <button
@@ -381,8 +400,8 @@ export function DashboardHeader({
                     gap: "8px",
                     padding: "8px 10px",
                     borderRadius: "10px",
-                    backgroundColor: "#fef2f2",
-                    border: "1px solid #fee2e2",
+                    backgroundColor: "rgba(220, 38, 38, 0.12)",
+                    border: "1px solid rgba(220, 38, 38, 0.2)",
                     color: "#dc2626",
                     fontSize: "13px",
                     fontWeight: 700,
@@ -406,7 +425,7 @@ export function DashboardHeader({
           display: "flex",
           alignItems: "center",
           gap: "10px",
-          backgroundColor: "#f1f5f2",
+          backgroundColor: "var(--vegito-surface-muted, #f1f5f2)",
           borderRadius: "14px",
           padding: "10px 16px",
           width: "100%",

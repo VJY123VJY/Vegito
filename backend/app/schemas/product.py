@@ -4,6 +4,7 @@ from typing import Optional, List
 from pydantic import BaseModel, Field, model_validator
 from app.schemas.common import BaseSchema
 from app.schemas.category import CategoryRead
+from app.schemas.freshness import FreshnessInfo
 
 
 class ProductImageBase(BaseModel):
@@ -27,6 +28,8 @@ class ProductBase(BaseModel):
     category_id: int
     description: Optional[str] = None
     unit: str = Field("1 KG", max_length=30)
+    shelf_life_days: Optional[int] = 7
+    freshness_category: Optional[str] = None
     is_active: bool = True
 
 
@@ -39,6 +42,8 @@ class ProductUpdate(BaseModel):
     category_id: Optional[int] = None
     description: Optional[str] = None
     unit: Optional[str] = Field(None, max_length=30)
+    shelf_life_days: Optional[int] = None
+    freshness_category: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -51,6 +56,13 @@ class ProductSellerOffer(BaseModel):
     stock_quantity: Decimal
     minimum_order_quantity: Decimal
     is_available: bool
+    added_date: Optional[datetime.date] = None
+    added_time: Optional[datetime.time] = None
+    harvest_date: Optional[datetime.date] = None
+    harvest_time: Optional[datetime.time] = None
+    storage_condition: Optional[str] = None
+    origin: Optional[str] = None
+    freshness: Optional[FreshnessInfo] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -67,6 +79,12 @@ class ProductSellerOffer(BaseModel):
                 "stock_quantity": data.stock_quantity,
                 "minimum_order_quantity": data.minimum_order_quantity,
                 "is_available": data.is_available,
+                "added_date": getattr(data, "added_date", None),
+                "added_time": getattr(data, "added_time", None),
+                "harvest_date": getattr(data, "harvest_date", None),
+                "harvest_time": getattr(data, "harvest_time", None),
+                "storage_condition": getattr(data, "storage_condition", None),
+                "origin": getattr(data, "origin", None),
             }
         return data
 
@@ -81,4 +99,5 @@ class ProductRead(BaseSchema, ProductBase):
     # Dynamic price and stock from primary/best active seller offer
     min_price: Optional[Decimal] = None
     is_in_stock: bool = False
+    freshness: Optional[FreshnessInfo] = None
     seller_products: List[ProductSellerOffer] = []

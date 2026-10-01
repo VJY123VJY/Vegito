@@ -41,6 +41,15 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
   const [stockQuantity, setStockQuantity] = useState("50");
   const [moq, setMoq] = useState("1");
   const [isAvailable, setIsAvailable] = useState(true);
+  const [addedDate, setAddedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [addedTime, setAddedTime] = useState(() => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  });
+  const [harvestDate, setHarvestDate] = useState("");
+  const [harvestTime, setHarvestTime] = useState("");
+  const [storageCondition, setStorageCondition] = useState("Naturally Ventilated");
+  const [origin, setOrigin] = useState("Solapur Local Farm");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [showPresets, setShowPresets] = useState(false);
@@ -71,6 +80,8 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
     setStockQuantity("50");
     setDescription("");
     setImageUrl("");
+    setHarvestDate("");
+    setHarvestTime("");
     setError(null);
     onClose();
   };
@@ -118,6 +129,12 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
       is_available: isAvailable,
       description: description.trim() || undefined,
       image_url: imageUrl || undefined,
+      added_date: addedDate || undefined,
+      added_time: addedTime ? `${addedTime}:00` : undefined,
+      harvest_date: harvestDate || undefined,
+      harvest_time: harvestTime ? `${harvestTime}:00` : undefined,
+      storage_condition: storageCondition || undefined,
+      origin: origin.trim() || undefined,
     });
   };
 
@@ -501,6 +518,156 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
                   <option value="yes">Available for Sale</option>
                   <option value="no">Temporarily Unavailable</option>
                 </select>
+              </div>
+            </div>
+
+            {/* Freshness & Harvest Factual Details */}
+            <div
+              style={{
+                padding: "14px",
+                borderRadius: "12px",
+                backgroundColor: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px" }}>
+                <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#166534" }}>
+                  🌱 Farm Freshness &amp; Harvest Timestamps
+                </span>
+                <span style={{ fontSize: "11px", color: "#15803d", fontWeight: 600 }}>
+                  Calculated automatically by Vegito engine
+                </span>
+              </div>
+
+              {/* Added Date and Added Time */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#166534", marginBottom: "4px" }}>
+                    Listing / Added Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={addedDate}
+                    onChange={(e) => setAddedDate(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      fontSize: "13px",
+                      borderRadius: "8px",
+                      border: "1px solid #cbd5e1",
+                      backgroundColor: "#ffffff",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#166534", marginBottom: "4px" }}>
+                    Listing / Added Time *
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={addedTime}
+                    onChange={(e) => setAddedTime(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      fontSize: "13px",
+                      borderRadius: "8px",
+                      border: "1px solid #cbd5e1",
+                      backgroundColor: "#ffffff",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Harvest Date and Harvest Time (Optional) */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                    Harvest Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={harvestDate}
+                    onChange={(e) => setHarvestDate(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      fontSize: "13px",
+                      borderRadius: "8px",
+                      border: "1px solid #cbd5e1",
+                      backgroundColor: "#ffffff",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                    Harvest Time (Optional)
+                  </label>
+                  <input
+                    type="time"
+                    value={harvestTime}
+                    onChange={(e) => setHarvestTime(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      fontSize: "13px",
+                      borderRadius: "8px",
+                      border: "1px solid #cbd5e1",
+                      backgroundColor: "#ffffff",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Storage Condition & Farm Origin */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                    Storage Condition (Optional)
+                  </label>
+                  <select
+                    value={storageCondition}
+                    onChange={(e) => setStorageCondition(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      fontSize: "13px",
+                      borderRadius: "8px",
+                      border: "1px solid #cbd5e1",
+                      backgroundColor: "#ffffff",
+                    }}
+                  >
+                    <option value="Naturally Ventilated">Naturally Ventilated</option>
+                    <option value="Ambient / Room Temperature">Ambient / Room Temperature</option>
+                    <option value="Cold Storage / Refrigerated">Cold Storage / Refrigerated</option>
+                    <option value="Cool &amp; Dry Ventilated">Cool &amp; Dry Ventilated</option>
+                    <option value="Hydro-Cooled">Hydro-Cooled</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                    Farm Origin (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={origin}
+                    onChange={(e) => setOrigin(e.target.value)}
+                    placeholder="e.g. Solapur Local Farm"
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      fontSize: "13px",
+                      borderRadius: "8px",
+                      border: "1px solid #cbd5e1",
+                      backgroundColor: "#ffffff",
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
