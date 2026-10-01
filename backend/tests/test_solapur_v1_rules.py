@@ -116,6 +116,36 @@ def setup_solapur_v1(db: Session):
     }
 
 
+def test_missing_coordinates_are_rejected_instead_of_backfilled(setup_solapur_v1, db: Session):
+    data = setup_solapur_v1
+
+    missing_addr = Address(
+        user_id=data["cust_user"].id,
+        address_line1="No GPS Address",
+        city="Solapur",
+        state="Maharashtra",
+        pincode="413006",
+    )
+    db.add(missing_addr)
+    db.commit()
+
+    with pytest.raises(Exception) as exc:
+        OrderService.checkout(db, data["cust_user"], OrderCreate(address_id=missing_addr.id, payment_method="COD"))
+
+    message = str(exc.value)
+    assert "GPS" in message or "coordinates" in message.lower()
+    assert "fake" not in message.lower()
+
+    data["shop"].latitude = None
+    data["shop"].longitude = None
+    db.commit()
+
+    with pytest.raises(Exception) as exc2:
+        DeliveryPricingService.calculate_delivery_distance_and_fee(db, missing_addr.id, data["seller_user"].id)
+
+    assert "coordinates" in str(exc2.value).lower() or "GPS" in str(exc2.value)
+
+
 # ==============================================================================
 # TEST 1: Customer address = 5 KM from seller -> order allowed
 # ==============================================================================

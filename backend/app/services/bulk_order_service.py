@@ -427,8 +427,9 @@ class BulkOrderService:
                 user_id=primary_seller_id,
                 title="📦 New Bulk Order Request",
                 message=f"New bulk request #{order.order_number} from {b_profile.business_name} ({data.delivery_date}).",
-                type="BULK_ORDER",
-                data={"order_id": order.id, "order_number": order.order_number},
+                notification_type="BULK_ORDER",
+                channel="IN_APP",
+                is_sent=True,
             )
             db.add(notif)
 
@@ -482,8 +483,9 @@ class BulkOrderService:
                         inventory_id=inv.id,
                         transaction_type="RESERVE",
                         quantity=item.quantity,
-                        reference_id=str(order.id),
-                        notes=f"Bulk order #{order.order_number} reservation",
+                        reference_type="ORDER",
+                        reference_id=order.id,
+                        note=f"Bulk order #{order.order_number} reservation",
                     )
                 )
 
@@ -510,8 +512,9 @@ class BulkOrderService:
                 user_id=order.customer_id,
                 title="✅ Bulk Order Confirmed",
                 message=f"Your bulk order #{order.order_number} has been confirmed by the seller!",
-                type="ORDER_CONFIRMED",
-                data={"order_id": order.id, "order_number": order.order_number},
+                notification_type="ORDER_CONFIRMED",
+                channel="IN_APP",
+                is_sent=True,
             )
         )
 
@@ -570,8 +573,9 @@ class BulkOrderService:
                 user_id=order.customer_id,
                 title="📋 Quote Received for Bulk Order",
                 message=f"Seller sent a quote of ₹{quote_total:.0f} for order #{order.order_number}. Review and accept.",
-                type="QUOTE_RECEIVED",
-                data={"order_id": order.id, "order_number": order.order_number, "quote_total": str(quote_total)},
+                notification_type="QUOTE_RECEIVED",
+                channel="IN_APP",
+                is_sent=True,
             )
         )
 
@@ -599,8 +603,9 @@ class BulkOrderService:
                             inventory_id=inv.id,
                             transaction_type="RELEASE",
                             quantity=item.quantity,
-                            reference_id=str(order.id),
-                            notes=f"Released reservation from rejected bulk order #{order.order_number}",
+                            reference_type="ORDER",
+                            reference_id=order.id,
+                            note=f"Released reservation from rejected bulk order #{order.order_number}",
                         )
                     )
 
@@ -624,8 +629,9 @@ class BulkOrderService:
                 user_id=order.customer_id,
                 title="❌ Bulk Order Declined",
                 message=f"Seller was unable to fulfill bulk order #{order.order_number}. Reason: {reason or 'Capacity/Stock constraints'}.",
-                type="ORDER_CANCELLED",
-                data={"order_id": order.id, "order_number": order.order_number},
+                notification_type="ORDER_CANCELLED",
+                channel="IN_APP",
+                is_sent=True,
             )
         )
 
@@ -811,8 +817,9 @@ class BulkOrderService:
                             inventory_id=inv.id,
                             transaction_type="RESERVE",
                             quantity=item.quantity,
-                            reference_id=str(order.id),
-                            notes=f"Bulk quote accepted #{order.order_number}",
+                            reference_type="ORDER",
+                            reference_id=order.id,
+                            note=f"Bulk quote accepted #{order.order_number}",
                         )
                     )
 
@@ -852,8 +859,9 @@ class BulkOrderService:
                         user_id=order.seller_id,
                         title="🎉 Bulk Quote Accepted!",
                         message=f"{order.customer.name} accepted your quote for Order #{order.order_number}. Total: ₹{order.total_amount:.0f}.",
-                        type="QUOTE_ACCEPTED",
-                        data={"order_id": order.id, "order_number": order.order_number},
+                        notification_type="QUOTE_ACCEPTED",
+                        channel="IN_APP",
+                        is_sent=True,
                     )
                 )
 
@@ -878,8 +886,9 @@ class BulkOrderService:
                         user_id=order.seller_id,
                         title="❌ Bulk Quote Declined",
                         message=f"Quote for Order #{order.order_number} was declined by customer.",
-                        type="QUOTE_REJECTED",
-                        data={"order_id": order.id, "order_number": order.order_number},
+                        notification_type="QUOTE_REJECTED",
+                        channel="IN_APP",
+                        is_sent=True,
                     )
                 )
         else:
@@ -1147,8 +1156,15 @@ class BulkOrderService:
         pending_quotes = len([o for o in orders if o.quote_status in ("PENDING", "SENT")])
 
         # Monthly spend (last 30 days)
-        thirty_days_ago = datetime.datetime.utcnow() - datetime.timedelta(days=30)
-        recent_orders = [o for o in orders if o.created_at >= thirty_days_ago and o.status in ("CONFIRMED", "DELIVERED")]
+        def _to_utc(dt):
+            if dt is None:
+                return datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+            if getattr(dt, "tzinfo", None) is None:
+                return dt.replace(tzinfo=datetime.timezone.utc)
+            return dt.astimezone(datetime.timezone.utc)
+
+        thirty_days_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=30)
+        recent_orders = [o for o in orders if _to_utc(o.created_at) >= thirty_days_ago and o.status in ("CONFIRMED", "DELIVERED")]
         monthly_spend = sum((o.total_amount for o in recent_orders), Decimal("0.00"))
 
         avg_value = Decimal("0.00")

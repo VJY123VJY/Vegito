@@ -1,9 +1,6 @@
-import { B2BDashboard } from "@/components/customer/b2b-dashboard";
+"use client";
 
-export const metadata = {
-  title: "B2B Commercial & Bulk Ordering | Vegito V1",
-  description: "Wholesale Mandi Rates for Restaurants, Hotels, Caterers & Hostels in Solapur",
-};
+import { B2BDashboard } from "@/components/customer/b2b-dashboard";
 
 export default function CustomerB2BPage() {
   return (

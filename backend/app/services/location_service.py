@@ -24,6 +24,7 @@ from app.models.delivery_partner import DeliveryPartner
 from app.models.delivery_partner_location import DeliveryPartnerLocation
 from app.models.seller_product import SellerProduct
 from app.models.user import User
+from app.core.exceptions import BadRequestException
 
 logger = logging.getLogger(__name__)
 
@@ -91,42 +92,33 @@ class LocationService:
     @staticmethod
     def resolve_address_coordinates(db: Session, address: Address) -> Tuple[Optional[float], Optional[float]]:
         """
-        Returns (lat, lon) for an address.
-        If address lacks coordinates, assigns valid coordinates based on city/reference center
-        and persists them back to the database.
+        Returns actual coordinates for an address.
+
+        Important: the backend must never fabricate GPS coordinates for a missing address pin.
+        If coordinates are absent, the flow must reject the request with a clear validation error.
         """
         if address.latitude is not None and address.longitude is not None:
             return float(address.latitude), float(address.longitude)
 
-        # Fallback coordinate assignment for Solapur address without GPS
-        assigned_lat = DEFAULT_SOLAPUR_LAT
-        assigned_lon = DEFAULT_SOLAPUR_LON
-
-        # Add small deterministic offset based on address ID to avoid all addresses collapsing to one dot
-        offset_lat = ((address.id % 20) - 10) * 0.003
-        offset_lon = (((address.id * 3) % 20) - 10) * 0.003
-        final_lat = round(assigned_lat + offset_lat, 7)
-        final_lon = round(assigned_lon + offset_lon, 7)
-
-        address.latitude = Decimal(str(final_lat))
-        address.longitude = Decimal(str(final_lon))
-        try:
-            db.commit()
-            db.refresh(address)
-            logger.info(f"[LOCATION] Backfilled coordinates for address {address.id}: ({final_lat}, {final_lon})")
-        except Exception as e:
-            logger.warning(f"[LOCATION] Could not persist coordinates for address {address.id}: {e}")
-            db.rollback()
-
-        return final_lat, final_lon
+        raise BadRequestException(
+            message="This delivery address is missing real GPS coordinates. Please select a valid saved address or re-pin the location.",
+            code="ADDRESS_COORDINATES_MISSING",
+            details={
+                "address_id": address.id,
+                "message": "Selected address has no GPS coordinates.",
+            },
+        )
 
     @staticmethod
     def resolve_seller_coordinates(
-        db: Session, seller_id: int, fallback_to_default: bool = True
+        db: Session, seller_id: int, fallback_to_default: bool = False
     ) -> Tuple[Optional[float], Optional[float]]:
         """
-        Retrieves coordinates for a seller (by user_id or seller_profile.id).
-        Returns (lat, lon) or (None, None) if unresolvable.
+        Retrieves real coordinates for a seller.
+
+        Synthetic Solapur defaults are intentionally not used. If a seller profile cannot provide
+        a real GPS pin, the system must fail closed and reject the operation rather than inventing
+        coordinates for routing or checkout decisions.
         """
         profile = (
             db.query(SellerProfile)
@@ -141,26 +133,10 @@ class LocationService:
 
         if profile.address_id:
             addr = db.query(Address).filter(Address.id == profile.address_id).first()
-            if addr and addr.latitude and addr.longitude:
+            if addr and addr.latitude is not None and addr.longitude is not None:
                 return float(addr.latitude), float(addr.longitude)
 
-        if not fallback_to_default:
-            return None, None
-
-        # Default Solapur central market location for seller
-        assigned_lat = DEFAULT_SOLAPUR_LAT
-        assigned_lon = DEFAULT_SOLAPUR_LON
-        profile.latitude = Decimal(str(assigned_lat))
-        profile.longitude = Decimal(str(assigned_lon))
-        try:
-            db.commit()
-            db.refresh(profile)
-            logger.info(f"[LOCATION] Backfilled coordinates for seller {seller_id}: ({assigned_lat}, {assigned_lon})")
-        except Exception as e:
-            logger.warning(f"[LOCATION] Could not persist coordinates for seller {seller_id}: {e}")
-            db.rollback()
-
-        return assigned_lat, assigned_lon
+        return None, None
 
     @staticmethod
     def find_eligible_sellers(

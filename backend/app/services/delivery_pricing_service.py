@@ -12,32 +12,29 @@ logger = logging.getLogger(__name__)
 
 class DeliveryPricingService:
     @staticmethod
-    def get_seller_shop_coordinates(db: Session, seller_id: Optional[int] = None) -> Tuple[float, float]:
+    def get_seller_shop_coordinates(db: Session, seller_id: Optional[int] = None) -> Tuple[Optional[float], Optional[float]]:
         """
-        Retrieves the geographical coordinates (lat, lon) for the seller's shop or farm depot.
-        Defaults to Solapur Central Market (17.6805, 75.9064).
-        """
-        shop_lat = 17.6805
-        shop_lng = 75.9064
+        Retrieves real coordinates for the seller's shop or depot.
 
+        No fake urban fallback is allowed: if the seller profile has no actual GPS pin,
+        the caller must reject the order instead of substituting a fabricated Solapur coordinate.
+        """
         shop_prof = None
         if seller_id:
             shop_prof = db.query(SellerProfile).filter(SellerProfile.user_id == seller_id).first()
 
         if not shop_prof:
-            shop_prof = db.query(SellerProfile).first()
+            return None, None
 
-        if shop_prof:
-            if shop_prof.latitude and shop_prof.longitude:
-                shop_lat = float(shop_prof.latitude)
-                shop_lng = float(shop_prof.longitude)
-            elif shop_prof.address_id:
-                shop_addr = db.query(Address).filter(Address.id == shop_prof.address_id).first()
-                if shop_addr and shop_addr.latitude and shop_addr.longitude:
-                    shop_lat = float(shop_addr.latitude)
-                    shop_lng = float(shop_addr.longitude)
+        if shop_prof.latitude is not None and shop_prof.longitude is not None:
+            return float(shop_prof.latitude), float(shop_prof.longitude)
 
-        return shop_lat, shop_lng
+        if shop_prof.address_id:
+            shop_addr = db.query(Address).filter(Address.id == shop_prof.address_id).first()
+            if shop_addr and shop_addr.latitude is not None and shop_addr.longitude is not None:
+                return float(shop_addr.latitude), float(shop_addr.longitude)
+
+        return None, None
 
     @staticmethod
     def calculate_delivery_distance_and_fee(
@@ -65,10 +62,19 @@ class DeliveryPricingService:
         # Ensure customer address coordinates are resolved and persisted
         cust_lat, cust_lng = LocationService.resolve_address_coordinates(db, address)
 
-        # Resolve seller shop coordinates
+        # Resolve seller shop coordinates without fabricating default Solapur coordinates.
         shop_lat, shop_lng = LocationService.resolve_seller_coordinates(db, seller_id) if seller_id else (None, None)
         if shop_lat is None or shop_lng is None:
             shop_lat, shop_lng = DeliveryPricingService.get_seller_shop_coordinates(db, seller_id)
+        if shop_lat is None or shop_lng is None:
+            raise BadRequestException(
+                message="This seller is missing real pickup GPS coordinates. The order cannot be routed.",
+                code="SELLER_LOCATION_MISSING",
+                details={
+                    "seller_id": seller_id,
+                    "message": "Seller location coordinates are missing.",
+                },
+            )
 
         distance_km, is_mapbox = MapboxService.get_route_distance_km(shop_lat, shop_lng, cust_lat, cust_lng)
 

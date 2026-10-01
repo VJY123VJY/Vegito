@@ -1,8 +1,4 @@
 {
-  "/page": "app/page.js",
-  "/auth/login/page": "app/auth/login/page.js",
-  "/seller/orders/page": "app/seller/orders/page.js",
-  "/seller/deliveries/page": "app/seller/deliveries/page.js",
-  "/delivery/page": "app/delivery/page.js",
-  "/delivery/tasks/page": "app/delivery/tasks/page.js"
+  "/_not-found/page": "app/_not-found/page.js",
+  "/page": "app/page.js"
 }
