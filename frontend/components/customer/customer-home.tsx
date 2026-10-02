@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Heart, MapPin, Package, ShoppingBasket, Sparkles, Truck, UserRound } from "lucide-react";
+import { ArrowRight, Building2, Heart, MapPin, Package, ShoppingBasket, Sparkles, Truck, UserRound } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCategories } from "@/lib/api/categories";
 import { addCartItem, getCart, removeCartItem, updateCartItem } from "@/lib/api/cart";
@@ -209,6 +209,12 @@ export function CustomerHome() {
                   <span className={styles.quickIcon}><Heart size={19} /></span>
                   <strong>{t("customer.favorites", "Favorites")}</strong>
                   <span>{favoriteCount ? `${favoriteCount} saved` : t("customer.noFavorites", "Save produce you love")}</span>
+                </Link>
+
+                <Link className={styles.quickAction} href="/customer/b2b">
+                  <span className={styles.quickIcon}><Building2 size={19} /></span>
+                  <strong>{t("b2b.portalTitle", "B2B Bulk Orders")}</strong>
+                  <span>Restaurants & Events</span>
                 </Link>
               </div>
             </section>
