@@ -15,6 +15,9 @@ class DeliveryPartner(Base):
     vehicle_number: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    kyc_status: Mapped[str] = mapped_column(String(50), default="DRAFT", nullable=False)
+    kyc_submitted_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    kyc_verified_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     rating: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal("0.00"), nullable=False)
     total_deliveries: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now(), nullable=False)
@@ -29,4 +32,5 @@ class DeliveryPartner(Base):
     locations: Mapped[List["DeliveryPartnerLocation"]] = relationship(
         "DeliveryPartnerLocation", back_populates="delivery_partner", cascade="all, delete-orphan"
     )
+    kyc: Mapped[Optional["DeliveryPartnerKyc"]] = relationship("DeliveryPartnerKyc", back_populates="delivery_partner", uselist=False)
 

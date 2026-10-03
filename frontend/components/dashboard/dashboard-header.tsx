@@ -55,7 +55,7 @@ export function DashboardHeader({
   const badge = role ? ROLE_BADGES[role] : null;
 
   const [locModalOpen, setLocModalOpen] = useState(false);
-  const [selectedLoc, setSelectedLoc] = useState("Solapur Central Mandi · 413001");
+  const [selectedLoc, setSelectedLoc] = useState("Choose delivery location");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = React.useRef<HTMLDivElement>(null);
 

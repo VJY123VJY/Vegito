@@ -14,6 +14,7 @@ from app.schemas.auth import (
     SellerRegisterRequest,
     DeliveryPartnerRegisterRequest,
     RegisterResponse,
+    SwitchWorkspaceRequest,
 )
 from app.schemas.user import UserRead
 from app.schemas.common import APIResponse
@@ -196,9 +197,24 @@ def admin_verify_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
 @router.get(
     "/me",
     response_model=APIResponse[UserRead],
-    summary="Get current authenticated user profile",
+    summary="Get current authenticated user profile with authorized roles",
 )
-def get_me(current_user: User = Depends(get_current_user)):
+def get_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     user_read = UserRead.model_validate(current_user)
     user_read.role_name = ROLE_NAME_MAP.get(current_user.role_id)
+    user_read.authorized_roles = AuthService.get_user_authorized_roles(db, current_user)
     return APIResponse(message="User profile retrieved", data=user_read)
+
+
+@router.post(
+    "/switch-workspace",
+    response_model=APIResponse[TokenResponse],
+    summary="Switch authenticated session to an authorized role/workspace without logging out",
+)
+def switch_workspace(
+    payload: SwitchWorkspaceRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    token_res = AuthService.switch_workspace(db, current_user, payload.target_role)
+    return APIResponse(message=f"Switched workspace to {payload.target_role}", data=token_res)

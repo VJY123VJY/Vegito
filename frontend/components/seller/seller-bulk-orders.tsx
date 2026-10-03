@@ -351,10 +351,10 @@ export function SellerBulkOrders() {
                     </div>
 
                     <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-                      🏢 {ord.business_name || "Commercial Buyer"} ({ord.business_type || "Restaurant"})
+                      🏢 {ord.business_name || "Business details unavailable"} ({ord.business_type || "Type unavailable"})
                     </div>
                     <div style={{ fontSize: 12, color: "var(--vegito-text-muted, #62746a)", marginTop: 2 }}>
-                      📍 {ord.delivery_address || "Solapur"} · ⏰ Slot: {ord.requested_delivery_window || "Morning"} ({ord.requested_delivery_date})
+                      📍 {ord.delivery_address || "Address unavailable"} · ⏰ Slot: {ord.requested_delivery_window || "Window unavailable"} ({ord.requested_delivery_date || "Date unavailable"})
                     </div>
                   </div>
 

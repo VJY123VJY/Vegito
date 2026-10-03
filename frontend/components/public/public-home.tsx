@@ -22,7 +22,7 @@ import {
   X,
   Phone,
   Clock,
-  Star,
+  Tag,
   Mic,
   Languages,
   LogOut,
@@ -32,6 +32,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCategories, ApiCategory } from "@/lib/api/categories";
 import { getProducts, ApiProduct } from "@/lib/api/products";
+import { listPromotions } from "@/lib/api/promotions";
 import { getCart, addCartItem, updateCartItem, removeCartItem } from "@/lib/api/cart";
 import { listOrders, reorder } from "@/lib/api/orders";
 import {
@@ -51,57 +52,16 @@ import { CategoryCarousel } from "@/components/ui/category-carousel";
 import { BottomNavigation } from "@/components/navigation/bottom-navigation";
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/common/theme-toggle";
-import { LocationModal, getStoredLocation } from "@/components/location/location-modal";
+import { LocationModal, getStoredLocation, type SelectedLocationData } from "@/components/location/location-modal";
 import { SmartBasket } from "@/components/customer/smart-basket";
-import { SmartReorder } from "@/components/customer/smart-reorder";
 import { GroceryReminders } from "@/components/customer/grocery-reminders";
+import { SmartReorder } from "@/components/customer/smart-reorder";
+import { SmartLocationBar } from "@/components/location/smart-location-bar";
+import { ZigZagOffers } from "@/components/customer/zigzag-offers";
+import { NearbySellersSection } from "@/components/customer/nearby-sellers-section";
+import { getNearbySellers } from "@/lib/api/customers";
 import { VoiceShoppingModal } from "@/components/customer/voice-shopping-modal";
 import { useTranslation } from "@/context/i18n-context";
-
-const BEST_OFFERS = [
-  {
-    id: "off-1",
-    tag: "FARM SPECIAL",
-    title: "Fresh Solapur Tomato Crate",
-    desc: "Direct harvest from Vasant Valley. Rich in lycopene.",
-    discount: "20% OFF",
-    price: "₹32/kg",
-    bg: "linear-gradient(135deg, #063c32 0%, #16835b 100%)",
-  },
-  {
-    id: "off-2",
-    tag: "MORNING HARVEST",
-    title: "Organic Spinach & Greens",
-    desc: "Crisp hand-plucked baby spinach and coriander.",
-    discount: "FRESH PICK",
-    price: "₹25/bunch",
-    bg: "linear-gradient(135deg, #16835b 0%, #22c55e 100%)",
-  },
-];
-
-const LOCAL_FARMS = [
-  {
-    name: "Solapur Organic Orchards",
-    area: "North Solapur",
-    specialty: "Heirloom Tomatoes & Gourds",
-    rating: 4.9,
-    orders: "1.2k+ deliveries",
-  },
-  {
-    name: "Vasant Valley Farms",
-    area: "Khed Mandi Road",
-    specialty: "Farm Potatoes & Root Veggies",
-    rating: 4.8,
-    orders: "890+ deliveries",
-  },
-  {
-    name: "Sahyadri Bio Greens",
-    area: "South Solapur",
-    specialty: "Crisp Spinach, Cabbage & Herbs",
-    rating: 4.9,
-    orders: "2.4k+ deliveries",
-  },
-];
 
 export function PublicHome() {
   const router = useRouter();
@@ -114,7 +74,8 @@ export function PublicHome() {
   const [activeTab, setActiveTab] = useState<"all" | "fresh" | "popular">("all");
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState("Solapur Central Mandi · 413001");
+  const [selectedLocation, setSelectedLocation] = useState("Choose delivery location");
+  const [selectedLocationCoordinates, setSelectedLocationCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = React.useRef<HTMLDivElement>(null);
@@ -180,6 +141,9 @@ export function PublicHome() {
     if (stored?.address) {
       setSelectedLocation(stored.address);
     }
+    if (stored?.latitude != null && stored.longitude != null) {
+      setSelectedLocationCoordinates({ latitude: stored.latitude, longitude: stored.longitude });
+    }
     // Auto-open Instamart-style location popup on first visit
     if (typeof window !== "undefined") {
       const visited = localStorage.getItem("vegito.location_selected");
@@ -200,9 +164,13 @@ export function PublicHome() {
   }, []);
 
   useEffect(() => {
-    const handleLocChange = (e: any) => {
-      if (e.detail?.address) {
-        setSelectedLocation(e.detail.address);
+    const handleLocChange = (event: Event) => {
+      const detail = (event as CustomEvent<Partial<SelectedLocationData>>).detail;
+      if (detail?.address) setSelectedLocation(detail.address);
+      if (detail?.latitude != null && detail.longitude != null) {
+        setSelectedLocationCoordinates({ latitude: detail.latitude, longitude: detail.longitude });
+      } else {
+        setSelectedLocationCoordinates(null);
       }
     };
     window.addEventListener("vegito:location_changed", handleLocChange);
@@ -238,6 +206,19 @@ export function PublicHome() {
     queryKey: ["past-orders-public"],
     queryFn: () => listOrders(1, 6),
     enabled: role === "CUSTOMER",
+    staleTime: 60_000,
+  });
+
+  const promotionsQuery = useQuery({
+    queryKey: ["marketplace-promotions"],
+    queryFn: listPromotions,
+    staleTime: 60_000,
+  });
+
+  const nearbySellersQuery = useQuery({
+    queryKey: ["nearby-sellers-home", selectedLocationCoordinates?.latitude, selectedLocationCoordinates?.longitude],
+    queryFn: () => getNearbySellers(selectedLocationCoordinates!.latitude, selectedLocationCoordinates!.longitude),
+    enabled: selectedLocationCoordinates !== null,
     staleTime: 60_000,
   });
 
@@ -955,26 +936,86 @@ export function PublicHome() {
           gap: "28px",
         }}
       >
-        {/* ── 3. HERO / FRESH GROCERY BANNER ────────────────────── */}
+        {/* ── 1. HERO WITH SUBTLE VEGETABLE ANIMATIONS & CTAS (Section 3) ── */}
         <section
           style={{
             position: "relative",
-            borderRadius: "26px",
+            borderRadius: "28px",
             overflow: "hidden",
-            background: "linear-gradient(135deg, #063c32 0%, #0d5843 60%, #16835b 100%)",
+            background: "linear-gradient(135deg, #063c32 0%, #0d5843 55%, #16835b 100%)",
             color: "#ffffff",
-            padding: "32px 28px",
-            boxShadow: "0 12px 36px rgba(6, 60, 50, 0.16)",
+            padding: "36px 30px",
+            boxShadow: "0 14px 40px rgba(6, 60, 50, 0.18)",
           }}
         >
+          {/* Subtle floating animated vegetables */}
+          <div
+            className="veg-float"
+            style={{
+              position: "absolute",
+              top: "15px",
+              right: "40px",
+              fontSize: "44px",
+              opacity: 0.35,
+              userSelect: "none",
+              pointerEvents: "none",
+              animation: "floatVeg1 5s ease-in-out infinite",
+            }}
+          >
+            🍅
+          </div>
+          <div
+            className="veg-float"
+            style={{
+              position: "absolute",
+              bottom: "20px",
+              right: "120px",
+              fontSize: "40px",
+              opacity: 0.35,
+              userSelect: "none",
+              pointerEvents: "none",
+              animation: "floatVeg2 6s ease-in-out infinite",
+            }}
+          >
+            🥕
+          </div>
+          <div
+            className="veg-float"
+            style={{
+              position: "absolute",
+              top: "55px",
+              right: "210px",
+              fontSize: "36px",
+              opacity: 0.28,
+              userSelect: "none",
+              pointerEvents: "none",
+              animation: "floatVeg1 5.5s ease-in-out infinite",
+            }}
+          >
+            🥦
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              right: "-20px",
+              bottom: "-25px",
+              fontSize: "140px",
+              opacity: 0.14,
+              userSelect: "none",
+              pointerEvents: "none",
+            }}
+          >
+            🥬
+          </div>
+
           <div
             style={{
               position: "relative",
               zIndex: 2,
-              maxWidth: "600px",
+              maxWidth: "620px",
               display: "flex",
               flexDirection: "column",
-              gap: "12px",
+              gap: "14px",
             }}
           >
             <div
@@ -993,96 +1034,121 @@ export function PublicHome() {
               }}
             >
               <Sparkles size={14} />
-              <span>Direct From Solapur Mandi Farms</span>
+              <span>Fresh produce from Vegito sellers</span>
             </div>
 
             <h1
               style={{
                 margin: 0,
-                fontSize: "clamp(26px, 5vw, 38px)",
+                fontSize: "clamp(26px, 5vw, 40px)",
                 fontWeight: 900,
                 lineHeight: 1.15,
                 letterSpacing: "-0.03em",
                 color: "#ffffff",
               }}
             >
-              Fresh groceries.<br />Delivered fast.
+              Fresh choices for the way you cook.
             </h1>
 
             <p
               style={{
                 margin: 0,
                 fontSize: "clamp(13px, 2.5vw, 15px)",
-                color: "rgba(255, 255, 255, 0.85)",
+                color: "rgba(255, 255, 255, 0.88)",
                 lineHeight: 1.5,
               }}
             >
-              Pure farm-harvested vegetables, packed with care and delivered to your doorstep in 15–30 minutes.
+              Browse current products and choose a delivery location to check availability.
             </p>
 
-            {/* Quick stats pills */}
+            {/* Buttons */}
             <div
               style={{
                 display: "flex",
                 flexWrap: "wrap",
-                gap: "8px",
-                marginTop: "6px",
+                gap: "10px",
+                marginTop: "10px",
               }}
             >
-              <span
+              <a
+                href="#products"
                 style={{
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  backgroundColor: "rgba(255, 255, 255, 0.12)",
-                  padding: "4px 10px",
-                  borderRadius: "10px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "10px 18px",
+                  borderRadius: "14px",
+                  backgroundColor: "#ffffff",
+                  color: "#063c32",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  textDecoration: "none",
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
                 }}
               >
-                ⚡ 15–30 Min Express
-              </span>
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  backgroundColor: "rgba(255, 255, 255, 0.12)",
-                  padding: "4px 10px",
-                  borderRadius: "10px",
-                }}
-              >
-                🌿 100% Quality Guaranteed
-              </span>
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  backgroundColor: "rgba(255, 255, 255, 0.12)",
-                  padding: "4px 10px",
-                  borderRadius: "10px",
-                }}
-              >
-                🏡 Local Verified Farmers
-              </span>
-            </div>
-          </div>
+                <span>Shop Fresh Produce</span>
+                <ArrowRight size={14} />
+              </a>
 
-          {/* Decorative vegetable background accent */}
-          <div
-            style={{
-              position: "absolute",
-              right: "-20px",
-              bottom: "-20px",
-              fontSize: "140px",
-              opacity: 0.18,
-              userSelect: "none",
-              pointerEvents: "none",
-            }}
-          >
-            🥬
+              <a
+                href="#offers"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "10px 18px",
+                  borderRadius: "14px",
+                  backgroundColor: "rgba(255, 255, 255, 0.15)",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  textDecoration: "none",
+                  backdropFilter: "blur(8px)",
+                  border: "1px solid rgba(255, 255, 255, 0.25)",
+                }}
+              >
+                <span>Explore Offers</span>
+                <Tag size={14} />
+              </a>
+
+              <Link
+                href="/customer/b2b"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "10px 18px",
+                  borderRadius: "14px",
+                  backgroundColor: "#10b981",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  textDecoration: "none",
+                  boxShadow: "0 4px 14px rgba(16, 185, 129, 0.3)",
+                }}
+              >
+                <span>Bulk & Business</span>
+                <ChevronRight size={14} />
+              </Link>
+            </div>
           </div>
         </section>
 
+        {/* ── 2. EXACT SMART LOCATION BAR (Section 5 & 6) ────────── */}
+        <SmartLocationBar onOpenModal={() => setAddressModalOpen(true)} />
+
+        {/* ── 3. ZIG-ZAG ANIMATED OFFERS (Section 4) ──────────────── */}
+        <div id="offers">
+          <ZigZagOffers
+            promotions={promotionsQuery.data ?? []}
+            isLoading={promotionsQuery.isLoading}
+            isError={promotionsQuery.isError}
+            onRetry={() => promotionsQuery.refetch()}
+          />
+        </div>
+
         {/* ── 4. CATEGORY CAROUSEL ──────────────────────────────── */}
-        <section>
+        <section id="categories">
           <div
             style={{
               display: "flex",
@@ -1104,7 +1170,7 @@ export function PublicHome() {
                 Explore Categories
               </h2>
               <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
-                Handpicked varieties from local growers
+                Browse current products by category
               </p>
             </div>
             {selectedCategoryId !== null && (
@@ -1132,7 +1198,17 @@ export function PublicHome() {
           />
         </section>
 
-        {/* ── 5. SEARCH OR CATEGORY FILTERED VIEW ──────────────── */}
+        {/* ── 5. NEARBY VERIFIED MANDI SELLERS (Section 7, 15, 50) ─── */}
+        {selectedLocationCoordinates && (
+          <NearbySellersSection
+            sellers={nearbySellersQuery.data ?? []}
+            isLoading={nearbySellersQuery.isLoading}
+            isError={nearbySellersQuery.isError}
+            onRetry={() => nearbySellersQuery.refetch()}
+          />
+        )}
+
+        {/* ── 6. SEARCH OR CATEGORY FILTERED VIEW ──────────────── */}
         {(selectedCategoryId !== null || searchQuery.trim().length > 0) ? (
           <section>
             <div
@@ -1273,7 +1349,7 @@ export function PublicHome() {
                       Fresh Vegetables
                     </h2>
                     <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
-                      Hand-plucked daily from Solapur Mandi growers
+                      Current vegetable listings
                     </p>
                   </div>
                 </div>
@@ -1316,7 +1392,7 @@ export function PublicHome() {
                   }}
                 >
                   <p style={{ margin: 0, fontSize: "13px", color: "#62746a" }}>
-                    Loading fresh farm vegetables...
+                    No vegetables are available right now.
                   </p>
                 </div>
               ) : (
@@ -1380,10 +1456,10 @@ export function PublicHome() {
                         letterSpacing: "-0.02em",
                       }}
                     >
-                      Fresh Farm Fruits
+                      Fresh Fruits
                     </h2>
                     <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
-                      Sweet, naturally ripened harvest from nearby orchards
+                      Current fruit listings
                     </p>
                   </div>
                 </div>
@@ -1399,7 +1475,7 @@ export function PublicHome() {
                     border: "1px solid #fecdd3",
                   }}
                 >
-                  {fruitProducts.length > 0 ? `${fruitProducts.length} varieties` : "Orchard Harvest"}
+                  {`${fruitProducts.length} varieties`}
                 </span>
               </div>
 
@@ -1415,6 +1491,20 @@ export function PublicHome() {
                     <ProductCardSkeleton key={n} />
                   ))}
                 </div>
+              ) : fruitProducts.length === 0 ? (
+                <div
+                  style={{
+                    padding: "30px 20px",
+                    textAlign: "center",
+                    backgroundColor: "#ffffff",
+                    borderRadius: "18px",
+                    border: "1px dashed #d1ded5",
+                  }}
+                >
+                  <p style={{ margin: 0, fontSize: "13px", color: "#62746a" }}>
+                    No fruits are available right now.
+                  </p>
+                </div>
               ) : (
                 <div
                   style={{
@@ -1423,7 +1513,7 @@ export function PublicHome() {
                     gap: "14px",
                   }}
                 >
-                  {(fruitProducts.length > 0 ? fruitProducts : productList.slice(0, 4)).map((product) => {
+                  {fruitProducts.map((product) => {
                     const cartQty = cartQuantityByProduct[product.id]?.qty ?? 0;
                     return (
                       <ProductCard
@@ -1441,121 +1531,6 @@ export function PublicHome() {
             </section>
           </>
         )}
-
-        {/* ── 6. BEST OFFERS CARDS ──────────────────────────────── */}
-        <section>
-          <div style={{ marginBottom: "12px" }}>
-            <h2
-              style={{
-                margin: 0,
-                fontSize: "18px",
-                fontWeight: 800,
-                color: "#063c32",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              Best Farm Deals
-            </h2>
-            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
-              Save on daily essentials direct from local farmers
-            </p>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-              gap: "14px",
-            }}
-          >
-            {BEST_OFFERS.map((off) => (
-              <div
-                key={off.id}
-                style={{
-                  borderRadius: "22px",
-                  padding: "20px 22px",
-                  background: off.bg,
-                  color: "#ffffff",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  boxShadow: "0 8px 24px rgba(6, 60, 50, 0.12)",
-                }}
-              >
-                <div>
-                  <span
-                    style={{
-                      fontSize: "10.5px",
-                      fontWeight: 800,
-                      backgroundColor: "rgba(255, 255, 255, 0.2)",
-                      padding: "4px 8px",
-                      borderRadius: "8px",
-                      letterSpacing: "0.04em",
-                    }}
-                  >
-                    {off.tag} · {off.discount}
-                  </span>
-                  <h3
-                    style={{
-                      margin: "10px 0 4px",
-                      fontSize: "17px",
-                      fontWeight: 800,
-                      color: "#ffffff",
-                    }}
-                  >
-                    {off.title}
-                  </h3>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "12.5px",
-                      color: "rgba(255, 255, 255, 0.8)",
-                    }}
-                  >
-                    {off.desc}
-                  </p>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginTop: "16px",
-                  }}
-                >
-                  <span style={{ fontSize: "18px", fontWeight: 900 }}>
-                    {off.price}
-                  </span>
-                  <button
-                    onClick={() => {
-                      if (productList[0]?.seller_products?.[0]?.seller_product_id) {
-                        handleAddToCartDirect(
-                          productList[0].seller_products[0].seller_product_id,
-                          1
-                        );
-                      } else {
-                        router.push("/search");
-                      }
-                    }}
-                    style={{
-                      padding: "8px 16px",
-                      borderRadius: "12px",
-                      backgroundColor: "#ffffff",
-                      color: "#063c32",
-                      border: "none",
-                      fontSize: "12.5px",
-                      fontWeight: 800,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Order Deal
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
 
         {/* ── 7. SMART REORDER (BUY AGAIN) ────────────────────────── */}
         {role === "CUSTOMER" && pastOrdersQuery.data?.items && pastOrdersQuery.data.items.length > 0 && (
@@ -1580,98 +1555,64 @@ export function PublicHome() {
           />
         </section>
 
-        {/* ── 7C. RECURRING GROCERY REMINDERS ────────────────────── */}
-        <section>
-          <GroceryReminders
-            products={productList}
-            onAddToCart={handleAddToCartDirect}
-          />
-        </section>
-
-        {/* ── 8. FAVORITE LOCAL FARMS ────────────────────────────── */}
-        <section>
-          <div style={{ marginBottom: "12px" }}>
-            <h2
+        {/* ── 8. BULK & B2B BUSINESS ORDERS (Section 22, 41, 50) ─── */}
+        <section
+          style={{
+            borderRadius: "26px",
+            background: "linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #064e3b 100%)",
+            color: "#ffffff",
+            padding: "28px 24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "20px",
+            boxShadow: "0 10px 30px rgba(15, 23, 42, 0.16)",
+          }}
+        >
+          <div style={{ maxWidth: "580px" }}>
+            <span
               style={{
-                margin: 0,
-                fontSize: "18px",
+                display: "inline-block",
+                padding: "4px 10px",
+                borderRadius: "12px",
+                backgroundColor: "rgba(59, 130, 246, 0.2)",
+                color: "#93c5fd",
+                fontSize: "11px",
                 fontWeight: 800,
-                color: "#063c32",
-                letterSpacing: "-0.02em",
+                textTransform: "uppercase",
+                marginBottom: "8px",
               }}
             >
-              Verified Solapur Mandi Sellers
-            </h2>
-            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#62746a" }}>
-              Direct partnerships with genuine regional farming families
+              🏨 Business & Bulk Orders
+            </span>
+            <h3 style={{ margin: "0 0 6px", fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em" }}>
+              Bulk produce requests for businesses
+            </h3>
+            <p style={{ margin: 0, fontSize: "13px", color: "#94a3b8", lineHeight: 1.5 }}>
+              Request larger orders for restaurants, hotels, caterers, events, hostels, and messes. Price and delivery availability depend on current seller inventory, the selected address, and the seller's quote.
             </p>
           </div>
 
-          <div
+          <Link
+            href="/customer/b2b"
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-              gap: "12px",
+              padding: "12px 22px",
+              borderRadius: "14px",
+              backgroundColor: "#2563eb",
+              color: "#ffffff",
+              fontSize: "13px",
+              fontWeight: 800,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              boxShadow: "0 4px 14px rgba(37, 99, 235, 0.35)",
             }}
           >
-            {LOCAL_FARMS.map((farm, idx) => (
-              <div
-                key={idx}
-                style={{
-                  backgroundColor: "#ffffff",
-                  borderRadius: "18px",
-                  border: "1px solid #e1e8e2",
-                  padding: "16px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  boxShadow: "0 2px 8px rgba(6, 60, 50, 0.03)",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <div
-                    style={{
-                      width: "42px",
-                      height: "42px",
-                      borderRadius: "14px",
-                      backgroundColor: "#f2f8f4",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "20px",
-                    }}
-                  >
-                    🌾
-                  </div>
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: "13.5px", fontWeight: 800, color: "#063c32" }}>
-                      {farm.name}
-                    </h4>
-                    <p style={{ margin: "1px 0 0", fontSize: "11.5px", color: "#62746a" }}>
-                      {farm.area} · {farm.specialty}
-                    </p>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    padding: "3px 8px",
-                    borderRadius: "12px",
-                    backgroundColor: "#fef3c7",
-                    fontSize: "11.5px",
-                    fontWeight: 800,
-                    color: "#92400e",
-                  }}
-                >
-                  <Star size={12} fill="#f59e0b" color="#f59e0b" />
-                  <span>{farm.rating}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+            <span>Request Bulk Quotation</span>
+            <ArrowRight size={15} />
+          </Link>
         </section>
 
         {/* ── 9. WHY VEGITO ─────────────────────────────────────── */}
@@ -1704,10 +1645,10 @@ export function PublicHome() {
             </div>
             <div>
               <h4 style={{ margin: "0 0 3px", fontSize: "14.5px", fontWeight: 800, color: "#063c32" }}>
-                Direct Farm-to-Table
+                Shop Vegito listings
               </h4>
               <p style={{ margin: 0, fontSize: "12px", color: "#62746a", lineHeight: 1.45 }}>
-                Zero middlemen. Harvested morning produce arrives at your doorstep fresh and crisp.
+                Browse products and seller details provided with each listing.
               </p>
             </div>
           </div>
@@ -1730,10 +1671,10 @@ export function PublicHome() {
             </div>
             <div>
               <h4 style={{ margin: "0 0 3px", fontSize: "14.5px", fontWeight: 800, color: "#063c32" }}>
-                15–30 Min Express
+                Delivery information at checkout
               </h4>
               <p style={{ margin: 0, fontSize: "12px", color: "#62746a", lineHeight: 1.45 }}>
-                Local delivery fleet ensures vegetables reach you before morning cooking begins.
+                Delivery availability and fees depend on your selected address.
               </p>
             </div>
           </div>
@@ -1756,10 +1697,10 @@ export function PublicHome() {
             </div>
             <div>
               <h4 style={{ margin: "0 0 3px", fontSize: "14.5px", fontWeight: 800, color: "#063c32" }}>
-                Honest Mandi Pricing
+                Seller-provided prices
               </h4>
               <p style={{ margin: 0, fontSize: "12px", color: "#62746a", lineHeight: 1.45 }}>
-                Transparent pricing reflective of daily Solapur APMC wholesale rates.
+                Review the current price and availability on each product.
               </p>
             </div>
           </div>

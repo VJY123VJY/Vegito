@@ -36,6 +36,7 @@ from app.models.bulk_cart_item import BulkCartItem
 from app.models.saved_shopping_list import SavedShoppingList, SavedShoppingListItem
 from app.models.recurring_bulk_order import RecurringBulkOrder, RecurringBulkOrderItem
 from app.models.b2b_invoice import B2BInvoice
+from app.models.kyc import SellerKyc, DeliveryPartnerKyc, KycAudit
 
 __all__ = [
 
@@ -83,4 +84,7 @@ __all__ = [
     "RecurringBulkOrder",
     "RecurringBulkOrderItem",
     "B2BInvoice",
+    "SellerKyc",
+    "DeliveryPartnerKyc",
+    "KycAudit",
 ]

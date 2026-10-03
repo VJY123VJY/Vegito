@@ -20,6 +20,7 @@ from app.routers.delivery_batches import router as delivery_batches_router
 from app.routers.payments import router as payments_router
 from app.routers.admin import router as admin_router
 from app.routers.promotions import router as promotions_router
+from app.routers.kyc import router as kyc_router
 
 __all__ = [
     "health_router",
@@ -44,4 +45,5 @@ __all__ = [
     "payments_router",
     "admin_router",
     "promotions_router",
+    "kyc_router",
 ]

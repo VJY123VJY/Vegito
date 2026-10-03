@@ -32,3 +32,25 @@ export async function updateCustomerProfile(payload: {
   const { data } = await api.patch<ApiEnvelope<CustomerProfileData>>("/customers/me", payload);
   return data.data;
 }
+
+export interface NearbySeller {
+  id: number;
+  user_id: number;
+  business_name: string;
+  business_type?: string;
+  address: string;
+  distance_km: number;
+  is_verified: boolean;
+  rating: number;
+  total_orders: number;
+  active_products_count: number;
+}
+
+export async function getNearbySellers(lat?: number, lon?: number): Promise<NearbySeller[]> {
+  const params: Record<string, number> = {};
+  if (lat !== undefined) params.lat = lat;
+  if (lon !== undefined) params.lon = lon;
+  const { data } = await api.get<ApiEnvelope<NearbySeller[]>>("/customers/nearby-sellers", { params });
+  return data.data;
+}
+

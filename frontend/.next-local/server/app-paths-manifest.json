@@ -1,4 +1,7 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
-  "/page": "app/page.js"
+  "/seller/bulk-orders/page": "app/seller/bulk-orders/page.js",
+  "/delivery/page": "app/delivery/page.js",
+  "/delivery/reviews/page": "app/delivery/reviews/page.js",
+  "/delivery/live-map/page": "app/delivery/live-map/page.js",
+  "/delivery/profile/page": "app/delivery/profile/page.js"
 }

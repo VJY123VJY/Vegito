@@ -670,7 +670,7 @@ export function B2BDashboard() {
                           </span>
                         </div>
                         <div style={{ fontSize: 13, color: "var(--vegito-text-muted, #62746a)", marginTop: 4 }}>
-                          Seller: {ord.seller_business_name || "Solapur Mandi Producer"} · Delivery: {ord.requested_delivery_date || "Tomorrow"} ({ord.requested_delivery_window || "Morning Slot"})
+                          Seller: {ord.seller_business_name || "Seller details unavailable"} · Delivery: {ord.requested_delivery_date || "Date not provided"} ({ord.requested_delivery_window || "Window not provided"})
                         </div>
                       </div>
 

@@ -19,41 +19,36 @@ interface PresetBasket {
   name: string;
   subtitle: string;
   icon: string;
-  badge: string;
   keywords: string[];
 }
 
 const PRESET_BASKETS: PresetBasket[] = [
   {
     id: "weekly-veg",
-    name: "Weekly Farm Vegetable Basket",
+    name: "Weekly Vegetable Basket",
     subtitle: "Essential daily veggies for home cooking",
     icon: "🥬",
-    badge: "Most Popular",
     keywords: ["tomato", "potato", "onion", "spinach", "chilli", "ginger", "carrot"],
   },
   {
     id: "family-mandi",
-    name: "Family Mandi Harvest Basket",
-    subtitle: "Hearty mix of gourds, greens and roots",
+    name: "Family Produce Basket",
+    subtitle: "A mix of vegetables for everyday meals",
     icon: "👨‍👩‍👧‍👦",
-    badge: "Value Pack",
     keywords: ["tomato", "potato", "onion", "cabbage", "gourd", "coriander", "lemon", "cauliflower"],
   },
   {
     id: "healthy-fruits",
-    name: "Healthy Orchard Fruit Basket",
-    subtitle: "Sweet, naturally ripened vitamin-rich fruits",
+    name: "Fruit Basket",
+    subtitle: "A mix of fruit currently listed on Vegito",
     icon: "🍎",
-    badge: "Farm Fresh",
     keywords: ["apple", "banana", "orange", "papaya", "pomegranate", "guava", "melon", "watermelon"],
   },
   {
     id: "budget-saver",
-    name: "Budget Mandi Saver Basket",
-    subtitle: "Core kitchen essentials at the best farm rates",
+    name: "Everyday Essentials Basket",
+    subtitle: "A quick mix of common kitchen essentials",
     icon: "💰",
-    badge: "Budget Friendly",
     keywords: ["potato", "onion", "tomato", "green"],
   },
 ];
@@ -71,25 +66,34 @@ export function SmartBasket({ products, onSuccess }: SmartBasketProps) {
 
   // Match actual backend products based on keywords
   const matchedItems = useMemo(() => {
-    return selectedPreset.keywords.map((kw) => {
+    return selectedPreset.keywords.flatMap((kw) => {
       const match = products.find((p) => {
         const text = `${p.name} ${p.description || ""}`.toLowerCase();
         return text.includes(kw);
       });
+      if (!match) return [];
       const firstOffer = match?.seller_products?.[0];
-      const isAvailable = Boolean(match && match.is_in_stock && firstOffer?.seller_product_id);
-      return {
+      const isAvailable = Boolean(
+        match.is_in_stock &&
+        firstOffer?.seller_product_id &&
+        (firstOffer.is_available ?? true)
+      );
+      return [{
         keyword: kw,
         product: match,
         isAvailable,
         sellerProductId: firstOffer?.seller_product_id,
-        price: firstOffer?.price != null ? Number(firstOffer.price) : Number(match?.min_price || 0),
-      };
+        price: firstOffer?.price != null
+          ? Number(firstOffer.price)
+          : match.min_price != null
+          ? Number(match.min_price)
+          : null,
+      }];
     });
   }, [selectedPreset, products]);
 
   const availableItems = matchedItems.filter((it) => it.isAvailable && it.sellerProductId);
-  const totalBasketCost = availableItems.reduce((acc, it) => acc + it.price, 0);
+  const totalBasketCost = availableItems.reduce((acc, it) => acc + (it.price ?? 0), 0);
 
   const handleAddAvailableToCart = async () => {
     if (!isLoggedIn()) {
@@ -133,7 +137,7 @@ export function SmartBasket({ products, onSuccess }: SmartBasketProps) {
             </h2>
           </div>
           <p style={{ margin: "3px 0 0", fontSize: "12.5px", color: "#62746a" }}>
-            Curated bundles matched with real daily Mandi harvest
+            Quick combinations of products currently listed on Vegito
           </p>
         </div>
       </div>
@@ -199,19 +203,6 @@ export function SmartBasket({ products, onSuccess }: SmartBasketProps) {
             </p>
           </div>
 
-          <span
-            style={{
-              fontSize: "11px",
-              fontWeight: 800,
-              color: "#16835b",
-              backgroundColor: "#ffffff",
-              padding: "4px 8px",
-              borderRadius: "8px",
-              border: "1px solid #a7f3d0",
-            }}
-          >
-            {selectedPreset.badge}
-          </span>
         </div>
 
         {/* Item check list */}
@@ -222,7 +213,7 @@ export function SmartBasket({ products, onSuccess }: SmartBasketProps) {
             gap: "8px",
           }}
         >
-          {matchedItems.map((item, idx) => (
+          {matchedItems.length > 0 ? matchedItems.map((item, idx) => (
             <div
               key={idx}
               style={{
@@ -250,23 +241,27 @@ export function SmartBasket({ products, onSuccess }: SmartBasketProps) {
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {item.product?.name || item.keyword.charAt(0).toUpperCase() + item.keyword.slice(1)}
+                    {item.product.name}
                 </span>
               </div>
 
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 {item.isAvailable ? (
                   <span style={{ fontSize: "12px", fontWeight: 800, color: "#16835b" }}>
-                    ₹{item.price}
+                    {item.price != null ? `₹${item.price}` : "Price unavailable"}
                   </span>
                 ) : (
                   <span style={{ fontSize: "10.5px", color: "#94a3b8", fontWeight: 600 }}>
-                    Out of stock
+                    Currently unavailable
                   </span>
                 )}
               </div>
             </div>
-          ))}
+          )) : (
+            <p style={{ margin: 0, color: "#62746a", fontSize: "13px" }}>
+              No matching products are listed right now.
+            </p>
+          )}
         </div>
       </div>
 
@@ -285,7 +280,9 @@ export function SmartBasket({ products, onSuccess }: SmartBasketProps) {
             Available Items: <strong>{availableItems.length} / {matchedItems.length}</strong>
           </div>
           <div style={{ fontSize: "16px", fontWeight: 900, color: "#063c32" }}>
-            Total: ₹{totalBasketCost.toFixed(0)}
+            Total: {availableItems.length > 0 && availableItems.some((item) => item.price == null)
+              ? "Price unavailable"
+              : `₹${totalBasketCost.toFixed(0)}`}
           </div>
         </div>
 

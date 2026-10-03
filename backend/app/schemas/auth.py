@@ -28,6 +28,13 @@ class TokenResponse(BaseModel):
     phone: str
     name: Optional[str] = None
     is_new_user: bool = False
+    authorized_roles: list[str] = Field(default_factory=list, description="All roles this user is authorized to access")
+
+
+class SwitchWorkspaceRequest(BaseModel):
+    target_role: Literal["CUSTOMER", "SELLER", "DELIVERY_PARTNER"] = Field(
+        ..., description="Authorized workspace role to switch to"
+    )
 
 
 class TokenPayload(BaseModel):

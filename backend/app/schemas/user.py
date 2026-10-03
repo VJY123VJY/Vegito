@@ -14,6 +14,7 @@ class UserRead(BaseSchema, UserBase):
     id: int
     role_id: int
     role_name: Optional[str] = None
+    authorized_roles: list[str] = Field(default_factory=list)
     is_active: bool
     is_verified: bool
     created_at: datetime.datetime

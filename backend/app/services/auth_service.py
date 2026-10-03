@@ -27,6 +27,34 @@ from app.core.security import hash_password, verify_password
 
 class AuthService:
     @staticmethod
+    def get_user_authorized_roles(db: Session, user: User) -> list[str]:
+        """Discovers all valid workspaces / roles that this user account is authorized to access."""
+        primary_role = ROLE_NAME_MAP.get(user.role_id, "CUSTOMER")
+        roles = set()
+        roles.add(primary_role)
+
+        # Admin and Super Admin have elevated access
+        if primary_role in ["ADMIN", "SUPER_ADMIN"]:
+            roles.update(["CUSTOMER", "SELLER", "DELIVERY_PARTNER"])
+
+        # Check existing profiles
+        if user.customer_profile or user.cart or user.orders:
+            roles.add("CUSTOMER")
+        if user.seller_profile:
+            roles.add("SELLER")
+        if user.delivery_partner:
+            roles.add("DELIVERY_PARTNER")
+
+        # Any registered user can access CUSTOMER shopping
+        roles.add("CUSTOMER")
+
+        ordered = []
+        for r in ["SELLER", "DELIVERY_PARTNER", "CUSTOMER", "ADMIN", "SUPER_ADMIN"]:
+            if r in roles:
+                ordered.append(r)
+        return ordered
+
+    @staticmethod
     def send_otp_for_role(db: Session, raw_phone: str, role_enum: RoleEnum) -> SendOtpResponse:
         phone = validate_phone_number(raw_phone)
 
@@ -102,6 +130,7 @@ class AuthService:
                 db.commit()
 
         user_role_name = ROLE_NAME_MAP.get(user.role_id, role_enum.value)
+        authorized_roles = AuthService.get_user_authorized_roles(db, user)
 
         token_payload: Dict[str, Any] = {
             "sub": str(user.id),
@@ -119,6 +148,7 @@ class AuthService:
             phone=user.phone,
             name=user.name,
             is_new_user=is_new_user,
+            authorized_roles=authorized_roles,
         )
 
     @staticmethod
@@ -156,6 +186,7 @@ class AuthService:
             db.commit()
 
         user_role_name = ROLE_NAME_MAP.get(user.role_id, "CUSTOMER")
+        authorized_roles = AuthService.get_user_authorized_roles(db, user)
 
         token_payload: Dict[str, Any] = {
             "sub": str(user.id),
@@ -173,6 +204,39 @@ class AuthService:
             phone=user.phone,
             name=user.name,
             is_new_user=False,
+            authorized_roles=authorized_roles,
+        )
+
+    @staticmethod
+    def switch_workspace(db: Session, user: User, target_role: str) -> TokenResponse:
+        """Validates user authorization for target role/workspace and generates a new token without relogin."""
+        norm_target = target_role.strip().upper()
+        if norm_target == "DELIVERY":
+            norm_target = "DELIVERY_PARTNER"
+
+        authorized = AuthService.get_user_authorized_roles(db, user)
+        if norm_target not in authorized:
+            raise ForbiddenException(
+                f"Access denied. Your account is not authorized for the {norm_target} workspace."
+            )
+
+        token_payload: Dict[str, Any] = {
+            "sub": str(user.id),
+            "role": norm_target,
+            "phone": user.phone,
+        }
+        access_token = create_access_token(token_payload)
+
+        return TokenResponse(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            user_id=user.id,
+            role=norm_target,
+            phone=user.phone,
+            name=user.name,
+            is_new_user=False,
+            authorized_roles=authorized,
         )
 
     @staticmethod
@@ -202,6 +266,7 @@ class AuthService:
                     f"Access denied. This account is registered as {role_display}. Please use the {role_display} login."
                 )
 
+        authorized_roles = AuthService.get_user_authorized_roles(db, user)
         token_payload: Dict[str, Any] = {
             "sub": str(user.id),
             "role": user_role_name,
@@ -218,6 +283,7 @@ class AuthService:
             phone=user.phone,
             name=user.name,
             is_new_user=False,
+            authorized_roles=authorized_roles,
         )
 
     @staticmethod

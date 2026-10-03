@@ -57,6 +57,8 @@ import {
   Power,
 } from "lucide-react";
 import { getDeliveryPartnerReviews } from "@/lib/api/reviews";
+import { getDeliveryKyc, type DeliveryPartnerKycData } from "@/lib/api/kyc";
+import { DeliveryKycWizard } from "@/components/delivery/delivery-kyc-wizard";
 
 export default function DeliveryDashboardPage() {
   const client = useQueryClient();
@@ -67,6 +69,7 @@ export default function DeliveryDashboardPage() {
   const [otp, setOtp] = useState<Record<number, string>>({});
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [isKycWizardOpen, setIsKycWizardOpen] = useState(false);
   const [failModalOpen, setFailModalOpen] = useState(false);
   const [failReason, setFailReason] = useState("CUSTOMER_UNAVAILABLE");
   const [failNotes, setFailNotes] = useState("");
@@ -88,6 +91,12 @@ export default function DeliveryDashboardPage() {
   const profileQuery = useQuery({
     queryKey: ["delivery-profile"],
     queryFn: getDeliveryProfile,
+  });
+
+  const kycQuery = useQuery({
+    queryKey: ["delivery-kyc"],
+    queryFn: getDeliveryKyc,
+    retry: false,
   });
 
   const isOnline = profileQuery.data?.is_available !== false;
@@ -459,7 +468,7 @@ export default function DeliveryDashboardPage() {
       <DashboardShell
         role="delivery"
         userName={partnerName}
-        userRole="Delivery Partner"
+        userRole={profileQuery.data?.is_verified ? "✓ Verified Delivery Fleet Partner" : "Delivery Partner (Verification Pending)"}
         greeting={`Hello, ${partnerName}! 🚴`}
         subtitle="Live GPS Tracking & Doorstep Dispatch Fleet"
         searchPlaceholder="Search assigned deliveries..."
@@ -481,7 +490,7 @@ export default function DeliveryDashboardPage() {
                 borderRadius: "16px",
                 border: isOnline ? "1.5px solid #bbf7d0" : "1.5px solid #fecaca",
                 padding: "16px 20px",
-                marginBottom: "20px",
+                marginBottom: "16px",
                 display: "flex",
                 flexWrap: "wrap",
                 alignItems: "center",
@@ -501,7 +510,7 @@ export default function DeliveryDashboardPage() {
                   }}
                 />
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                     <span style={{ fontSize: "11px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", color: "#62746a" }}>
                       Delivery Availability
                     </span>
@@ -518,6 +527,41 @@ export default function DeliveryDashboardPage() {
                     >
                       {isOnline ? "🟢 ONLINE" : "🔴 OFFLINE"}
                     </span>
+                    {profileQuery.data?.is_verified ? (
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          padding: "2px 8px",
+                          borderRadius: "999px",
+                          backgroundColor: "#ecfdf5",
+                          color: "#059669",
+                          border: "1px solid #a7f3d0",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <ShieldCheck size={12} /> ✓ VEGITO VERIFIED
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          padding: "2px 8px",
+                          borderRadius: "999px",
+                          backgroundColor: "#fffbeb",
+                          color: "#d97706",
+                          border: "1px solid #fde68a",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <Clock size={12} /> KYC: {kycQuery.data?.status || "NOT SUBMITTED"}
+                      </span>
+                    )}
                   </div>
                   <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#475569" }}>
                     {isOnline
@@ -554,6 +598,124 @@ export default function DeliveryDashboardPage() {
                   : "🟢 Switch to ONLINE"}
               </button>
             </div>
+
+            {/* Delivery Partner KYC Banner */}
+            {!profileQuery.data?.is_verified && (
+              <div
+                style={{
+                  borderRadius: "16px",
+                  padding: "16px 20px",
+                  marginBottom: "16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: "14px",
+                  border:
+                    kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                      ? "1.5px solid #bfdbfe"
+                      : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                      ? "1.5px solid #fed7aa"
+                      : kycQuery.data?.status === "REJECTED"
+                      ? "1.5px solid #fecaca"
+                      : "1.5px solid #fde68a",
+                  backgroundColor:
+                    kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                      ? "#eff6ff"
+                      : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                      ? "#fff7ed"
+                      : kycQuery.data?.status === "REJECTED"
+                      ? "#fef2f2"
+                      : "#fffbeb",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                  <div
+                    style={{
+                      width: "42px",
+                      height: "42px",
+                      borderRadius: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "#ffffff",
+                      color:
+                        kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                          ? "#2563eb"
+                          : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                          ? "#ea580c"
+                          : kycQuery.data?.status === "REJECTED"
+                          ? "#dc2626"
+                          : "#d97706",
+                    }}
+                  >
+                    <ShieldCheck size={22} />
+                  </div>
+                  <div>
+                    <strong
+                      style={{
+                        fontSize: "14.5px",
+                        color:
+                          kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                            ? "#1e40af"
+                            : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                            ? "#9a3412"
+                            : kycQuery.data?.status === "REJECTED"
+                            ? "#991b1b"
+                            : "#92400e",
+                      }}
+                    >
+                      {kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                        ? "Fleet KYC Verification Under Review"
+                        : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                        ? "Fleet Document Re-upload Requested"
+                        : kycQuery.data?.status === "REJECTED"
+                        ? "Fleet Verification Rejected"
+                        : "Complete Delivery Partner Verification"}
+                    </strong>
+                    <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#64748b" }}>
+                      {kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                        ? "Our verification team is auditing your driving license and vehicle registration. You can still accept mock deliveries."
+                        : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                        ? `Admin note: ${kycQuery.data?.reupload_notes || "Please re-upload a clearer driving license photo."}`
+                        : kycQuery.data?.status === "REJECTED"
+                        ? `Reason: ${kycQuery.data?.rejection_reason || "Documents could not be verified."} Please update and re-submit.`
+                        : "Upload ID proof, driving license, vehicle RC, live selfie, and bank details to unlock instant daily payouts."}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsKycWizardOpen(true)}
+                  style={{
+                    padding: "8px 18px",
+                    borderRadius: "10px",
+                    fontSize: "13px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    border: "none",
+                    backgroundColor:
+                      kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                        ? "#2563eb"
+                        : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                        ? "#ea580c"
+                        : kycQuery.data?.status === "REJECTED"
+                        ? "#dc2626"
+                        : "#d97706",
+                    color: "#ffffff",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  {kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                    ? "View Details"
+                    : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                    ? "Re-upload Document"
+                    : kycQuery.data?.status === "REJECTED"
+                    ? "Resubmit"
+                    : "Complete KYC"}
+                </button>
+              </div>
+            )}
 
             {/* PWA Device Health Strip */}
             <div
@@ -1866,6 +2028,18 @@ export default function DeliveryDashboardPage() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* Delivery Partner KYC Wizard Modal */}
+            {isKycWizardOpen && (
+              <DeliveryKycWizard
+                onClose={() => setIsKycWizardOpen(false)}
+                onSuccess={() => {
+                  setIsKycWizardOpen(false);
+                  client.invalidateQueries({ queryKey: ["delivery-kyc"] });
+                  client.invalidateQueries({ queryKey: ["delivery-profile"] });
+                }}
+              />
             )}
       </DashboardShell>
     </RoleGuard>

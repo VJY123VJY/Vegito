@@ -13,12 +13,10 @@ import {
   AlertCircle,
   Loader2,
   ChevronRight,
-  Sparkles,
 } from "lucide-react";
 import {
   searchAddressGeocode,
   reverseGeocode,
-  DEFAULT_SOLAPUR_COORDS,
   type GeocodingResult,
 } from "@/lib/api/map";
 import { listAddresses, type Address } from "@/lib/api/addresses";
@@ -35,64 +33,17 @@ export interface SelectedLocationData {
 const STORAGE_KEY = "vegito.selected_location";
 const STORAGE_FLAG = "vegito.location_selected";
 
-export const POPULAR_ZONES: SelectedLocationData[] = [
-  {
-    address: "Solapur Central Mandi · 413001",
-    city: "Solapur",
-    pincode: "413001",
-    latitude: 17.6805,
-    longitude: 75.9064,
-  },
-  {
-    address: "Jule Solapur · 413004",
-    city: "Solapur",
-    pincode: "413004",
-    latitude: 17.6599,
-    longitude: 75.9142,
-  },
-  {
-    address: "Saat Rasta / Collector Office · 413001",
-    city: "Solapur",
-    pincode: "413001",
-    latitude: 17.6745,
-    longitude: 75.9022,
-  },
-  {
-    address: "Hotgi Road & MIDC · 413003",
-    city: "Solapur",
-    pincode: "413003",
-    latitude: 17.6434,
-    longitude: 75.9328,
-  },
-  {
-    address: "Bhavani Peth Mandi · 413002",
-    city: "Solapur",
-    pincode: "413002",
-    latitude: 17.6715,
-    longitude: 75.9189,
-  },
-  {
-    address: "Khed Mandi & Vasant Valley · 413255",
-    city: "Solapur",
-    pincode: "413255",
-    latitude: 17.712,
-    longitude: 75.882,
-  },
-];
-
-export function getStoredLocation(): SelectedLocationData {
-  if (typeof window === "undefined") {
-    return POPULAR_ZONES[0];
-  }
+export function getStoredLocation(): SelectedLocationData | null {
+  if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       return JSON.parse(raw);
     }
   } catch {
-    // fallback
+    return null;
   }
-  return POPULAR_ZONES[0];
+  return null;
 }
 
 export function saveStoredLocation(loc: SelectedLocationData) {
@@ -115,7 +66,7 @@ interface LocationModalProps {
 }
 
 export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps) {
-  const [currentLoc, setCurrentLoc] = useState<SelectedLocationData>(getStoredLocation());
+  const [currentLoc, setCurrentLoc] = useState<SelectedLocationData | null>(getStoredLocation());
   const [geoState, setGeoState] = useState<"idle" | "requesting" | "detecting" | "detected" | "error">("idle");
   const [geoError, setGeoError] = useState<string | null>(null);
 
@@ -210,9 +161,9 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
         try {
           const res = await reverseGeocode(lat, lng);
           const locationData: SelectedLocationData = {
-            address: res?.place_name || `Near Solapur (${lat.toFixed(3)}, ${lng.toFixed(3)})`,
-            city: res?.city || "Solapur",
-            pincode: res?.pincode || "413001",
+            address: res?.place_name || `Current location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+            city: res?.city,
+            pincode: res?.pincode,
             latitude: lat,
             longitude: lng,
           };
@@ -224,8 +175,6 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
         } catch {
           const fallbackData: SelectedLocationData = {
             address: `Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
-            city: "Solapur",
-            pincode: "413001",
             latitude: lat,
             longitude: lng,
           };
@@ -554,7 +503,7 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {savedAddresses.map((addr) => {
-                  const isMatch = currentLoc.address.includes(addr.address_line1);
+                  const isMatch = currentLoc?.address.includes(addr.address_line1) ?? false;
                   return (
                     <button
                       key={addr.id}
@@ -600,58 +549,6 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
             </div>
           )}
 
-          {/* 4. Popular Solapur Mandi Hubs */}
-          <div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "5px",
-                fontSize: "11px",
-                fontWeight: 800,
-                color: "#62746a",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-                marginBottom: "8px",
-              }}
-            >
-              <Sparkles size={12} color="#16835b" />
-              <span>Popular Delivery Hubs in Solapur</span>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {POPULAR_ZONES.map((zone) => {
-                const isSelected = currentLoc.address === zone.address;
-                return (
-                  <button
-                    key={zone.address}
-                    onClick={() => handleSelectLocation(zone)}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: "12px",
-                      backgroundColor: isSelected ? "#ecfdf5" : "#f8faf8",
-                      border: isSelected ? "1.5px solid #16835b" : "1px solid #e5ebe6",
-                      color: "#063c32",
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      textAlign: "left",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <MapPin size={15} color={isSelected ? "#16835b" : "#62746a"} />
-                      <span>{zone.address}</span>
-                    </div>
-                    {isSelected && <CheckCircle2 size={16} color="#16835b" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </div>
       </div>
     </div>

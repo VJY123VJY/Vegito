@@ -70,7 +70,7 @@ export function ProductCard({
   const freshness = offer?.freshness;
   const price = offer?.price != null ? Number(offer.price) : product.min_price != null ? Number(product.min_price) : null;
   const imageUrl = getProductPhoto(product);
-  const sellerName = offer?.seller_business_name || "Solapur Local Farm";
+  const sellerName = offer?.seller_business_name || "Seller details unavailable";
 
   const handleInitialAdd = (e: React.MouseEvent) => {
     e.stopPropagation();

@@ -73,6 +73,9 @@ import {
 import { useTranslation } from "@/context/i18n-context";
 import "@/styles/seller-dashboard-2.css";
 
+import { getSellerKyc, type SellerKycData } from "@/lib/api/kyc";
+import { SellerKycWizard } from "./seller-kyc-wizard";
+
 export function SellerDashboard() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -80,6 +83,7 @@ export function SellerDashboard() {
   // State
   const [revenueRange, setRevenueRange] = useState<"7d" | "30d">("30d");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isKycWizardOpen, setIsKycWizardOpen] = useState(false);
   const [prepOrderId, setPrepOrderId] = useState<number | null>(null);
   const [newOrderAlert, setNewOrderAlert] = useState<SellerNewOrderPayload | null>(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
@@ -103,6 +107,13 @@ export function SellerDashboard() {
   const profile = useQuery({
     queryKey: ["seller-profile"],
     queryFn: getSellerProfile,
+  });
+
+  // KYC query
+  const kycQuery = useQuery({
+    queryKey: ["seller-kyc"],
+    queryFn: getSellerKyc,
+    retry: false,
   });
 
   const isOnline = profile.data?.is_available !== false;
@@ -342,7 +353,7 @@ export function SellerDashboard() {
     <DashboardShell
       role="seller"
       userName={businessName}
-      userRole={t("seller.verifiedSeller", "Verified Producer")}
+      userRole={profile.data?.is_verified ? "✓ " + t("seller.verifiedSeller", "Verified Producer") : t("seller.unverifiedSeller", "Producer (Verification Pending)")}
       greeting={`Mandi Operations · ${businessName}`}
       subtitle="Fast, real-time command center for produce harvesting, order packing, and delivery dispatch"
       searchPlaceholder="Instant search order #, item, status..."
@@ -373,7 +384,7 @@ export function SellerDashboard() {
               }
             />
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                 <h1
                   style={{
                     margin: 0,
@@ -384,6 +395,41 @@ export function SellerDashboard() {
                 >
                   {businessName}
                 </h1>
+                {profile.data?.is_verified ? (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                      backgroundColor: "#ecfdf5",
+                      color: "#059669",
+                      border: "1px solid #a7f3d0",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <ShieldCheck size={12} /> ✓ VEGITO VERIFIED
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                      backgroundColor: "#fffbeb",
+                      color: "#d97706",
+                      border: "1px solid #fde68a",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <Clock size={12} /> KYC: {kycQuery.data?.status || "NOT SUBMITTED"}
+                  </span>
+                )}
                 <span
                   style={{
                     fontSize: "11px",
@@ -559,6 +605,343 @@ export function SellerDashboard() {
               : t("seller.switchOnline", "🟢 Open Shop (Go Online)")}
           </button>
         </div>
+
+        {/* ═══════════════════════════════════════════════════════
+            SECTION 2.5: SELLER KYC VERIFICATION STATUS BANNER
+            ═══════════════════════════════════════════════════════ */}
+        {!profile.data?.is_verified && (
+          <div
+            style={{
+              borderRadius: "16px",
+              padding: "16px 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "14px",
+              border:
+                kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                  ? "1.5px solid #bfdbfe"
+                  : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                  ? "1.5px solid #fed7aa"
+                  : kycQuery.data?.status === "REJECTED"
+                  ? "1.5px solid #fecaca"
+                  : "1.5px solid #fde68a",
+              backgroundColor:
+                kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                  ? "#eff6ff"
+                  : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                  ? "#fff7ed"
+                  : kycQuery.data?.status === "REJECTED"
+                  ? "#fef2f2"
+                  : "#fffbeb",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+              <div
+                style={{
+                  width: "42px",
+                  height: "42px",
+                  borderRadius: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "#ffffff",
+                  color:
+                    kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                      ? "#2563eb"
+                      : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                      ? "#ea580c"
+                      : kycQuery.data?.status === "REJECTED"
+                      ? "#dc2626"
+                      : "#d97706",
+                }}
+              >
+                <ShieldCheck size={22} />
+              </div>
+              <div>
+                <strong
+                  style={{
+                    fontSize: "14.5px",
+                    color:
+                      kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                        ? "#1e40af"
+                        : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                        ? "#9a3412"
+                        : kycQuery.data?.status === "REJECTED"
+                        ? "#991b1b"
+                        : "#92400e",
+                  }}
+                >
+                  {kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                    ? "KYC Verification Under Review"
+                    : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                    ? "KYC Document Re-upload Requested"
+                    : kycQuery.data?.status === "REJECTED"
+                    ? "KYC Application Rejected"
+                    : "Complete Mandi Seller Verification"}
+                </strong>
+                <p
+                  style={{
+                    margin: "2px 0 0",
+                    fontSize: "12.5px",
+                    color: "var(--vegito-text-muted, #62746a)",
+                  }}
+                >
+                  {kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                    ? "Vegito operations team is verifying your shop license and bank account. You can configure products while under review."
+                    : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                    ? `Admin review note: ${kycQuery.data?.reupload_notes || "Please re-upload clearer photos of business proof or shop signage."}`
+                    : kycQuery.data?.status === "REJECTED"
+                    ? `Rejection note: ${kycQuery.data?.rejection_reason || "Documents could not be verified."} Please update and re-submit.`
+                    : "Upload shop registration, owner ID proof, live photo, and bank details to unlock instant payouts and verified badge."}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsKycWizardOpen(true)}
+              style={{
+                padding: "8px 18px",
+                borderRadius: "10px",
+                fontSize: "13px",
+                fontWeight: 800,
+                cursor: "pointer",
+                border: "none",
+                backgroundColor:
+                  kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                    ? "#2563eb"
+                    : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                    ? "#ea580c"
+                    : kycQuery.data?.status === "REJECTED"
+                    ? "#dc2626"
+                    : "#d97706",
+                color: "#ffffff",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+              }}
+            >
+              {kycQuery.data?.status === "UNDER_REVIEW" || kycQuery.data?.status === "SUBMITTED"
+                ? "View KYC Details"
+                : kycQuery.data?.status === "REUPLOAD_REQUIRED"
+                ? "Re-upload Documents"
+                : kycQuery.data?.status === "REJECTED"
+                ? "Resubmit KYC"
+                : "Start Verification"}
+            </button>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════
+            SECTION 17: PROMINENT NEXT ACTION CARD
+            ═══════════════════════════════════════════════════════ */}
+        {newCount > 0 ? (
+          <div
+            style={{
+              backgroundColor: "#fff7ed",
+              border: "2px solid #fb923c",
+              borderRadius: "16px",
+              padding: "16px 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "14px",
+              boxShadow: "0 4px 16px rgba(251, 146, 60, 0.15)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  backgroundColor: "#ea580c",
+                  color: "#ffffff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 900,
+                  fontSize: "18px",
+                }}
+              >
+                ⚡
+              </div>
+              <div>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "#c2410c",
+                  }}
+                >
+                  NEXT ACTION · ORDER PIPELINE
+                </span>
+                <h3 style={{ margin: "2px 0 0", fontSize: "16px", fontWeight: 800, color: "#9a3412" }}>
+                  {newCount} {newCount === 1 ? "new order needs" : "new orders need"} acceptance
+                </h3>
+                <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#c2410c" }}>
+                  Accept immediately to alert nearby delivery partners for mandi pickup.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setPipelineFilter("NEW")}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "10px",
+                backgroundColor: "#ea580c",
+                color: "#ffffff",
+                fontSize: "13px",
+                fontWeight: 800,
+                border: "none",
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(234, 88, 12, 0.3)",
+              }}
+            >
+              Review {newCount} Orders →
+            </button>
+          </div>
+        ) : packingCount > 0 ? (
+          <div
+            style={{
+              backgroundColor: "#f0f9ff",
+              border: "2px solid #38bdf8",
+              borderRadius: "16px",
+              padding: "16px 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "14px",
+              boxShadow: "0 4px 16px rgba(56, 189, 248, 0.15)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  backgroundColor: "#0284c7",
+                  color: "#ffffff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 900,
+                  fontSize: "18px",
+                }}
+              >
+                📦
+              </div>
+              <div>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "#0369a1",
+                  }}
+                >
+                  NEXT ACTION · PACKING
+                </span>
+                <h3 style={{ margin: "2px 0 0", fontSize: "16px", fontWeight: 800, color: "#075985" }}>
+                  {packingCount} {packingCount === 1 ? "order is" : "orders are"} being packed
+                </h3>
+                <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#0369a1" }}>
+                  Finish weighing & packing items, then mark ready to generate delivery partner pickup OTP.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setPipelineFilter("PACKING")}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "10px",
+                backgroundColor: "#0284c7",
+                color: "#ffffff",
+                fontSize: "13px",
+                fontWeight: 800,
+                border: "none",
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(2, 132, 199, 0.3)",
+              }}
+            >
+              Start Packing ({packingCount}) →
+            </button>
+          </div>
+        ) : readyCount > 0 ? (
+          <div
+            style={{
+              backgroundColor: "#f0fdf4",
+              border: "2px solid #4ade80",
+              borderRadius: "16px",
+              padding: "16px 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "14px",
+              boxShadow: "0 4px 16px rgba(74, 222, 128, 0.15)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  backgroundColor: "#16a34a",
+                  color: "#ffffff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 900,
+                  fontSize: "18px",
+                }}
+              >
+                🤝
+              </div>
+              <div>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "#15803d",
+                  }}
+                >
+                  NEXT ACTION · READY FOR PICKUP
+                </span>
+                <h3 style={{ margin: "2px 0 0", fontSize: "16px", fontWeight: 800, color: "#166534" }}>
+                  {readyCount} {readyCount === 1 ? "order ready" : "orders ready"} for delivery partner handoff
+                </h3>
+                <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#15803d" }}>
+                  Delivery partner will provide pickup OTP upon arrival at your shop.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setPipelineFilter("READY")}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "10px",
+                backgroundColor: "#16a34a",
+                color: "#ffffff",
+                fontSize: "13px",
+                fontWeight: 800,
+                border: "none",
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)",
+              }}
+            >
+              View Pickup Status ({readyCount}) →
+            </button>
+          </div>
+        ) : null}
 
         {/* Realtime Alert Banner on Audio Blocked */}
         {audioBlocked && (
@@ -2174,7 +2557,9 @@ export function SellerDashboard() {
                               {prod.name || prod.product_name}
                             </div>
                             <div style={{ fontSize: "11.5px", color: "#62746a" }}>
-                              {prod.units_sold || prod.orders_count || 1} units sold
+                              {prod.units_sold != null || prod.orders_count != null
+                                ? `${prod.units_sold ?? prod.orders_count} units sold`
+                                : "Sales data unavailable"}
                             </div>
                           </div>
                         </div>
@@ -2439,6 +2824,18 @@ export function SellerDashboard() {
 
         {/* Add Product Multi-Step Modal */}
         <AddProductModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
+
+        {/* Seller KYC Wizard Modal */}
+        {isKycWizardOpen && (
+          <SellerKycWizard
+            onClose={() => setIsKycWizardOpen(false)}
+            onSuccess={() => {
+              setIsKycWizardOpen(false);
+              queryClient.invalidateQueries({ queryKey: ["seller-kyc"] });
+              queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
+            }}
+          />
+        )}
 
         {/* Order Preparation Checklist Sheet */}
         <OrderPreparationSheet

@@ -11,21 +11,63 @@
       "static/chunks/main-app.js",
       "static/chunks/app/page.js"
     ],
+    "/auth/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/auth/login/page.js"
+    ],
     "/customer/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/css/app/customer/layout.css",
       "static/chunks/app/customer/layout.js"
     ],
-    "/customer/b2b/page": [
+    "/customer/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/customer/b2b/page.js"
+      "static/css/app/customer/page.css",
+      "static/chunks/app/customer/page.js"
     ],
-    "/_not-found/page": [
+    "/seller/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+      "static/chunks/app/seller/layout.js"
+    ],
+    "/seller/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/seller/page.css",
+      "static/chunks/app/seller/page.js"
+    ],
+    "/seller/bulk-orders/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/seller/bulk-orders/page.js"
+    ],
+    "/delivery/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/delivery/layout.js"
+    ],
+    "/delivery/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/delivery/page.js"
+    ],
+    "/delivery/reviews/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/delivery/reviews/page.js"
+    ],
+    "/delivery/live-map/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/delivery/live-map/page.js"
+    ],
+    "/delivery/profile/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/delivery/profile/page.js"
     ]
   }
 }

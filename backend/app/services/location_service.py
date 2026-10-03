@@ -90,6 +90,26 @@ class LocationService:
         return True, f"Distance of {distance_km:.2f} km is within operational bounds ({min_limit:.1f}–{max_limit:.1f} km)."
 
     @staticmethod
+    def is_within_b2b_bulk_bounds(
+        distance_km: float,
+        total_weight_kg: float,
+    ) -> Tuple[bool, str]:
+        """
+        Validates B2B Bulk order eligibility per Section 50:
+        Total eligible weight > 50 KG AND 1.0 KM <= distance <= 35.0 KM.
+        """
+        if total_weight_kg <= 50.0:
+            return False, f"B2B Bulk delivery requires total order weight > 50 KG. Current weight: {total_weight_kg:.1f} KG."
+
+        if distance_km < 1.0:
+            return False, f"B2B Bulk orders require a minimum delivery distance of 1.0 km. Current distance: {distance_km:.2f} km."
+
+        if distance_km > 35.0:
+            return False, f"B2B Bulk orders are limited to a maximum delivery distance of 35.0 km. Current distance: {distance_km:.2f} km."
+
+        return True, f"B2B Bulk delivery eligible: {total_weight_kg:.1f} KG produce over {distance_km:.2f} km (1–35 km)."
+
+    @staticmethod
     def resolve_address_coordinates(db: Session, address: Address) -> Tuple[Optional[float], Optional[float]]:
         """
         Returns actual coordinates for an address.

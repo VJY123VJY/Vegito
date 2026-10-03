@@ -447,10 +447,10 @@ export function ProductDetailSheet({
                   >
                     <div>
                       <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--vegito-text-main, #063c32)" }}>
-                        {off.seller_business_name || `Mandi Vendor #${idx + 1}`}
+                        {off.seller_business_name || "Seller details unavailable"}
                       </div>
                       <div style={{ fontSize: "11px", color: "var(--vegito-text-muted, #62746a)", marginTop: "1px" }}>
-                        ⭐ {off.seller_rating || 4.8} · {off.is_available ? "In Stock" : "Limited Stock"}
+                        {off.seller_rating != null ? `★ ${off.seller_rating}` : "Rating unavailable"} · {off.is_available === true ? "Available" : off.is_available === false ? "Unavailable" : "Availability unknown"}
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>

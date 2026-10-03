@@ -12,6 +12,7 @@ export type TokenResponse = {
   phone: string;
   name?: string | null;
   is_new_user: boolean;
+  authorized_roles?: AuthRole[];
 };
 
 export type CustomerRegisterData = {
@@ -205,18 +206,27 @@ export async function getMe(): Promise<any | null> {
 // ── SESSION MANAGEMENT (DUAL STORAGE: localStorage + sessionStorage) ────────
 export function saveSession(session: TokenResponse) {
   if (typeof window === "undefined") return;
+  const authRoles = session.authorized_roles && session.authorized_roles.length > 0
+    ? session.authorized_roles
+    : [session.role];
+
   const items: Record<string, string> = {
     "vegito.access-token": session.access_token,
     "vegito.user-role": session.role,
     "vegito.user-name": session.name ?? "",
     "vegito.user-id": String(session.user_id),
     "vegito.user-phone": session.phone ?? "",
+    "vegito.authorized-roles": JSON.stringify(authRoles),
   };
   Object.entries(items).forEach(([k, v]) => {
     localStorage.setItem(k, v);
     sessionStorage.setItem(k, v);
   });
-  window.dispatchEvent(new CustomEvent("vegito:auth_state_changed", { detail: { loggedIn: true, role: session.role } }));
+  window.dispatchEvent(
+    new CustomEvent("vegito:auth_state_changed", {
+      detail: { loggedIn: true, role: session.role, authorized_roles: authRoles },
+    })
+  );
 }
 
 export function getAuthToken(): string | null {
@@ -234,6 +244,50 @@ export function getStoredRole(): AuthRole | null {
   return role && ["CUSTOMER", "SELLER", "DELIVERY_PARTNER", "ADMIN", "SUPER_ADMIN"].includes(role)
     ? (role as AuthRole)
     : null;
+}
+
+export function getStoredAuthorizedRoles(): AuthRole[] {
+  if (typeof window === "undefined") return [];
+  const token = getAuthToken();
+  if (!token) return [];
+  const stored = localStorage.getItem("vegito.authorized-roles") || sessionStorage.getItem("vegito.authorized-roles");
+  if (!stored) {
+    const current = getStoredRole();
+    return current ? [current] : [];
+  }
+  try {
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    const current = getStoredRole();
+    return current ? [current] : [];
+  }
+}
+
+export async function switchWorkspace(targetRole: AuthRole): Promise<TokenResponse> {
+  const { data } = await api.post<ApiEnvelope<TokenResponse>>("/auth/switch-workspace", {
+    target_role: targetRole,
+  });
+  if (data?.data) {
+    saveSession(data.data);
+  }
+  return data.data;
+}
+
+export async function sendCustomerOtp(phone: string) {
+  const { data } = await api.post<ApiEnvelope<{ phone: string; message: string; dev_otp?: string }>>(
+    "/auth/customer/send-otp",
+    { phone }
+  );
+  return data.data;
+}
+
+export async function verifyCustomerOtp(phone: string, otp: string, name?: string) {
+  const { data } = await api.post<ApiEnvelope<TokenResponse>>(
+    "/auth/customer/verify-otp",
+    { phone, otp, name: name || undefined }
+  );
+  return data.data;
 }
 
 export function getStoredUserName(): string {
@@ -264,6 +318,7 @@ export function clearSession() {
     "vegito.user-name",
     "vegito.user-id",
     "vegito.user-phone",
+    "vegito.authorized-roles",
     "vegito_read_notifications",
   ];
   keys.forEach((k) => {

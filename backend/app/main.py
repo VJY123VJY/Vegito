@@ -48,6 +48,7 @@ from app.routers.websocket_tracking import router as websocket_tracking_router
 from app.routers.catalogue import router as catalogue_router
 from app.routers.b2b import router as b2b_router
 from app.routers.seller_bulk_orders import router as seller_bulk_orders_router
+from app.routers.kyc import router as kyc_router
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +315,11 @@ app.include_router(
     prefix=API_PREFIX,
 )
 
+app.include_router(
+    kyc_router,
+    prefix=API_PREFIX,
+)
+
 
 # ---------------------------------------------------------------------------
 # WebSocket tracking
@@ -336,5 +342,8 @@ app.include_router(
 @app.on_event("startup")
 async def on_startup():
     from app.routers.websocket_tracking import register_main_event_loop
+    from app.database import engine, ensure_database_schema, _should_run_schema_sync
 
     register_main_event_loop()
+    if _should_run_schema_sync():
+        ensure_database_schema(engine)

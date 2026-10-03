@@ -27,6 +27,7 @@ import { SellerPerformanceChart } from "@/components/charts/seller-performance-c
 import { TopProducts } from "@/components/dashboard/top-products";
 import { InventoryAlert } from "@/components/dashboard/inventory-alert";
 import { AdminLiveDeliveryMap } from "@/components/map/admin-live-delivery-map";
+import { AdminKycReviewPanel } from "@/components/admin/admin-kyc-review-panel";
 import { RoleGuard } from "@/components/role/role-guard";
 import { getErrorMessage } from "@/lib/api/client";
 
@@ -195,6 +196,9 @@ export default function AdminDashboardPage() {
             <strong style={{ fontSize: "13.5px", color: "#059669" }}>✓ 100% Operational</strong>
           </div>
         </div>
+
+        {/* KYC & Document Verification Section (Section 47 & 48) */}
+        <AdminKycReviewPanel />
 
         {/* Live Delivery Overview Map */}
         <div style={{ marginBottom: "28px" }}>

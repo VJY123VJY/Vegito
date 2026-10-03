@@ -370,6 +370,28 @@ class BulkOrderService:
                 "seller_notes": item_req.notes,
             })
 
+        # Section 50: B2B Bulk Weight & Distance Eligibility Enforcement
+        total_weight_kg = sum([float(item_req.quantity) for item_req in data.items])
+        from app.services.location_service import LocationService
+        cust_lat, cust_lon = LocationService.resolve_address_coordinates(db, address)
+        s_lat, s_lon = LocationService.resolve_seller_coordinates(db, primary_seller_id) if primary_seller_id else (None, None)
+
+        if cust_lat is not None and s_lat is not None:
+            distance_km = LocationService.calculate_distance(cust_lat, cust_lon, s_lat, s_lon)
+            is_eligible, reason = LocationService.is_within_b2b_bulk_bounds(distance_km, total_weight_kg)
+            if not is_eligible:
+                raise BadRequestException(
+                    message=reason,
+                    code="B2B_DELIVERY_INELIGIBLE",
+                    details={"distance_km": distance_km, "weight_kg": total_weight_kg, "message": reason}
+                )
+        elif total_weight_kg <= 50.0:
+            raise BadRequestException(
+                message=f"B2B Bulk orders require a minimum total weight > 50 KG. Current weight: {total_weight_kg:.1f} KG.",
+                code="B2B_MIN_WEIGHT_REQUIRED",
+                details={"weight_kg": total_weight_kg}
+            )
+
         order_number = generate_order_number()
 
         order = Order(
@@ -382,6 +404,8 @@ class BulkOrderService:
             shop_id=primary_shop_id,
             customer_delivery_address=address.address_line1,
             landmark=address.landmark,
+            delivery_latitude=Decimal(str(cust_lat)) if cust_lat is not None else None,
+            delivery_longitude=Decimal(str(cust_lon)) if cust_lon is not None else None,
             status="BULK_REQUESTED",
             payment_method="COD",
             payment_status="PENDING",
