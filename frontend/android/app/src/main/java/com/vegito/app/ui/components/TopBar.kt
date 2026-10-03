@@ -65,13 +65,13 @@ fun TopBar(
                     Spacer(modifier = Modifier.width(6.dp))
                     Column {
                         Text(
-                            text = currentAddress?.title ?: "Solapur Mandi",
+                            text = currentAddress?.title ?: "Set Delivery Location",
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             color = Color.White
                         )
                         Text(
-                            text = currentAddress?.addressLine ?: "Select delivery location",
+                            text = currentAddress?.addressLine ?: "Tap to detect GPS location",
                             fontSize = 11.sp,
                             color = Color.White.copy(alpha = 0.8f),
                             maxLines = 1

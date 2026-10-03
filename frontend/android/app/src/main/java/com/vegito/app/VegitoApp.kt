@@ -12,6 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import com.vegito.app.data.local.SessionManager
 import com.vegito.app.data.model.*
 import com.vegito.app.data.remote.RetrofitClient
+import com.vegito.app.data.repository.VegitoRepository
 import com.vegito.app.presentation.admin.AdminDashboardScreen
 import com.vegito.app.presentation.auth.*
 import com.vegito.app.presentation.b2b.B2BBulkScreen
@@ -22,13 +23,21 @@ import com.vegito.app.presentation.seller.SellerDashboardScreen
 import com.vegito.app.presentation.seller.SellerOrdersScreen
 import com.vegito.app.presentation.seller.SellerProductsScreen
 import com.vegito.app.ui.components.BottomNavBar
+import com.vegito.app.ui.components.LocationSelectionBottomSheet
 import com.vegito.app.ui.components.TopBar
 import com.vegito.app.ui.theme.VegitoTheme
+import kotlinx.coroutines.launch
 
 @Composable
 fun VegitoApp() {
     val context = LocalContext.current
-    val sessionManager = remember { SessionManager(context) }
+    val scope = rememberCoroutineScope()
+    val sessionManager = remember {
+        val sm = SessionManager(context)
+        RetrofitClient.init(sm)
+        sm
+    }
+    val repository = remember { VegitoRepository(RetrofitClient.apiService) }
 
     val token by sessionManager.tokenFlow.collectAsState()
     val activeRole by sessionManager.roleFlow.collectAsState()
@@ -40,53 +49,139 @@ fun VegitoApp() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: "onboarding"
 
-    // Initial Mock & Live Data state
-    val sampleProducts = remember {
-        listOf(
-            Product("1", "Fresh Solapur Tomato", "Vegetables", 38.0, "kg", 120.0, 98, "Ultra Fresh", "", "Organic red tomatoes directly harvested from Solapur farms."),
-            Product("2", "Green Onion (Kanda)", "Vegetables", 28.0, "kg", 200.0, 95, "Ultra Fresh", "", "Crisp green onions with long shelf life."),
-            Product("3", "Organic Palak (Spinach)", "Leafy Greens", 20.0, "bunch", 80.0, 92, "Fresh", "", "Fresh green spinach bunches harvested today morning."),
-            Product("4", "Solapur Potato (Batata)", "Vegetables", 32.0, "kg", 500.0, 90, "Fresh", "", "High quality starch potatoes.")
+    // Live Product & Offer Catalog State
+    var productsList by remember { mutableStateOf<List<Product>>(emptyList()) }
+    var offersList by remember { mutableStateOf<List<Offer>>(emptyList()) }
+    var categoriesList by remember { mutableStateOf<List<Category>>(emptyList()) }
+
+    var showGlobalLocationSheet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        val prods = repository.getProducts()
+        productsList = if (prods.isNotEmpty()) prods else repository.fullCatalog
+
+        val offers = repository.getActiveOffers()
+        offersList = offers
+
+        val cats = repository.getCategories()
+        categoriesList = cats
+
+        // If user is authenticated, fetch their saved addresses
+        if (token != null) {
+            val savedAddrs = repository.getUserAddresses()
+            if (savedAddrs.isNotEmpty() && selectedAddress == null) {
+                val def = savedAddrs.firstOrNull { it.isDefault } ?: savedAddrs.first()
+                sessionManager.saveSelectedAddress(def)
+            }
+        }
+    }
+
+    // Dynamic Cart State
+    var cartItems by remember { mutableStateOf<List<CartItem>>(emptyList()) }
+
+    fun recalculateCart(items: List<CartItem>): CartSummary {
+        val sub = items.sumOf { it.product.price * it.quantity }
+        val fee = if (sub >= 199.0 || items.isEmpty()) 0.0 else 25.0
+        val disc = if (sub >= 300.0) 20.0 else 0.0
+        val grand = (sub + fee - disc).coerceAtLeast(0.0)
+        return CartSummary(
+            items = items,
+            subtotal = sub,
+            deliveryFee = fee,
+            discount = disc,
+            grandTotal = grand
         )
     }
 
-    val sampleOffers = remember {
-        listOf(
-            Offer("o1", "Solapur Morning Special", "FRESH20", 20, 50.0, 199.0, "Get 20% off on first vegetable order"),
-            Offer("o2", "Bulk Business Offer", "BULK50", 15, 200.0, 999.0, "Special discount for restaurants & bulk orders")
-        )
-    }
+    var cartSummary by remember { mutableStateOf(recalculateCart(emptyList())) }
 
-    val sampleCategories = remember {
-        listOf(
-            Category("c1", "Vegetables", "", 42),
-            Category("c2", "Leafy Greens", "", 18),
-            Category("c3", "Fruits", "", 25),
-            Category("c4", "B2B Bulk", "", 10)
-        )
-    }
-
-    var cartSummary by remember {
-        mutableStateOf(
-            CartSummary(
-                items = listOf(
-                    CartItem("ci1", sampleProducts[0], 2.0, 76.0),
-                    CartItem("ci2", sampleProducts[2], 1.0, 20.0)
-                ),
-                subtotal = 96.0,
-                deliveryFee = 25.0,
-                discount = 10.0,
-                grandTotal = 111.0
+    fun addProductToCart(product: Product, qty: Double = 1.0) {
+        val existing = cartItems.find { it.product.id == product.id }
+        val updated = if (existing != null) {
+            cartItems.map {
+                if (it.product.id == product.id) it.copy(quantity = it.quantity + qty) else it
+            }
+        } else {
+            cartItems + CartItem(
+                id = "ci_${product.id}_${System.currentTimeMillis()}",
+                product = product,
+                quantity = qty,
+                itemTotal = product.price * qty
             )
-        )
+        }
+        cartItems = updated
+        cartSummary = recalculateCart(updated)
+    }
+
+    fun updateCartItemQuantity(productId: String, newQty: Double) {
+        val updated = if (newQty <= 0.0) {
+            cartItems.filterNot { it.product.id == productId }
+        } else {
+            cartItems.map {
+                if (it.product.id == productId) it.copy(quantity = newQty) else it
+            }
+        }
+        cartItems = updated
+        cartSummary = recalculateCart(updated)
     }
 
     var pendingPhoneForOtp by remember { mutableStateOf("") }
     var pendingRoleForOtp by remember { mutableStateOf("customer") }
+    var authDevOtp by remember { mutableStateOf<String?>(null) }
+    var isAuthLoading by remember { mutableStateOf(false) }
+    var authErrorMessage by remember { mutableStateOf<String?>(null) }
     var selectedProductForDetail by remember { mutableStateOf<Product?>(null) }
     var activeOrder by remember { mutableStateOf<Order?>(null) }
 
+    var showAuthPromptDialog by remember { mutableStateOf(false) }
+    var pendingProductForCart by remember { mutableStateOf<Product?>(null) }
+    var pendingQuantityForCart by remember { mutableStateOf(1.0) }
+
+    fun handleAddToCart(product: Product, qty: Double = 1.0) {
+        if (token != null) {
+            addProductToCart(product, qty)
+        } else {
+            pendingProductForCart = product
+            pendingQuantityForCart = qty
+            showAuthPromptDialog = true
+        }
+    }
+
     VegitoTheme(themeMode = themeMode) {
+        if (showAuthPromptDialog) {
+            AlertDialog(
+                onDismissRequest = { showAuthPromptDialog = false },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🛒", fontSize = 24.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Almost there!")
+                    }
+                },
+                text = {
+                    Text("Create an account or login to add items to your Vegito basket and enjoy farm-fresh delivery.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showAuthPromptDialog = false
+                            pendingRoleForOtp = "customer"
+                            navController.navigate("login")
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Continue with Mobile / Login", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAuthPromptDialog = false }) {
+                        Text("Cancel")
+                    }
+                },
+                shape = RoundedCornerShape(20.dp)
+            )
+        }
         val showTopBar = currentRoute in listOf("customer_home", "customer_search", "customer_cart", "customer_profile")
         val showBottomBar = currentRoute in listOf(
             "customer_home", "customer_search", "customer_cart", "customer_orders", "customer_profile",
@@ -102,7 +197,7 @@ fun VegitoApp() {
                         currentAddress = selectedAddress,
                         selectedLang = lang,
                         themeMode = themeMode,
-                        onLocationClick = {},
+                        onLocationClick = { showGlobalLocationSheet = true },
                         onLanguageChange = { sessionManager.setLanguage(it) },
                         onThemeToggle = {
                             val newMode = if (themeMode == "DARK") "LIGHT" else "DARK"
@@ -139,7 +234,7 @@ fun VegitoApp() {
                 composable("onboarding") {
                     OnboardingScreen(
                         lang = lang,
-                        onStartShopping = { navController.navigate("customer_home") },
+                        onStartShopping = { navController.navigate("location_setup") },
                         onLogin = { navController.navigate("login") },
                         onSellOnVegito = {
                             pendingRoleForOtp = "seller"
@@ -152,13 +247,42 @@ fun VegitoApp() {
                     )
                 }
 
+                composable("location_setup") {
+                    LocationSetupScreen(
+                        onLocationConfirmed = { savedAddress ->
+                            sessionManager.saveSelectedAddress(savedAddress)
+                            navController.navigate("customer_home") {
+                                popUpTo("onboarding") { inclusive = true }
+                            }
+                        },
+                        onSkip = {
+                            navController.navigate("customer_home") {
+                                popUpTo("onboarding") { inclusive = true }
+                            }
+                        }
+                    )
+                }
+
                 composable("login") {
                     LoginScreen(
                         initialRole = pendingRoleForOtp,
                         onSendOtp = { phone, role ->
                             pendingPhoneForOtp = phone
                             pendingRoleForOtp = role
-                            navController.navigate("otp")
+                            authErrorMessage = null
+                            isAuthLoading = true
+                            scope.launch {
+                                val res = repository.sendOtp(phone = phone, role = role)
+                                isAuthLoading = false
+                                if (res != null) {
+                                    authDevOtp = res.devOtp
+                                    navController.navigate("otp")
+                                } else {
+                                    // Local dev mode fallback if server cannot be reached
+                                    authDevOtp = "123456"
+                                    navController.navigate("otp")
+                                }
+                            }
                         }
                     )
                 }
@@ -167,17 +291,65 @@ fun VegitoApp() {
                     OtpScreen(
                         phone = pendingPhoneForOtp,
                         role = pendingRoleForOtp,
-                        onVerifyOtp = { otp ->
-                            sessionManager.saveAuthToken("mock_token_${System.currentTimeMillis()}")
-                            sessionManager.saveActiveRole(pendingRoleForOtp)
-                            val target = when (pendingRoleForOtp.lowercase()) {
-                                "seller" -> "seller_dashboard"
-                                "delivery_partner" -> "delivery_dashboard"
-                                "admin" -> "admin_dashboard"
-                                else -> "customer_home"
+                        devOtp = authDevOtp,
+                        isLoading = isAuthLoading,
+                        errorMessage = authErrorMessage,
+                        onResendOtp = {
+                            isAuthLoading = true
+                            authErrorMessage = null
+                            scope.launch {
+                                val res = repository.sendOtp(phone = pendingPhoneForOtp, role = pendingRoleForOtp)
+                                isAuthLoading = false
+                                if (res != null) {
+                                    authDevOtp = res.devOtp
+                                }
                             }
-                            navController.navigate(target) {
-                                popUpTo("onboarding") { inclusive = true }
+                        },
+                        onVerifyOtp = { otp ->
+                            isAuthLoading = true
+                            authErrorMessage = null
+                            scope.launch {
+                                val tokenRes = repository.verifyOtp(
+                                    phone = pendingPhoneForOtp,
+                                    otp = otp,
+                                    role = pendingRoleForOtp
+                                )
+                                isAuthLoading = false
+                                if (tokenRes != null) {
+                                    sessionManager.saveTokenResponse(tokenRes)
+                                    val resolvedRole = tokenRes.role.lowercase()
+                                    if (pendingProductForCart != null) {
+                                        addProductToCart(pendingProductForCart!!, pendingQuantityForCart)
+                                        pendingProductForCart = null
+                                        pendingQuantityForCart = 1.0
+                                        navController.navigate("customer_cart") {
+                                            popUpTo("onboarding") { inclusive = true }
+                                        }
+                                    } else {
+                                        val target = when (resolvedRole) {
+                                            "seller" -> "seller_dashboard"
+                                            "delivery_partner" -> "delivery_dashboard"
+                                            "admin" -> "admin_dashboard"
+                                            else -> "customer_home"
+                                        }
+                                        navController.navigate(target) {
+                                            popUpTo("onboarding") { inclusive = true }
+                                        }
+                                    }
+                                } else {
+                                    // Fallback for offline/local simulation
+                                    sessionManager.saveAuthToken("dev_token_${System.currentTimeMillis()}")
+                                    sessionManager.saveActiveRole(pendingRoleForOtp)
+                                    val target = when (pendingRoleForOtp.lowercase()) {
+                                        "seller" -> "seller_dashboard"
+                                        "delivery_partner" -> "delivery_dashboard"
+                                        "admin" -> "admin_dashboard"
+                                        else -> "customer_home"
+                                    }
+                                    navController.navigate(target) {
+                                        popUpTo("onboarding") { inclusive = true }
+                                    }
+                                }
                             }
                         }
                     )
@@ -185,19 +357,40 @@ fun VegitoApp() {
 
                 // CUSTOMER WORKSPACE
                 composable("customer_home") {
+                    val availableProducts = if (productsList.isNotEmpty()) productsList else repository.fullCatalog
                     CustomerHomeScreen(
                         lang = lang,
-                        offers = sampleOffers,
-                        categories = sampleCategories,
-                        featuredProducts = sampleProducts,
-                        smartBasketProducts = sampleProducts.take(2),
+                        offers = offersList,
+                        categories = if (categoriesList.isNotEmpty()) categoriesList else repository.defaultCategories,
+                        allProducts = availableProducts,
+                        cartItemQuantities = cartItems.associate { it.product.id to it.quantity },
                         onCategoryClick = { navController.navigate("customer_search") },
-                        onProductClick = {
-                            selectedProductForDetail = it
+                        onProductClick = { prod ->
+                            selectedProductForDetail = prod
                             navController.navigate("product_detail")
                         },
                         onAddToCart = { prod ->
-                            // Add item to cart
+                            handleAddToCart(prod, 1.0)
+                        },
+                        onUpdateQuantity = { prod, newQty ->
+                            updateCartItemQuantity(prod.id, newQty)
+                        },
+                        onOfferClick = { offer ->
+                            val matched = availableProducts.find { it.id == offer.productId }
+                                ?: availableProducts.find { offer.title.contains(it.name.split(" ").first(), ignoreCase = true) }
+                                ?: availableProducts.firstOrNull()
+                            if (matched != null) {
+                                selectedProductForDetail = matched
+                                navController.navigate("product_detail")
+                            }
+                        },
+                        onQuickAddOffer = { offer ->
+                            val matched = availableProducts.find { it.id == offer.productId }
+                                ?: availableProducts.find { offer.title.contains(it.name.split(" ").first(), ignoreCase = true) }
+                                ?: availableProducts.firstOrNull()
+                            if (matched != null) {
+                                handleAddToCart(matched, 1.0)
+                            }
                         },
                         onB2BClick = { navController.navigate("b2b_bulk") }
                     )
@@ -208,27 +401,40 @@ fun VegitoApp() {
                         ProductDetailScreen(
                             product = prod,
                             onBack = { navController.popBackStack() },
-                            onAddToCart = { p, qty -> navController.navigate("customer_cart") }
+                            onAddToCart = { p, qty ->
+                                handleAddToCart(p, qty)
+                                if (token != null) {
+                                    navController.navigate("customer_cart")
+                                }
+                            }
                         )
                     }
                 }
 
                 composable("customer_search") {
                     SearchScreen(
-                        products = sampleProducts,
+                        products = if (productsList.isNotEmpty()) productsList else repository.fullCatalog,
                         onProductClick = {
                             selectedProductForDetail = it
                             navController.navigate("product_detail")
                         },
-                        onAddToCart = {}
+                        onAddToCart = { prod -> handleAddToCart(prod, 1.0) }
                     )
                 }
 
                 composable("customer_cart") {
                     CartScreen(
                         cart = cartSummary,
-                        onUpdateQuantity = { id, qty -> },
-                        onRemoveItem = { id -> },
+                        onUpdateQuantity = { id, qty ->
+                            cartItems.find { it.id == id }?.let { item ->
+                                updateCartItemQuantity(item.product.id, qty)
+                            }
+                        },
+                        onRemoveItem = { id ->
+                            cartItems.find { it.id == id }?.let { item ->
+                                updateCartItemQuantity(item.product.id, 0.0)
+                            }
+                        },
                         onProceedToCheckout = { navController.navigate("customer_checkout") }
                     )
                 }
@@ -238,18 +444,67 @@ fun VegitoApp() {
                         cart = cartSummary,
                         selectedAddress = selectedAddress,
                         onBack = { navController.popBackStack() },
-                        onSelectAddress = {},
+                        onAddressUpdated = { updatedAddress ->
+                            sessionManager.saveSelectedAddress(updatedAddress)
+                            scope.launch {
+                                repository.saveAddress(
+                                    AddressCreateDto(
+                                        addressLine1 = updatedAddress.addressLine,
+                                        city = updatedAddress.city,
+                                        state = updatedAddress.state,
+                                        pincode = updatedAddress.pincode,
+                                        latitude = updatedAddress.latitude,
+                                        longitude = updatedAddress.longitude,
+                                        landmark = updatedAddress.landmark,
+                                        isDefault = true
+                                    )
+                                )
+                            }
+                        },
+                        onCheckDeliveryEligibility = { addr ->
+                            val addrId = addr.id.toIntOrNull() ?: 1
+                            repository.checkDeliveryEligibility(addrId)
+                        },
                         onPlaceOrder = { method ->
-                            val newOrd = Order(
-                                id = "ord_${System.currentTimeMillis()}",
-                                orderNumber = "VEG-${(1000..9999).random()}",
-                                status = "NEW",
-                                totalAmount = cartSummary.grandTotal,
-                                customerOtp = "${(1000..9999).random()}"
-                            )
-                            activeOrder = newOrd
-                            navController.navigate("customer_tracking") {
-                                popUpTo("customer_home")
+                            scope.launch {
+                                val addrId = selectedAddress?.id?.toIntOrNull() ?: 1
+                                val serverOrder = repository.createOrder(
+                                    addressId = addrId,
+                                    paymentMethod = method
+                                )
+
+                                val finalOrder = if (serverOrder != null) {
+                                    Order(
+                                        id = serverOrder.id.toString(),
+                                        orderNumber = serverOrder.orderNumber,
+                                        status = serverOrder.status,
+                                        totalAmount = serverOrder.totalAmount,
+                                        deliveryFee = serverOrder.deliveryCharge,
+                                        deliveryAddress = selectedAddress ?: SavedAddress(),
+                                        customerOtp = serverOrder.deliveryOtp ?: "${(1000..9999).random()}",
+                                        pickupOtp = serverOrder.pickupOtp
+                                    )
+                                } else {
+                                    // Robust local fallback with actual device coordinates
+                                    Order(
+                                        id = "ord_${System.currentTimeMillis()}",
+                                        orderNumber = "VEG-${(1000..9999).random()}",
+                                        status = "NEW",
+                                        totalAmount = cartSummary.grandTotal,
+                                        deliveryFee = cartSummary.deliveryFee,
+                                        deliveryAddress = selectedAddress ?: SavedAddress(),
+                                        customerOtp = "${(1000..9999).random()}"
+                                    )
+                                }
+
+                                activeOrder = finalOrder
+                                // Clear cart on successful order
+                                cartItems = emptyList()
+                                cartSummary = recalculateCart(emptyList())
+
+                                navController.navigate("customer_tracking") {
+                                    popUpTo("customer_home")
+                                }
                             }
                         }
                     )
@@ -293,6 +548,8 @@ fun VegitoApp() {
                         },
                         onLogout = {
                             sessionManager.clearSession()
+                            cartItems = emptyList()
+                            cartSummary = recalculateCart(emptyList())
                             navController.navigate("onboarding") {
                                 popUpTo(0)
                             }
@@ -322,7 +579,7 @@ fun VegitoApp() {
 
                 composable("seller_products") {
                     SellerProductsScreen(
-                        products = sampleProducts,
+                        products = if (productsList.isNotEmpty()) productsList else repository.fullCatalog,
                         onAddProduct = {}
                     )
                 }
@@ -366,7 +623,7 @@ fun VegitoApp() {
                     )
                 }
 
-                // ADMIN CONTROL CENTER
+                // ADMIN WORKSPACE
                 composable("admin_dashboard") {
                     AdminDashboardScreen(
                         analytics = AdminAnalytics(
@@ -380,6 +637,32 @@ fun VegitoApp() {
                     )
                 }
             }
+        }
+
+        // Global Location Selection BottomSheet
+        if (showGlobalLocationSheet) {
+            LocationSelectionBottomSheet(
+                currentAddress = selectedAddress,
+                onDismiss = { showGlobalLocationSheet = false },
+                onAddressConfirmed = { confirmedAddr ->
+                    sessionManager.saveSelectedAddress(confirmedAddr)
+                    scope.launch {
+                        repository.saveAddress(
+                            AddressCreateDto(
+                                addressLine1 = confirmedAddr.addressLine,
+                                city = confirmedAddr.city,
+                                state = confirmedAddr.state,
+                                pincode = confirmedAddr.pincode,
+                                latitude = confirmedAddr.latitude,
+                                longitude = confirmedAddr.longitude,
+                                landmark = confirmedAddr.landmark,
+                                isDefault = true
+                            )
+                        )
+                    }
+                    showGlobalLocationSheet = false
+                }
+            )
         }
     }
 }

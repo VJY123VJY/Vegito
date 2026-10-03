@@ -1,23 +1,29 @@
 package com.vegito.app.presentation.customer
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Payment
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vegito.app.data.model.CartSummary
+import com.vegito.app.data.model.DeliveryFeeResponse
 import com.vegito.app.data.model.SavedAddress
+import com.vegito.app.ui.components.LocationSelectionBottomSheet
 import com.vegito.app.ui.theme.VegitoPrimary
+import com.vegito.app.ui.theme.VegitoSecondary
+import com.vegito.app.utils.LocationHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,15 +31,50 @@ fun CheckoutScreen(
     cart: CartSummary,
     selectedAddress: SavedAddress?,
     onBack: () -> Unit,
-    onSelectAddress: () -> Unit,
+    onAddressUpdated: (SavedAddress) -> Unit,
+    onCheckDeliveryEligibility: suspend (SavedAddress) -> DeliveryFeeResponse?,
     onPlaceOrder: (paymentMethod: String) -> Unit
 ) {
     var paymentMethod by remember { mutableStateOf("COD") }
+    var showLocationSheet by remember { mutableStateOf(false) }
+    var isCheckingEligibility by remember { mutableStateOf(false) }
+    var eligibilityResponse by remember { mutableStateOf<DeliveryFeeResponse?>(null) }
+    var eligibilityError by remember { mutableStateOf<String?>(null) }
+
+    val hasValidCoordinates = selectedAddress != null && LocationHelper.isValidCoordinates(
+        selectedAddress.latitude,
+        selectedAddress.longitude
+    )
+
+    // Automatically prompt for location if missing or invalid
+    LaunchedEffect(selectedAddress) {
+        if (!hasValidCoordinates) {
+            showLocationSheet = true
+        } else if (selectedAddress != null) {
+            isCheckingEligibility = true
+            eligibilityError = null
+            try {
+                val res = onCheckDeliveryEligibility(selectedAddress)
+                eligibilityResponse = res
+                if (res != null && !res.isDeliverable) {
+                    eligibilityError = "Sorry, this location is outside the seller's delivery area. (${String.format("%.1f", res.distanceKm)} km from seller)"
+                }
+            } catch (e: Exception) {
+                eligibilityError = "Unable to verify delivery distance. Please verify address."
+            } finally {
+                isCheckingEligibility = false
+            }
+        }
+    }
+
+    val isDeliverable = hasValidCoordinates && (eligibilityResponse == null || eligibilityResponse?.isDeliverable == true)
+    val calculatedDeliveryFee = eligibilityResponse?.deliveryFee ?: cart.deliveryFee
+    val finalGrandTotal = (cart.subtotal + calculatedDeliveryFee - cart.discount).coerceAtLeast(0.0)
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Checkout", fontWeight = FontWeight.Bold) },
+                title = { Text("Checkout & Delivery", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -43,16 +84,64 @@ fun CheckoutScreen(
         },
         bottomBar = {
             Surface(shadowElevation = 8.dp) {
-                Button(
-                    onClick = { onPlaceOrder(paymentMethod) },
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
-                        .height(50.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                 ) {
-                    Text("Place Order • ₹${cart.grandTotal}", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    if (eligibilityError != null) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = "Error",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = eligibilityError ?: "Delivery not available",
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = { onPlaceOrder(paymentMethod) },
+                        enabled = hasValidCoordinates && isDeliverable && !isCheckingEligibility,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
+                    ) {
+                        if (isCheckingEligibility) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Checking Delivery Radius...", fontSize = 15.sp)
+                        } else {
+                            Text(
+                                text = "Place Order • ₹${String.format("%.1f", finalGrandTotal)}",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -64,10 +153,11 @@ fun CheckoutScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // Address Section
+            // 1. DELIVERY LOCATION CARD
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(18.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -76,45 +166,284 @@ fun CheckoutScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.LocationOn, contentDescription = "Address", tint = VegitoPrimary)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Delivery Address", fontWeight = FontWeight.Bold)
+                            Surface(
+                                shape = CircleShape,
+                                color = VegitoPrimary.copy(alpha = 0.12f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.LocationOn,
+                                        contentDescription = "Location",
+                                        tint = VegitoPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Delivery Address", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
-                        TextButton(onClick = onSelectAddress) {
-                            Text("Change")
+
+                        Row {
+                            TextButton(onClick = { showLocationSheet = true }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = VegitoPrimary, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Refresh", color = VegitoPrimary, fontSize = 13.sp)
+                            }
                         }
                     }
-                    Text(
-                        selectedAddress?.addressLine ?: "Solapur Central, Maharashtra",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    if (selectedAddress != null && hasValidCoordinates) {
+                        Text(
+                            text = selectedAddress.title,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = selectedAddress.addressLine,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = VegitoPrimary.copy(alpha = 0.08f)
+                        ) {
+                            Text(
+                                text = "📍 GPS: ${String.format("%.4f", selectedAddress.latitude)}, ${String.format("%.4f", selectedAddress.longitude)} • ${selectedAddress.city}",
+                                fontSize = 11.sp,
+                                color = VegitoPrimary,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = "Warning", tint = MaterialTheme.colorScheme.error)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "GPS Location Missing",
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = "Please set real GPS delivery coordinates to continue.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = { showLocationSheet = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                    ) {
+                        Icon(Icons.Default.EditLocation, contentDescription = "Change", tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (hasValidCoordinates) "Change Location Pin" else "Set Delivery Location Now",
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Payment Mode
+            // 2. DELIVERY ELIGIBILITY STATUS
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Moped,
+                            contentDescription = "Delivery",
+                            tint = if (isDeliverable) VegitoPrimary else MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Delivery Radius & Eligibility", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (isCheckingEligibility) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Calculating distance to nearest seller mandi...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else if (eligibilityResponse != null) {
+                        val dist = eligibilityResponse!!.distanceKm
+                        Text(
+                            text = "Distance from seller: ${String.format("%.1f", dist)} km (Max: 15 km)",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        if (eligibilityResponse!!.isDeliverable) {
+                            Text(
+                                text = "✓ Delivery Available • Calculated Fee: ₹${String.format("%.1f", calculatedDeliveryFee)}",
+                                color = Color(0xFF2E7D32),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        } else {
+                            Text(
+                                text = "✕ Outside 15 km delivery radius.",
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "Standard delivery within 15 km. Free delivery over ₹199.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3. PAYMENT METHOD
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Payment, contentDescription = "Payment", tint = VegitoPrimary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Payment Method", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Payment Method", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = paymentMethod == "COD", onClick = { paymentMethod = "COD" })
-                        Text("Cash on Delivery (COD)")
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        RadioButton(
+                            selected = paymentMethod == "COD",
+                            onClick = { paymentMethod = "COD" }
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Column {
+                            Text("Cash on Delivery (COD)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text("Pay via cash or UPI to delivery partner upon arrival", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = paymentMethod == "ONLINE", onClick = { paymentMethod = "ONLINE" })
-                        Text("Online Payment (UPI / Cards)")
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        RadioButton(
+                            selected = paymentMethod == "ONLINE",
+                            onClick = { paymentMethod = "ONLINE" }
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Column {
+                            Text("Online Payment (UPI / QR / Cards)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text("Pay securely via Google Pay, PhonePe, Paytm or Card", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 4. ORDER BILL SUMMARY
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Bill Details", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Item Total", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("₹${String.format("%.1f", cart.subtotal)}", fontSize = 13.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Delivery Partner Fee", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("₹${String.format("%.1f", calculatedDeliveryFee)}", fontSize = 13.sp)
+                    }
+
+                    if (cart.discount > 0) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Offer Discount", fontSize = 13.sp, color = Color(0xFF2E7D32))
+                            Text("- ₹${String.format("%.1f", cart.discount)}", fontSize = 13.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Grand Total", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "₹${String.format("%.1f", finalGrandTotal)}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = VegitoPrimary
+                        )
                     }
                 }
             }
         }
+    }
+
+    if (showLocationSheet) {
+        LocationSelectionBottomSheet(
+            currentAddress = selectedAddress,
+            onDismiss = { showLocationSheet = false },
+            onAddressConfirmed = { addr ->
+                onAddressUpdated(addr)
+                showLocationSheet = false
+            }
+        )
     }
 }

@@ -9,8 +9,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    // Primary local development tunnel / LAN IP, with emulator fallback
-    private const val BASE_URL = "http://10.157.147.29:8000"
+    // 127.0.0.1 works seamlessly on physical devices connected via USB using `adb reverse tcp:8000 tcp:8000`
+    private const val BASE_URL = "http://127.0.0.1:8000"
 
     private var sessionManager: SessionManager? = null
 

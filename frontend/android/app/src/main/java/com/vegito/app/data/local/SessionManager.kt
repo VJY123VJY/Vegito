@@ -24,6 +24,21 @@ class SessionManager(context: Context) {
         tokenFlow.value = token
     }
 
+    fun saveTokenResponse(tokenRes: com.vegito.app.data.model.TokenResponseDto) {
+        saveAuthToken(tokenRes.accessToken)
+        val profile = UserProfile(
+            id = tokenRes.userId.toString(),
+            phone = tokenRes.phone,
+            name = tokenRes.name,
+            role = tokenRes.role.lowercase(),
+            roles = tokenRes.authorizedRoles.map { it.lowercase() },
+            activeRole = tokenRes.role.lowercase(),
+            authorizedRoles = tokenRes.authorizedRoles.map { it.lowercase() }
+        )
+        saveUser(profile)
+        saveActiveRole(tokenRes.role.lowercase())
+    }
+
     fun getToken(): String? = prefs.getString(KEY_TOKEN, null)
 
     fun saveUser(user: UserProfile) {

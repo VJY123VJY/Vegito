@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -35,52 +36,45 @@ fun ZigZagSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 4.dp)
     ) {
-        products.forEachIndexed { index, product ->
+        products.take(6).forEachIndexed { index, product ->
             val isLeftImage = index % 2 == 0
 
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn(animationSpec = tween(500)) + slideInVertically(
-                    initialOffsetY = { 50 },
-                    animationSpec = tween(500)
-                )
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 5.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable { onProductClick(product) },
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Card(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .clickable { onProductClick(product) },
-                    shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (isLeftImage) {
-                            ProductImageBlock(product, Modifier.weight(0.4f))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            ProductInfoBlock(
-                                product = product,
-                                modifier = Modifier.weight(0.6f),
-                                onAddToCart = onAddToCart,
-                                onToggleFavorite = onToggleFavorite
-                            )
-                        } else {
-                            ProductInfoBlock(
-                                product = product,
-                                modifier = Modifier.weight(0.6f),
-                                onAddToCart = onAddToCart,
-                                onToggleFavorite = onToggleFavorite
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            ProductImageBlock(product, Modifier.weight(0.4f))
-                        }
+                    if (isLeftImage) {
+                        ProductImageBlock(product, Modifier.weight(0.36f))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        ProductInfoBlock(
+                            product = product,
+                            modifier = Modifier.weight(0.64f),
+                            onAddToCart = onAddToCart,
+                            onToggleFavorite = onToggleFavorite
+                        )
+                    } else {
+                        ProductInfoBlock(
+                            product = product,
+                            modifier = Modifier.weight(0.64f),
+                            onAddToCart = onAddToCart,
+                            onToggleFavorite = onToggleFavorite
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        ProductImageBlock(product, Modifier.weight(0.36f))
                     }
                 }
             }
@@ -92,22 +86,30 @@ fun ZigZagSection(
 private fun ProductImageBlock(product: Product, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .height(110.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .height(96.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
         AsyncImage(
-            model = product.imageUrl.ifEmpty { "https://images.unsplash.com/photo-1597362925123-77861d3fbac7?w=400" },
+            model = product.imageUrl.ifEmpty { "https://images.unsplash.com/photo-1597362925123-77861d3fbac7?w=300" },
             contentDescription = product.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
-        FreshnessBadge(
-            percentage = product.freshnessPercentage,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(6.dp)
-        )
+
+        Surface(
+            shape = RoundedCornerShape(topStart = 0.dp, bottomEnd = 6.dp),
+            color = Color(0xFF2E7D32).copy(alpha = 0.9f),
+            modifier = Modifier.align(Alignment.TopStart)
+        ) {
+            Text(
+                text = "${product.freshnessPercentage}%",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+            )
+        }
     }
 }
 
@@ -118,6 +120,8 @@ private fun ProductInfoBlock(
     onAddToCart: (Product) -> Unit,
     onToggleFavorite: (Product) -> Unit
 ) {
+    var isFav by remember { mutableStateOf(product.isFavorite) }
+
     Column(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -126,26 +130,35 @@ private fun ProductInfoBlock(
         ) {
             Text(
                 text = product.name,
-                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
+
             IconButton(
-                onClick = { onToggleFavorite(product) },
+                onClick = {
+                    isFav = !isFav
+                    onToggleFavorite(product)
+                },
                 modifier = Modifier.size(24.dp)
             ) {
                 Icon(
-                    imageVector = if (product.isFavorite) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                    imageVector = if (isFav) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
                     contentDescription = "Favorite",
-                    tint = if (product.isFavorite) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = if (isFav) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
 
         Text(
-            text = product.category,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = product.description,
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -155,34 +168,47 @@ private fun ProductInfoBlock(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = "₹${product.price}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = VegitoPrimary,
-                    fontWeight = FontWeight.ExtraBold
+                    text = "₹${product.price.toInt()}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = VegitoPrimary
                 )
                 Text(
-                    text = "per ${product.unit}",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontSize = 10.sp
+                    text = "/${product.unit}",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 1.dp)
                 )
             }
 
-            Button(
-                onClick = { onAddToCart(product) },
-                colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary),
-                shape = CircleShape,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                modifier = Modifier.height(32.dp)
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = VegitoPrimary,
+                modifier = Modifier
+                    .height(30.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onAddToCart(product) }
             ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add",
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("ADD", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 10.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Add",
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "ADD",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
     }

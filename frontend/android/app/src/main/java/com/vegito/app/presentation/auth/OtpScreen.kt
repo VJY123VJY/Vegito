@@ -16,9 +16,13 @@ import com.vegito.app.ui.theme.VegitoPrimary
 fun OtpScreen(
     phone: String,
     role: String,
-    onVerifyOtp: (otp: String) -> Unit
+    devOtp: String? = null,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onVerifyOtp: (otp: String) -> Unit,
+    onResendOtp: () -> Unit = {}
 ) {
-    var otp by remember { mutableStateOf(TextFieldValue("")) }
+    var otp by remember { mutableStateOf(TextFieldValue(devOtp ?: "")) }
 
     Column(
         modifier = Modifier
@@ -38,28 +42,67 @@ fun OtpScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
+        if (!devOtp.isNullOrEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "Development OTP: $devOtp",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
         OutlinedTextField(
             value = otp,
             onValueChange = { if (it.text.length <= 6) otp = it },
-            label = { Text("Enter OTP") },
+            label = { Text("Enter 6-Digit OTP") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp)
         )
 
+        errorMessage?.let {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
-            onClick = { if (otp.text.length >= 4) onVerifyOtp(otp.text) },
+            onClick = { if (otp.text.length >= 4) onVerifyOtp(otp.text.trim()) },
+            enabled = !isLoading && otp.text.length >= 4,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
         ) {
-            Text("Verify & Continue", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text("Verify & Continue", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        TextButton(
+            onClick = onResendOtp,
+            enabled = !isLoading
+        ) {
+            Text("Didn't receive OTP? Resend", color = VegitoPrimary, fontWeight = FontWeight.Medium)
         }
     }
 }

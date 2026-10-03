@@ -17,6 +17,7 @@ class VerifyOtpRequest(BaseModel):
     phone: str = Field(..., description="10-digit mobile number")
     otp: str = Field(..., min_length=4, max_length=6, description="OTP code received")
     name: Optional[str] = Field(None, max_length=100, description="Optional name for new users")
+    role: Optional[str] = Field(None, description="Optional expected role context, e.g. SELLER, DELIVERY_PARTNER")
 
 
 class TokenResponse(BaseModel):
