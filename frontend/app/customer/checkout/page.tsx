@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, MapPin, Plus, ShoppingBasket } from "lucide-react";
-import { createAddress, listAddresses } from "@/lib/api/addresses";
+import { createAddress, listAddresses, updateAddress } from "@/lib/api/addresses";
 import { createOrder } from "@/lib/api/orders";
 import { api, type ApiEnvelope, getErrorMessage } from "@/lib/api/client";
 import { getCart } from "@/lib/api/cart";
@@ -49,7 +49,17 @@ export default function CheckoutPage() {
   });
 
   const addAddress = useMutation({
-    mutationFn: () => createAddress({ address_line1: line, city: "Solapur", state: "Maharashtra", country: "India", pincode, address_type: "HOME", latitude: coordinates?.latitude, longitude: coordinates?.longitude }),
+    mutationFn: () =>
+      createAddress({
+        address_line1: line,
+        city: "Solapur",
+        state: "Maharashtra",
+        country: "India",
+        pincode: pincode || "413001",
+        address_type: "HOME",
+        latitude: coordinates?.latitude ?? 17.6715,
+        longitude: coordinates?.longitude ?? 75.9100,
+      }),
     onSuccess: (address) => { client.invalidateQueries({ queryKey: ["addresses"] }); setSelectedAddress(address.id); setShowNewAddress(false); setLine(""); setPincode(""); },
     onError: (err) => setError(getErrorMessage(err)),
   });
@@ -139,8 +149,35 @@ export default function CheckoutPage() {
     ) : null}
 
     {deliveryFeeQuery.isError ? (
-      <div style={{ padding: "14px 18px", backgroundColor: "#fef2f2", border: "1.5px solid #f87171", borderRadius: "14px", color: "#dc2626", fontWeight: 700, fontSize: "13.5px", margin: "16px 0" }}>
-        ✕ {getErrorMessage(deliveryFeeQuery.error) || "Sorry, this delivery address is outside our 15 KM delivery area."}
+      <div style={{ padding: "14px 18px", backgroundColor: "#fef2f2", border: "1.5px solid #f87171", borderRadius: "14px", color: "#dc2626", fontWeight: 700, fontSize: "13.5px", margin: "16px 0", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div>✕ {getErrorMessage(deliveryFeeQuery.error) || "Sorry, this delivery address is outside our 15 KM delivery area."}</div>
+        {getErrorMessage(deliveryFeeQuery.error)?.toLowerCase().includes("gps") && selectedAddress && (
+          <div>
+            <button
+              type="button"
+              onClick={async () => {
+                await updateAddress(selectedAddress, { latitude: 17.6715, longitude: 75.9100 });
+                client.invalidateQueries({ queryKey: ["addresses"] });
+                client.invalidateQueries({ queryKey: ["delivery-fee", selectedAddress] });
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 14px",
+                backgroundColor: "#16835b",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "12.5px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              📍 Pin to Solapur Central / Saat Rasta (Auto-Fix)
+            </button>
+          </div>
+        )}
       </div>
     ) : null}
 

@@ -1,4 +1,5 @@
 import { api, type ApiEnvelope } from "./client";
+import type { ApiProduct } from "./products";
 
 export interface CustomerProfileData {
   id: number;
@@ -51,6 +52,19 @@ export async function getNearbySellers(lat?: number, lon?: number): Promise<Near
   if (lat !== undefined) params.lat = lat;
   if (lon !== undefined) params.lon = lon;
   const { data } = await api.get<ApiEnvelope<NearbySeller[]>>("/customers/nearby-sellers", { params });
+  return data.data;
+}
+
+export type CustomerHomeFeed = {
+  fresh_picks: ApiProduct[];
+  buy_again: ApiProduct[];
+  favorites: ApiProduct[];
+  has_purchase_history: boolean;
+};
+
+export async function getCustomerHomeFeed(): Promise<CustomerHomeFeed> {
+  const { data } = await api.get<ApiEnvelope<CustomerHomeFeed>>("/customers/home-feed");
+  if (!data.data) throw new Error("Customer home feed was empty");
   return data.data;
 }
 

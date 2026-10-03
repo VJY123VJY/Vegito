@@ -25,11 +25,32 @@ export type Promotion = {
   created_at: string;
   items: PromotionItem[];
   eligible?: boolean;
+
+  // Enriched produce & fruit offer fields
+  product_id?: number;
+  product_name?: string;
+  image_url?: string;
+  original_price?: number;
+  discount_percent?: number;
+  unit?: string;
+  freshness_percent?: number;
+  origin?: string;
+  shelf_life_days?: number;
+  badge_text?: string;
 };
 
-export async function listPromotions() {
-  const { data } = await api.get<ApiEnvelope<Promotion[]>>("/promotions");
-  return data.data;
+export async function listPromotions(options?: { promo_type?: string } | string | unknown) {
+  const promoType =
+    typeof options === "string"
+      ? options
+      : typeof options === "object" && options !== null && "promo_type" in options
+      ? (options as { promo_type?: string }).promo_type
+      : undefined;
+
+  const { data } = await api.get<ApiEnvelope<Promotion[]>>("/promotions", {
+    params: promoType ? { promo_type: promoType } : undefined,
+  });
+  return data.data ?? [];
 }
 
 export async function createPromotion(payload: any) {

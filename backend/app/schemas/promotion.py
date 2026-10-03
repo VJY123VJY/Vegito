@@ -37,3 +37,15 @@ class PromotionRead(BaseSchema, PromotionBase):
     updated_at: datetime.datetime
     items: List[PromotionItemRead] = []
     eligible: bool = True  # Calculated for the current user
+
+    # Enriched produce & fruit offer fields
+    product_id: Optional[int] = None
+    product_name: Optional[str] = None
+    image_url: Optional[str] = None
+    original_price: Optional[Decimal] = None
+    discount_percent: Optional[int] = None
+    unit: Optional[str] = None
+    freshness_percent: Optional[int] = None
+    origin: Optional[str] = None
+    shelf_life_days: Optional[int] = None
+    badge_text: Optional[str] = None

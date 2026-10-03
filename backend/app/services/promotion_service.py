@@ -52,17 +52,27 @@ class PromotionService:
         return promotion
 
     @staticmethod
-    def get_active_promotions(db: Session, customer: Optional[User] = None) -> List[PromotionRead]:
+    def get_active_promotions(
+        db: Session,
+        customer: Optional[User] = None,
+        promo_type: Optional[str] = None
+    ) -> List[PromotionRead]:
         now = datetime.datetime.now(datetime.timezone.utc)
         query = db.query(Promotion).options(
-            joinedload(Promotion.items).joinedload(PromotionItem.seller_product).joinedload(SellerProduct.product)
+            joinedload(Promotion.items)
+            .joinedload(PromotionItem.seller_product)
+            .joinedload(SellerProduct.product)
+            .joinedload(Product.images)
         ).filter(
             Promotion.status == "ACTIVE",
             (Promotion.starts_at == None) | (Promotion.starts_at <= now),
             (Promotion.ends_at == None) | (Promotion.ends_at >= now)
         )
 
-        promos = query.all()
+        if promo_type:
+            query = query.filter(Promotion.type == promo_type)
+
+        promos = query.order_by(Promotion.id.asc()).all()
         results = []
 
         for p in promos:
@@ -75,7 +85,7 @@ class PromotionService:
             # Bundle Stock Check
             has_stock = True
             for item in p.items:
-                if item.seller_product.stock_quantity < item.quantity or not item.seller_product.is_available:
+                if not item.seller_product or item.seller_product.stock_quantity < item.quantity or not item.seller_product.is_available:
                     has_stock = False
                     break
 
@@ -85,10 +95,37 @@ class PromotionService:
             read_obj = PromotionRead.model_validate(p)
             read_obj.eligible = is_eligible
 
+            # Enrich with primary produce/fruit metadata
+            if p.items:
+                primary_item = p.items[0]
+                sp = primary_item.seller_product
+                prod = sp.product if sp else None
+
+                if prod:
+                    read_obj.product_id = prod.id
+                    read_obj.product_name = prod.name
+                    read_obj.unit = prod.unit
+                    read_obj.origin = sp.origin or "Solapur APMC Mandi"
+                    read_obj.shelf_life_days = prod.shelf_life_days or 5
+                    read_obj.freshness_percent = 96 if (prod.shelf_life_days or 5) >= 5 else 92
+                    if prod.images:
+                        read_obj.image_url = prod.images[0].image_url
+
+                # Calculate bundle original total price and discount percentage
+                orig_total = sum((item.seller_product.price * item.quantity for item in p.items if item.seller_product), Decimal("0.00"))
+                read_obj.original_price = orig_total
+                if orig_total > p.price:
+                    pct = int(round(float((orig_total - p.price) / orig_total * 100)))
+                    read_obj.discount_percent = pct
+                    read_obj.badge_text = f"{pct}% OFF"
+                else:
+                    read_obj.badge_text = "SPECIAL OFFER"
+
             # Enrich items
             for ri, mi in zip(read_obj.items, p.items):
-                ri.product_name = mi.seller_product.product.name
-                ri.unit = mi.seller_product.product.unit
+                if mi.seller_product and mi.seller_product.product:
+                    ri.product_name = mi.seller_product.product.name
+                    ri.unit = mi.seller_product.product.unit
 
             results.append(read_obj)
 

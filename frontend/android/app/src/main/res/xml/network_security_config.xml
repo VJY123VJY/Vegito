@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Allow cleartext HTTP traffic for local development machine and adb reverse -->
-    <base-config cleartextTrafficPermitted="true" />
+    <!-- Production defaults to HTTPS. These narrow exceptions support only
+         local debug transport through adb reverse or the Android emulator. -->
+    <base-config cleartextTrafficPermitted="false" />
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">127.0.0.1</domain>

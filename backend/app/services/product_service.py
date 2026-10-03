@@ -166,9 +166,13 @@ class ProductService:
             )
 
         if category_id:
-            if category_id == 1:
-                # Category 1 is Vegetables; include general vegetables (1), leafy (3), and root (4)
-                query = query.filter(Product.category_id.in_([1, 3, 4]))
+            target_cat = db.query(Category).filter(Category.id == category_id).first()
+            if target_cat and target_cat.name.lower() in ["vegetables", "all vegetables"]:
+                veg_subcategories = [1, 3, 4, 50, 51, 52, 53, 54, 55]
+                query = query.filter(Product.category_id.in_(veg_subcategories))
+            elif target_cat and target_cat.name.lower() in ["fruits", "all fruits"]:
+                fruit_subcategories = [2, 56, 57, 58, 59, 60]
+                query = query.filter(Product.category_id.in_(fruit_subcategories))
             else:
                 query = query.filter(Product.category_id == category_id)
 

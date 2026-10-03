@@ -1,16 +1,22 @@
 from typing import Optional, List
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.dependencies import require_customer
 from app.models.user import User
 from app.models.seller_profile import SellerProfile
 from app.models.seller_product import SellerProduct
+from app.models.customer_favorite import CustomerFavorite
+from app.models.order import Order
+from app.models.order_item import OrderItem
+from app.schemas.product import ProductRead
 from app.schemas.customer import CustomerProfileRead, CustomerProfileUpdate
 from app.schemas.common import APIResponse, BaseSchema
 from app.services.customer_service import CustomerService
+from app.services.product_service import ProductService
 from app.services.location_service import LocationService, DEFAULT_SOLAPUR_LAT, DEFAULT_SOLAPUR_LON
+from app.utils.pagination import PaginationParams
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
@@ -26,6 +32,14 @@ class NearbySellerRead(BaseSchema):
     rating: Decimal
     total_orders: int
     active_products_count: int
+
+
+class CustomerHomeFeedRead(BaseSchema):
+    """Customer-scoped discovery data built from persisted marketplace activity."""
+    fresh_picks: List[ProductRead]
+    buy_again: List[ProductRead]
+    favorites: List[ProductRead]
+    has_purchase_history: bool
 
 
 @router.get("/me", response_model=APIResponse[CustomerProfileRead], summary="Get customer profile")
@@ -44,6 +58,65 @@ def update_customer_profile(
 ):
     profile = CustomerService.update_profile(db, current_user, payload)
     return APIResponse(message="Profile updated successfully", data=CustomerProfileRead.model_validate(profile))
+
+
+@router.get("/home-feed", response_model=APIResponse[CustomerHomeFeedRead], summary="Personalized customer home feed")
+def get_customer_home_feed(
+    current_user: User = Depends(require_customer), db: Session = Depends(get_db)
+):
+    """Return only real current offers and this customer's own stored signals.
+
+    Product responses are rebuilt through ProductService so price and available
+    stock always come from the current seller listing/inventory, not old orders.
+    """
+    fresh_picks, _ = ProductService.list_products(
+        db, PaginationParams(page=1, page_size=12), active_only=True
+    )
+    fresh_picks = [product for product in fresh_picks if product.is_in_stock]
+
+    favorite_ids = [
+        product_id for (product_id,) in db.query(CustomerFavorite.product_id)
+        .filter(CustomerFavorite.user_id == current_user.id)
+        .order_by(CustomerFavorite.created_at.desc())
+        .limit(8)
+        .all()
+    ]
+
+    purchased_items = (
+        db.query(OrderItem)
+        .join(Order, OrderItem.order_id == Order.id)
+        .filter(
+            Order.customer_id == current_user.id,
+            Order.status.in_(["DELIVERED", "COMPLETED"]),
+            OrderItem.seller_product_id.isnot(None),
+        )
+        .order_by(Order.placed_at.desc(), OrderItem.id.desc())
+        .all()
+    )
+    buy_again_ids: List[int] = []
+    for item in purchased_items:
+        if item.seller_product_id is None:
+            continue
+        listing = db.query(SellerProduct).filter(SellerProduct.id == item.seller_product_id).first()
+        if listing and listing.product_id not in buy_again_ids:
+            buy_again_ids.append(listing.product_id)
+        if len(buy_again_ids) == 8:
+            break
+
+    def current_products(product_ids: List[int]) -> List[ProductRead]:
+        products: List[ProductRead] = []
+        for product_id in product_ids:
+            product = ProductService.get_product_by_id(db, product_id)
+            if product.is_in_stock:
+                products.append(product)
+        return products
+
+    return APIResponse(data=CustomerHomeFeedRead(
+        fresh_picks=fresh_picks,
+        buy_again=current_products(buy_again_ids),
+        favorites=current_products(favorite_ids),
+        has_purchase_history=bool(purchased_items),
+    ))
 
 
 @router.get("/nearby-sellers", response_model=APIResponse[List[NearbySellerRead]], summary="Discover verified sellers within 15 KM (Section 15 & 50)")

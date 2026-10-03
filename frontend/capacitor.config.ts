@@ -5,7 +5,9 @@ const config: CapacitorConfig = {
   appName: "Vegito",
   webDir: "out",
   server: {
-    androidScheme: "http",
+    // The packaged app has a secure origin. Development HTTP is limited to
+    // explicitly allowed debug endpoints in Android network security config.
+    androidScheme: "https",
   },
 };
 

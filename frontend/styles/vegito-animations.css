@@ -1,0 +1,200 @@
+/* =========================================================
+   VEGITO INTERACTIVE ANIMATIONS & MICRO-INTERACTIONS
+   GPU-accelerated, performant, respects prefers-reduced-motion
+   ========================================================= */
+
+@keyframes vegito-zigzag-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-32px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes vegito-zigzag-right {
+  0% {
+    opacity: 0;
+    transform: translateX(32px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes vegito-float-1 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-9px) rotate(4deg);
+  }
+}
+
+@keyframes vegito-float-2 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-11px) rotate(-5deg);
+  }
+}
+
+@keyframes vegito-float-3 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(3deg);
+  }
+}
+
+@keyframes vegito-heart-bounce {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.32);
+  }
+  65% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes vegito-badge-bump {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.28);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes vegito-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes vegito-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* CSS Animation Utility Classes */
+.animate-zigzag-left {
+  animation: vegito-zigzag-left 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-zigzag-right {
+  animation: vegito-zigzag-right 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-float-1 {
+  animation: vegito-float-1 5.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-float-2 {
+  animation: vegito-float-2 6.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-float-3 {
+  animation: vegito-float-3 4.8s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-heart-bounce {
+  animation: vegito-heart-bounce 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.animate-badge-bump {
+  animation: vegito-badge-bump 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.animate-fade-in {
+  animation: vegito-fade-in 0.3s ease-out forwards;
+}
+
+/* Offer Slider Transitions */
+@keyframes vegito-slide-enter-from-right {
+  0% {
+    opacity: 0;
+    transform: translateX(48px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes vegito-slide-enter-from-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-48px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes vegito-progress-bar {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.animate-slide-enter-right {
+  animation: vegito-slide-enter-from-right 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-slide-enter-left {
+  animation: vegito-slide-enter-from-left 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* Accessibility: Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-zigzag-left,
+  .animate-zigzag-right,
+  .animate-float-1,
+  .animate-float-2,
+  .animate-float-3,
+  .animate-heart-bounce,
+  .animate-badge-bump {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .vegito-product-card,
+  .vegito-offer-card {
+    transition: none !important;
+    transform: none !important;
+  }
+}

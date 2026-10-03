@@ -64,8 +64,8 @@ export async function searchAddressGeocode(
 
           return {
             place_name: f.place_name,
-            city: cityContext ? cityContext.text : "Solapur",
-            pincode: pincodeContext ? pincodeContext.text : "",
+            city: cityContext?.text,
+            pincode: pincodeContext?.text,
             longitude: f.center[0],
             latitude: f.center[1],
           };
@@ -93,8 +93,8 @@ export async function searchAddressGeocode(
           item.address?.city ||
           item.address?.town ||
           item.address?.state_district ||
-          "Solapur",
-        pincode: item.address?.postcode || "",
+          undefined,
+        pincode: item.address?.postcode || undefined,
         latitude: parseFloat(item.lat),
         longitude: parseFloat(item.lon),
       }));
@@ -135,8 +135,8 @@ export async function reverseGeocode(
 
           return {
             place_name: f.place_name,
-            city: cityContext ? cityContext.text : "Solapur",
-            pincode: pincodeContext ? pincodeContext.text : "413001",
+            city: cityContext?.text,
+            pincode: pincodeContext?.text,
             longitude: lng,
             latitude: lat,
           };
@@ -162,8 +162,9 @@ export async function reverseGeocode(
         city:
           data.address?.city ||
           data.address?.town ||
-          "Solapur",
-        pincode: data.address?.postcode || "413001",
+          data.address?.state_district ||
+          undefined,
+        pincode: data.address?.postcode || undefined,
         latitude: lat,
         longitude: lng,
       };
@@ -172,13 +173,7 @@ export async function reverseGeocode(
     console.warn("Nominatim reverse geocoding error:", err);
   }
 
-  return {
-    place_name: `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
-    city: "Solapur",
-    pincode: "413001",
-    latitude: lat,
-    longitude: lng,
-  };
+  return null;
 }
 
 /**

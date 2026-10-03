@@ -12,130 +12,67 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
-  ShieldCheck,
   Store,
-  Truck,
+  Bike,
+  ShoppingBag,
+  ShieldCheck,
   Sparkles,
-  KeyRound,
+  ArrowLeft,
+  ChevronRight,
+  RefreshCw,
 } from "lucide-react";
 import {
-  loginWithPassword,
   sendLoginOtp,
   verifyLoginOtp,
+  loginWithPassword,
   saveSession,
   getRoleRedirectPath,
   getStoredUserName,
   getStoredRole,
+  getStoredAuthorizedRoles,
   clearSession,
+  switchWorkspace,
   type AuthRole,
+  type TokenResponse,
 } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/client";
-
-type LoginRole = "customer" | "seller" | "delivery" | "admin";
-
-const ROLE_META: Record<
-  LoginRole,
-  {
-    label: string;
-    authRole: AuthRole;
-    icon: string;
-    color: string;
-    bgBadge: string;
-    borderBadge: string;
-    demoPhone: string;
-    demoPass: string;
-    subtext: string;
-  }
-> = {
-  customer: {
-    label: "Customer",
-    authRole: "CUSTOMER",
-    icon: "👤",
-    color: "#059669",
-    bgBadge: "#ecfdf5",
-    borderBadge: "#a7f3d0",
-    demoPhone: "9309424359",
-    demoPass: "test123",
-    subtext: "Order fresh farm harvest directly to your doorstep",
-  },
-  seller: {
-    label: "Seller",
-    authRole: "SELLER",
-    icon: "🏪",
-    color: "#c2410c",
-    bgBadge: "#fff7ed",
-    borderBadge: "#fed7aa",
-    demoPhone: "9999999991",
-    demoPass: "test123",
-    subtext: "Manage farm produce catalog, incoming orders & inventory",
-  },
-  delivery: {
-    label: "Delivery Fleet",
-    authRole: "DELIVERY_PARTNER",
-    icon: "🚚",
-    color: "#2563eb",
-    bgBadge: "#eff6ff",
-    borderBadge: "#bfdbfe",
-    demoPhone: "9999999992",
-    demoPass: "test123",
-    subtext: "Real-time dispatch, route navigation & doorstep OTP delivery",
-  },
-  admin: {
-    label: "Admin HQ",
-    authRole: "ADMIN",
-    icon: "🛡️",
-    color: "#7c3aed",
-    bgBadge: "#f5f3ff",
-    borderBadge: "#ddd6fe",
-    demoPhone: "9999999999",
-    demoPass: "admin123",
-    subtext: "Platform analytics, vendor governance & city fleet controls",
-  },
-};
+import { ThemeToggle } from "@/components/common/theme-toggle";
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryRole = searchParams?.get("role")?.toLowerCase() as LoginRole | undefined;
   const queryPhone = searchParams?.get("phone") || "";
 
-  const [activeRole, setActiveRole] = useState<LoginRole>(
-    queryRole && ROLE_META[queryRole] ? queryRole : "customer"
-  );
-  const [authMethod, setAuthMethod] = useState<"password" | "otp">("password");
-
-  // Form State
+  // Stages: "phone" -> "otp" -> "workspace_select" (if multi-role)
+  const [stage, setStage] = useState<"phone" | "otp" | "workspace_select">("phone");
   const [phone, setPhone] = useState(queryPhone);
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-
-  // OTP State
-  const [otpStage, setOtpStage] = useState<"phone" | "otp">("phone");
   const [otp, setOtp] = useState("");
   const [resendTimer, setResendTimer] = useState(0);
 
+  // Multi-role workspace picker state
+  const [multiRoleSession, setMultiRoleSession] = useState<TokenResponse | null>(null);
+  const [switchingRole, setSwitchingRole] = useState<AuthRole | null>(null);
+
+  // Alternative Password Auth Mode
+  const [authMode, setAuthMode] = useState<"otp" | "password">("otp");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
   // Status
   const [loading, setLoading] = useState(false);
-  const [quickLoadingRole, setQuickLoadingRole] = useState<LoginRole | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
-  const [alreadyLoggedInUser, setAlreadyLoggedInUser] = useState<string | null>(null);
-  const [alreadyLoggedInRole, setAlreadyLoggedInRole] = useState<string | null>(null);
+  const [activeUser, setActiveUser] = useState<string | null>(null);
+  const [activeRole, setActiveRole] = useState<AuthRole | null>(null);
 
   useEffect(() => {
     const user = getStoredUserName();
     const r = getStoredRole();
     if (user && r) {
-      setAlreadyLoggedInUser(user);
-      setAlreadyLoggedInRole(r);
+      setActiveUser(user);
+      setActiveRole(r);
     }
   }, []);
-
-  useEffect(() => {
-    if (queryRole && ROLE_META[queryRole]) {
-      setActiveRole(queryRole);
-    }
-  }, [queryRole]);
 
   useEffect(() => {
     if (!resendTimer) return;
@@ -145,70 +82,42 @@ function LoginContent() {
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-  const meta = ROLE_META[activeRole];
-
-  // ── PASSWORD LOGIN ────────────────────────────────────────────────────────
-  const handlePasswordLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setInfoMsg(null);
-
-    const cleanPhone = phone.replace(/\D/g, "");
-    if (!cleanPhone || cleanPhone.length < 10) {
-      setError("Please enter a valid 10-digit mobile number.");
-      return;
-    }
-    if (!password) {
-      setError("Please enter your password.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const tokenRes = await loginWithPassword(cleanPhone, password, meta.authRole);
-      saveSession(tokenRes);
-      router.push(getRoleRedirectPath(tokenRes.role));
-    } catch (err: any) {
-      const msg = getErrorMessage(err);
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── OTP LOGIN FALLBACK ────────────────────────────────────────────────────
+  // ── SEND OTP ──────────────────────────────────────────────────────────────
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError(null);
     setInfoMsg(null);
 
     const cleanPhone = phone.replace(/\D/g, "");
-    if (!cleanPhone || cleanPhone.length < 10) {
+    if (!cleanPhone || cleanPhone.length !== 10) {
       setError("Please enter a valid 10-digit mobile number.");
       return;
     }
 
     setLoading(true);
     try {
-      console.log("[VEGITO AUTH] Sending OTP request for:", cleanPhone);
       const res = await sendLoginOtp(cleanPhone);
-      console.log("[VEGITO AUTH] OTP response received");
-      setOtpStage("otp");
-      setResendTimer(30);
-      if (res.dev_otp) {
-        setInfoMsg(`OTP sent successfully! (Dev OTP: ${res.dev_otp})`);
+      setStage("otp");
+      setResendTimer(45);
+      if (res?.dev_otp) {
+        setInfoMsg(`OTP sent! (Dev Auto-fill: ${res.dev_otp})`);
         setOtp(res.dev_otp);
       } else {
         setInfoMsg("OTP sent successfully to your mobile number.");
       }
-    } catch (err) {
-      console.error("[VEGITO AUTH] Error in sendLoginOtp:", err);
-      setError(getErrorMessage(err));
+    } catch (err: any) {
+      const msg = getErrorMessage(err);
+      if (msg.toLowerCase().includes("not found")) {
+        setError("Account not found. Click below to Start Shopping and create your account.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // ── VERIFY OTP ────────────────────────────────────────────────────────────
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -221,25 +130,19 @@ function LoginContent() {
 
     setLoading(true);
     try {
-      console.log("[VEGITO AUTH] Verifying OTP:", cleanOtp);
       const tokenRes = await verifyLoginOtp(phone.replace(/\D/g, ""), cleanOtp);
-      console.log("[VEGITO AUTH] OTP verification success. Role:", tokenRes.role);
-      // Verify role match
-      if (
-        meta.authRole !== "SUPER_ADMIN" &&
-        tokenRes.role !== meta.authRole &&
-        !(meta.authRole === "ADMIN" && tokenRes.role === "SUPER_ADMIN")
-      ) {
-        setError(
-          `This account is registered as ${tokenRes.role.replace(
-            "_",
-            " "
-          )}. Please select the ${tokenRes.role.replace("_", " ")} tab to login.`
-        );
-        setLoading(false);
+      saveSession(tokenRes);
+
+      const roles = tokenRes.authorized_roles || [tokenRes.role];
+
+      // Multi-role discovery: If user has multiple roles, allow choosing workspace
+      if (roles.length > 1) {
+        setMultiRoleSession(tokenRes);
+        setStage("workspace_select");
         return;
       }
-      saveSession(tokenRes);
+
+      // Single-role: Direct seamless redirect
       router.push(getRoleRedirectPath(tokenRes.role));
     } catch (err) {
       setError(getErrorMessage(err));
@@ -248,804 +151,868 @@ function LoginContent() {
     }
   };
 
-  const handleQuickFill = async (roleKey: LoginRole) => {
-    if (loading || quickLoadingRole) return;
-    const r = ROLE_META[roleKey];
-    setActiveRole(roleKey);
-    setPhone(r.demoPhone);
-    setPassword(r.demoPass);
-    setAuthMethod("password");
+  // ── PASSWORD LOGIN FALLBACK ───────────────────────────────────────────────
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
-    setInfoMsg(null);
 
-    // Auto-login for fast 1-click demo test experience
-    setQuickLoadingRole(roleKey);
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      setError("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const tokenRes = await loginWithPassword(r.demoPhone, r.demoPass, r.authRole);
+      const tokenRes = await loginWithPassword(cleanPhone, password);
       saveSession(tokenRes);
+
+      const roles = tokenRes.authorized_roles || [tokenRes.role];
+      if (roles.length > 1) {
+        setMultiRoleSession(tokenRes);
+        setStage("workspace_select");
+        return;
+      }
+
       router.push(getRoleRedirectPath(tokenRes.role));
-    } catch (err: any) {
-      const msg = getErrorMessage(err);
-      setError(msg);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
       setLoading(false);
-      setQuickLoadingRole(null);
+    }
+  };
+
+  // ── WORKSPACE SELECTION ───────────────────────────────────────────────────
+  const handleSelectWorkspace = async (targetRole: AuthRole) => {
+    setError(null);
+    setSwitchingRole(targetRole);
+
+    try {
+      // If already active in that role
+      if (multiRoleSession?.role === targetRole) {
+        router.push(getRoleRedirectPath(targetRole));
+        return;
+      }
+
+      // Switch workspace via backend API
+      const switched = await switchWorkspace(targetRole);
+      saveSession(switched);
+      router.push(getRoleRedirectPath(targetRole));
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setSwitchingRole(null);
     }
   };
 
   return (
-    <div
+    <main
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #f3f8f4 0%, #ffffff 40%, #eef6f0 100%)",
+        backgroundColor: "var(--vegito-bg, #f8faf7)",
+        color: "var(--vegito-text-main, #12221e)",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "32px 16px",
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        flexDirection: "column",
+        justifyContent: "space-between",
       }}
     >
-      <div
+      {/* Top Header */}
+      <header
         style={{
           width: "100%",
           maxWidth: "480px",
-          backgroundColor: "#ffffff",
-          borderRadius: "24px",
-          boxShadow: "0 10px 40px rgba(6, 60, 50, 0.08)",
-          border: "1px solid #e1e8e2",
-          padding: "32px 28px",
+          margin: "0 auto",
+          padding: "20px 24px 0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
       >
-        {/* Brand header */}
-        <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <Link
-            href="/"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              textDecoration: "none",
-              marginBottom: "10px",
-            }}
-          >
-            <span
-              style={{
-                width: "36px",
-                height: "36px",
-                backgroundColor: "#16835b",
-                borderRadius: "10px",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#ffffff",
-                fontSize: "20px",
-                fontWeight: 800,
-              }}
-            >
-              🍃
-            </span>
-            <span
-              style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
-                fontSize: "24px",
-                fontWeight: 800,
-                color: "#16382b",
-                letterSpacing: "-0.5px",
-              }}
-            >
-              Vegito
-            </span>
-          </Link>
-          <h1
-            style={{
-              margin: "4px 0",
-              fontSize: "22px",
-              fontWeight: 800,
-              color: "#1a2e26",
-            }}
-          >
-            Sign in to Your Account
-          </h1>
-          <p style={{ margin: 0, fontSize: "13px", color: "#62746a" }}>
-            Select your account type to continue
-          </p>
-        </div>
+        <Link
+          href="/auth"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            color: "#62746a",
+            textDecoration: "none",
+            fontSize: "13px",
+            fontWeight: 700,
+          }}
+        >
+          <ArrowLeft size={16} />
+          <span>Back</span>
+        </Link>
 
-        {/* Active Session Notice with 1-click Sign Out */}
-        {alreadyLoggedInUser && (
+        <ThemeToggle />
+      </header>
+
+      {/* Main Container Card */}
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "440px",
+          margin: "24px auto",
+          padding: "0 20px",
+        }}
+      >
+        {/* Already Logged In Banner */}
+        {activeUser && (
           <div
             style={{
-              padding: "12px 14px",
-              backgroundColor: "#fef3c7",
-              border: "1px solid #fde68a",
+              padding: "12px 16px",
               borderRadius: "14px",
-              marginBottom: "20px",
-              fontSize: "12.5px",
-              color: "#92400e",
+              backgroundColor: "#ecfdf5",
+              border: "1px solid #a7f3d0",
+              color: "#065f46",
+              fontSize: "13px",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              gap: "10px",
-            }}
-          >
-            <div>
-              <span>Currently signed in as </span>
-              <strong>{alreadyLoggedInUser}</strong>
-              <span style={{ opacity: 0.85 }}> ({alreadyLoggedInRole})</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                clearSession();
-                setAlreadyLoggedInUser(null);
-                setAlreadyLoggedInRole(null);
-                setInfoMsg("Signed out. Please enter credentials for your new account.");
-              }}
-              style={{
-                backgroundColor: "#ffffff",
-                border: "1px solid #d97706",
-                color: "#b45309",
-                borderRadius: "8px",
-                padding: "4px 10px",
-                fontSize: "11px",
-                fontWeight: 800,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Sign Out
-            </button>
-          </div>
-        )}
-
-        {/* Prominent Role Selector Cards (2x2 Grid) */}
-        <div style={{ marginBottom: "22px" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "10px",
-            }}
-          >
-            {(Object.keys(ROLE_META) as LoginRole[]).map((roleKey) => {
-              const r = ROLE_META[roleKey];
-              const isSelected = activeRole === roleKey;
-              return (
-                <button
-                  key={roleKey}
-                  type="button"
-                  onClick={() => {
-                    setActiveRole(roleKey);
-                    setError(null);
-                    setInfoMsg(null);
-                  }}
-                  style={{
-                    padding: "12px 10px",
-                    borderRadius: "14px",
-                    border: isSelected ? `2px solid ${r.color}` : "1.5px solid #e2e8e5",
-                    backgroundColor: isSelected ? r.bgBadge : "#ffffff",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    textAlign: "left",
-                    transition: "all 0.18s ease",
-                    boxShadow: isSelected
-                      ? `0 4px 14px ${r.color}25`
-                      : "0 2px 6px rgba(0,0,0,0.03)",
-                    position: "relative",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "36px",
-                      height: "36px",
-                      borderRadius: "10px",
-                      backgroundColor: isSelected ? "#ffffff" : "#f1f5f2",
-                      border: isSelected ? `1px solid ${r.borderBadge}` : "1px solid #e5ebe7",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "18px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {r.icon}
-                  </div>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 800,
-                        color: isSelected ? r.color : "#1a2e26",
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {r.label}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "10.5px",
-                        color: isSelected ? r.color : "#64748b",
-                        fontWeight: isSelected ? 600 : 500,
-                        marginTop: "2px",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        opacity: isSelected ? 0.9 : 0.7,
-                      }}
-                    >
-                      {roleKey === "customer"
-                        ? "Order produce"
-                        : roleKey === "seller"
-                        ? "Manage store"
-                        : roleKey === "delivery"
-                        ? "Live delivery"
-                        : "Platform HQ"}
-                    </div>
-                  </div>
-                  {isSelected && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "-5px",
-                        right: "-5px",
-                        width: "16px",
-                        height: "16px",
-                        borderRadius: "50%",
-                        backgroundColor: r.color,
-                        color: "#ffffff",
-                        fontSize: "10px",
-                        fontWeight: 900,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        border: "2px solid #ffffff",
-                      }}
-                    >
-                      ✓
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Active Role Info Strip */}
-          <div
-            style={{
-              marginTop: "10px",
-              padding: "8px 12px",
-              borderRadius: "10px",
-              backgroundColor: meta.bgBadge,
-              border: `1px solid ${meta.borderBadge}`,
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              fontSize: "12px",
-              color: meta.color,
-              fontWeight: 600,
-            }}
-          >
-            <span style={{ fontSize: "14px" }}>{meta.icon}</span>
-            <span>Signing in as <strong>{meta.label}</strong>: {meta.subtext}</span>
-          </div>
-        </div>
-
-        {/* Error / Info messages */}
-        {error && (
-          <div
-            style={{
-              padding: "12px 14px",
-              borderRadius: "12px",
-              backgroundColor: "#fef2f2",
-              border: "1px solid #fecaca",
-              color: "#dc2626",
-              fontSize: "13px",
               marginBottom: "16px",
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "10px",
-              lineHeight: 1.45,
             }}
           >
-            <AlertCircle size={17} style={{ flexShrink: 0, marginTop: "2px" }} />
             <div>
-              <span>{error}</span>
-              {error.toLowerCase().includes("not found") && (
-                <div style={{ marginTop: "6px" }}>
-                  <Link
-                    href={`/auth/register?role=${activeRole}`}
-                    style={{
-                      color: "#b91c1c",
-                      fontWeight: 700,
-                      textDecoration: "underline",
-                      fontSize: "12.5px",
-                    }}
-                  >
-                    Click here to Register as {meta.label} →
-                  </Link>
-                </div>
-              )}
+              <strong>{activeUser}</strong> ({activeRole})
             </div>
-          </div>
-        )}
-
-        {infoMsg && (
-          <div
-            style={{
-              padding: "12px 14px",
-              borderRadius: "12px",
-              backgroundColor: "#f0fdf4",
-              border: "1px solid #bbf7d0",
-              color: "#166534",
-              fontSize: "13px",
-              marginBottom: "16px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
-            <span>{infoMsg}</span>
-          </div>
-        )}
-
-        {/* ── PASSWORD LOGIN FORM (PRIMARY) ────────────────────────── */}
-        {authMethod === "password" && (
-          <form onSubmit={handlePasswordLogin} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "12.5px",
-                  fontWeight: 600,
-                  color: "#374151",
-                  marginBottom: "6px",
-                }}
-              >
-                Mobile Number
-              </label>
-              <div style={{ position: "relative" }}>
-                <span
-                  style={{
-                    position: "absolute",
-                    left: "14px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    fontSize: "13.5px",
-                    fontWeight: 600,
-                    color: "#6b7280",
-                    pointerEvents: "none",
-                  }}
-                >
-                  +91
-                </span>
-                <input
-                  type="tel"
-                  maxLength={10}
-                  placeholder="Enter 10-digit mobile"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                  style={{
-                    width: "100%",
-                    padding: "12px 14px 12px 50px",
-                    borderRadius: "12px",
-                    border: "1.5px solid #d1d5db",
-                    fontSize: "14px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                    letterSpacing: "0.5px",
-                    fontWeight: 500,
-                  }}
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                <label
-                  style={{
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                    color: "#374151",
-                  }}
-                >
-                  Password
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setAuthMethod("otp")}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: meta.color,
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  Forgot / Use OTP
-                </button>
-              </div>
-              <div style={{ position: "relative" }}>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "12px 42px 12px 14px",
-                    borderRadius: "12px",
-                    border: "1.5px solid #d1d5db",
-                    fontSize: "14px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: "absolute",
-                    right: "12px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    color: "#9ca3af",
-                    cursor: "pointer",
-                    padding: "4px",
-                  }}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: "100%",
-                padding: "13px",
-                borderRadius: "12px",
-                backgroundColor: meta.color,
-                color: "#ffffff",
-                border: "none",
-                fontSize: "14.5px",
-                fontWeight: 700,
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                marginTop: "6px",
-                boxShadow: `0 4px 14px ${meta.color}40`,
-                transition: "background-color 0.2s",
-              }}
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={18} className="animate-spin" />
-                  <span>Verifying credentials...</span>
-                </>
-              ) : (
-                <>
-                  <span>Sign In as {meta.label}</span>
-                  <ArrowRight size={17} />
-                </>
-              )}
-            </button>
-          </form>
-        )}
-
-        {/* ── OTP LOGIN FORM (FALLBACK) ────────────────────────────── */}
-        {authMethod === "otp" && (
-          <div>
-            {otpStage === "phone" ? (
-              <form onSubmit={handleSendOtp} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "12.5px",
-                      fontWeight: 600,
-                      color: "#374151",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    Mobile Number for SMS OTP
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <span
-                      style={{
-                        position: "absolute",
-                        left: "14px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        fontSize: "13.5px",
-                        fontWeight: 600,
-                        color: "#6b7280",
-                        pointerEvents: "none",
-                      }}
-                    >
-                      +91
-                    </span>
-                    <input
-                      type="tel"
-                      maxLength={10}
-                      placeholder="Enter 10-digit mobile"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                      style={{
-                        width: "100%",
-                        padding: "12px 14px 12px 50px",
-                        borderRadius: "12px",
-                        border: "1.5px solid #d1d5db",
-                        fontSize: "14px",
-                        outline: "none",
-                        boxSizing: "border-box",
-                        letterSpacing: "0.5px",
-                        fontWeight: 500,
-                      }}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  style={{
-                    width: "100%",
-                    padding: "13px",
-                    borderRadius: "12px",
-                    backgroundColor: meta.color,
-                    color: "#ffffff",
-                    border: "none",
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    cursor: loading ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                  }}
-                >
-                  {loading ? <Loader2 size={18} className="animate-spin" /> : <Phone size={17} />}
-                  <span>Send Login OTP</span>
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyOtp} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                    <label style={{ fontSize: "12.5px", fontWeight: 600, color: "#374151" }}>
-                      Enter 6-Digit OTP
-                    </label>
-                    <span style={{ fontSize: "12px", color: "#6b7280" }}>
-                      Sent to +91 {phone}
-                    </span>
-                  </div>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    placeholder="Enter 6-digit OTP"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                    style={{
-                      width: "100%",
-                      padding: "12px 14px",
-                      borderRadius: "12px",
-                      border: "1.5px solid #d1d5db",
-                      fontSize: "16px",
-                      textAlign: "center",
-                      letterSpacing: "4px",
-                      fontWeight: 700,
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
-                    required
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  style={{
-                    width: "100%",
-                    padding: "13px",
-                    borderRadius: "12px",
-                    backgroundColor: meta.color,
-                    color: "#ffffff",
-                    border: "none",
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    cursor: loading ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                  }}
-                >
-                  {loading ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={17} />}
-                  <span>Verify &amp; Enter Dashboard</span>
-                </button>
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <button
-                    type="button"
-                    onClick={() => setOtpStage("phone")}
-                    style={{ background: "none", border: "none", color: "#64748b", fontSize: "12px", cursor: "pointer", padding: 0 }}
-                  >
-                    Change Number
-                  </button>
-                  <button
-                    type="button"
-                    disabled={resendTimer > 0 || loading}
-                    onClick={() => handleSendOtp()}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: resendTimer > 0 ? "#94a3b8" : meta.color,
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      cursor: resendTimer > 0 ? "default" : "pointer",
-                      padding: 0,
-                    }}
-                  >
-                    {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : "Resend OTP"}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            <div style={{ textAlign: "center", marginTop: "14px" }}>
+            <div style={{ display: "flex", gap: "8px" }}>
               <button
-                type="button"
-                onClick={() => setAuthMethod("password")}
+                onClick={() => router.push(getRoleRedirectPath(activeRole))}
                 style={{
                   background: "none",
                   border: "none",
-                  color: "#64748b",
-                  fontSize: "12.5px",
+                  color: "#059669",
+                  fontWeight: 800,
                   cursor: "pointer",
-                  textDecoration: "underline",
+                  fontSize: "12.5px",
                 }}
               >
-                Back to Password Login
+                Go to App →
+              </button>
+              <button
+                onClick={() => {
+                  clearSession();
+                  setActiveUser(null);
+                  setActiveRole(null);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#dc2626",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: "12px",
+                }}
+              >
+                Sign Out
               </button>
             </div>
           </div>
         )}
 
-        {/* Register redirection */}
-        {activeRole !== "admin" && (
-          <div
-            style={{
-              marginTop: "20px",
-              paddingTop: "16px",
-              borderTop: "1px solid #f1f5f9",
-              textAlign: "center",
-              fontSize: "13px",
-              color: "#64748b",
-            }}
-          >
-            <span>Don&apos;t have a {meta.label} account? </span>
-            <Link
-              href={`/auth/register?role=${activeRole}`}
-              style={{
-                color: meta.color,
-                fontWeight: 700,
-                textDecoration: "none",
-              }}
-            >
-              Register here
-            </Link>
-          </div>
-        )}
-
-        {/* ── QUICK DEMO LOGINS ────────────────────────────────────── */}
         <div
           style={{
-            marginTop: "22px",
-            backgroundColor: "#f8fafc",
-            borderRadius: "16px",
-            padding: "14px",
-            border: "1px dashed #cbd5e1",
+            backgroundColor: "#ffffff",
+            borderRadius: "24px",
+            border: "1px solid #e1e8e2",
+            boxShadow: "0 12px 40px rgba(6, 60, 50, 0.08)",
+            padding: "28px 24px",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "11.5px",
-              fontWeight: 700,
-              color: "#475569",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              marginBottom: "10px",
-            }}
-          >
-            <Sparkles size={14} color="#f59e0b" />
-            <span>Fast Demo Test Logins</span>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "8px",
-            }}
-          >
-            {(Object.keys(ROLE_META) as LoginRole[]).map((rKey) => {
-              const r = ROLE_META[rKey];
-              const isLoggingIn = quickLoadingRole === rKey;
-              return (
-                <button
-                  key={rKey}
-                  type="button"
-                  disabled={loading || quickLoadingRole !== null}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleQuickFill(rKey);
-                  }}
+          {/* STAGE 1 & 2: MOBILE OTP LOGIN */}
+          {stage !== "workspace_select" ? (
+            <>
+              {/* Header Title */}
+              <div style={{ textAlign: "center", marginBottom: "24px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "8px" }}>🥬</div>
+                <h1
                   style={{
-                    padding: "9px 12px",
+                    fontSize: "24px",
+                    fontWeight: 800,
+                    color: "#063c32",
+                    margin: "0 0 6px",
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  {authMode === "otp"
+                    ? stage === "phone"
+                      ? "Welcome to Vegito"
+                      : "Verify OTP"
+                    : "Login with Password"}
+                </h1>
+                <p style={{ margin: 0, fontSize: "13.5px", color: "#62746a" }}>
+                  {authMode === "otp"
+                    ? stage === "phone"
+                      ? "Enter your mobile number to sign in or get started"
+                      : `Enter the 6-digit code sent to +91 ${phone}`
+                    : "Enter your registered phone and password"}
+                </p>
+              </div>
+
+              {/* Error & Info Alerts */}
+              {error && (
+                <div
+                  style={{
+                    padding: "10px 14px",
                     borderRadius: "12px",
-                    border: `1.5px solid ${r.borderBadge}`,
-                    backgroundColor: r.bgBadge,
-                    color: r.color,
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    cursor: loading ? "not-allowed" : "pointer",
+                    backgroundColor: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    color: "#dc2626",
+                    fontSize: "13px",
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
-                    textAlign: "left",
-                    transition: "all 0.15s ease",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                    opacity: quickLoadingRole && quickLoadingRole !== rKey ? 0.5 : 1,
+                    marginBottom: "16px",
                   }}
                 >
-                  <span style={{ fontSize: "16px", display: "flex", alignItems: "center" }}>
-                    {isLoggingIn ? (
-                      <Loader2 size={16} className="animate-spin" style={{ color: r.color }} />
-                    ) : (
-                      r.icon
-                    )}
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ lineHeight: 1.2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span>{r.label}</span>
-                      {isLoggingIn && (
-                        <span style={{ fontSize: "10px", fontWeight: 800 }}>Signing in...</span>
-                      )}
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {infoMsg && (
+                <div
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: "12px",
+                    backgroundColor: "#f0fdf4",
+                    border: "1px solid #bbf7d0",
+                    color: "#166534",
+                    fontSize: "13px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <Sparkles size={16} style={{ flexShrink: 0 }} />
+                  <span>{infoMsg}</span>
+                </div>
+              )}
+
+              {/* Form Content */}
+              {authMode === "otp" ? (
+                stage === "phone" ? (
+                  // STAGE: PHONE INPUT
+                  <form onSubmit={handleSendOtp}>
+                    <div style={{ marginBottom: "18px" }}>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "12.5px",
+                          fontWeight: 700,
+                          color: "#063c32",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        Mobile Number
+                      </label>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          backgroundColor: "#f8faf8",
+                          border: "1.5px solid #dce8df",
+                          borderRadius: "14px",
+                          padding: "2px 14px",
+                          transition: "border-color 0.15s",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: 700,
+                            color: "#62746a",
+                            marginRight: "8px",
+                          }}
+                        >
+                          +91
+                        </span>
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={10}
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                          placeholder="Enter 10-digit number"
+                          autoFocus
+                          style={{
+                            width: "100%",
+                            height: "46px",
+                            border: "none",
+                            background: "transparent",
+                            outline: "none",
+                            fontSize: "15px",
+                            fontWeight: 700,
+                            color: "#063c32",
+                            letterSpacing: "0.04em",
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div style={{ fontSize: "10px", opacity: 0.85, fontWeight: 500, marginTop: "2px" }}>
-                      {isLoggingIn ? "Entering dashboard..." : `1-Click Login (${r.demoPhone.slice(0, 5)}...)`}
+
+                    <button
+                      type="submit"
+                      disabled={loading || phone.replace(/\D/g, "").length !== 10}
+                      style={{
+                        width: "100%",
+                        padding: "14px 20px",
+                        backgroundColor: "#16835b",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "14px",
+                        fontSize: "15px",
+                        fontWeight: 800,
+                        cursor:
+                          loading || phone.replace(/\D/g, "").length !== 10
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity:
+                          loading || phone.replace(/\D/g, "").length !== 10 ? 0.65 : 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        boxShadow: "0 4px 14px rgba(22, 131, 91, 0.25)",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {loading ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : (
+                        <>
+                          <span>Continue with OTP</span>
+                          <ArrowRight size={17} />
+                        </>
+                      )}
+                    </button>
+                  </form>
+                ) : (
+                  // STAGE: OTP INPUT
+                  <form onSubmit={handleVerifyOtp}>
+                    <div style={{ marginBottom: "18px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: "12.5px",
+                            fontWeight: 700,
+                            color: "#063c32",
+                          }}
+                        >
+                          6-Digit OTP Code
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setStage("phone")}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#16835b",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Change Number
+                        </button>
+                      </div>
+
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                        placeholder="••••••"
+                        autoFocus
+                        style={{
+                          width: "100%",
+                          height: "50px",
+                          borderRadius: "14px",
+                          border: "1.5px solid #dce8df",
+                          backgroundColor: "#f8faf8",
+                          textAlign: "center",
+                          fontSize: "24px",
+                          fontWeight: 800,
+                          letterSpacing: "0.25em",
+                          color: "#063c32",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading || otp.trim().length < 4}
+                      style={{
+                        width: "100%",
+                        padding: "14px 20px",
+                        backgroundColor: "#16835b",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "14px",
+                        fontSize: "15px",
+                        fontWeight: 800,
+                        cursor: loading || otp.trim().length < 4 ? "not-allowed" : "pointer",
+                        opacity: loading || otp.trim().length < 4 ? 0.65 : 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        boxShadow: "0 4px 14px rgba(22, 131, 91, 0.25)",
+                        marginBottom: "14px",
+                      }}
+                    >
+                      {loading ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : (
+                        <>
+                          <span>Verify &amp; Continue</span>
+                          <CheckCircle2 size={17} />
+                        </>
+                      )}
+                    </button>
+
+                    <div style={{ textAlign: "center" }}>
+                      <button
+                        type="button"
+                        disabled={resendTimer > 0 || loading}
+                        onClick={() => handleSendOtp()}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: resendTimer > 0 ? "#8fa196" : "#16835b",
+                          fontSize: "12.5px",
+                          fontWeight: 700,
+                          cursor: resendTimer > 0 ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {resendTimer > 0
+                          ? `Resend OTP in ${resendTimer}s`
+                          : "Didn't receive OTP? Resend"}
+                      </button>
+                    </div>
+                  </form>
+                )
+              ) : (
+                // PASSWORD LOGIN FORM
+                <form onSubmit={handlePasswordLogin}>
+                  <div style={{ marginBottom: "14px" }}>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "12.5px",
+                        fontWeight: 700,
+                        color: "#063c32",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Mobile Number
+                    </label>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        backgroundColor: "#f8faf8",
+                        border: "1.5px solid #dce8df",
+                        borderRadius: "14px",
+                        padding: "2px 14px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 700,
+                          color: "#62746a",
+                          marginRight: "8px",
+                        }}
+                      >
+                        +91
+                      </span>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                        placeholder="Enter 10-digit number"
+                        style={{
+                          width: "100%",
+                          height: "46px",
+                          border: "none",
+                          background: "transparent",
+                          outline: "none",
+                          fontSize: "15px",
+                          fontWeight: 700,
+                          color: "#063c32",
+                        }}
+                      />
                     </div>
                   </div>
+
+                  <div style={{ marginBottom: "18px" }}>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "12.5px",
+                        fontWeight: 700,
+                        color: "#063c32",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Password
+                    </label>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        backgroundColor: "#f8faf8",
+                        border: "1.5px solid #dce8df",
+                        borderRadius: "14px",
+                        padding: "2px 14px",
+                      }}
+                    >
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        style={{
+                          width: "100%",
+                          height: "46px",
+                          border: "none",
+                          background: "transparent",
+                          outline: "none",
+                          fontSize: "15px",
+                          fontWeight: 700,
+                          color: "#063c32",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#62746a",
+                          cursor: "pointer",
+                          padding: "4px",
+                        }}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading || !password || phone.replace(/\D/g, "").length !== 10}
+                    style={{
+                      width: "100%",
+                      padding: "14px 20px",
+                      backgroundColor: "#16835b",
+                      color: "#ffffff",
+                      border: "none",
+                      borderRadius: "14px",
+                      fontSize: "15px",
+                      fontWeight: 800,
+                      cursor: loading ? "wait" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      boxShadow: "0 4px 14px rgba(22, 131, 91, 0.25)",
+                    }}
+                  >
+                    {loading ? <Loader2 size={18} className="animate-spin" /> : "Sign In"}
+                  </button>
+                </form>
+              )}
+
+              {/* Mode Switch & Registration Links */}
+              <div
+                style={{
+                  marginTop: "24px",
+                  paddingTop: "18px",
+                  borderTop: "1px solid #edf2ee",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  textAlign: "center",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode(authMode === "otp" ? "password" : "otp");
+                    setError(null);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#16835b",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {authMode === "otp" ? "Use Password Instead" : "Use Mobile OTP Instead"}
                 </button>
-              );
-            })}
-          </div>
+
+                <div style={{ fontSize: "13px", color: "#62746a" }}>
+                  New customer?{" "}
+                  <Link
+                    href="/start-shopping"
+                    style={{ color: "#16835b", fontWeight: 800, textDecoration: "none" }}
+                  >
+                    Start Shopping →
+                  </Link>
+                </div>
+              </div>
+            </>
+          ) : (
+            // STAGE 3: MULTI-ROLE WORKSPACE SELECTION MODAL
+            <div>
+              <div style={{ textAlign: "center", marginBottom: "20px" }}>
+                <div style={{ fontSize: "36px", marginBottom: "8px" }}>👋</div>
+                <h2
+                  style={{
+                    fontSize: "22px",
+                    fontWeight: 800,
+                    color: "#063c32",
+                    margin: "0 0 6px",
+                  }}
+                >
+                  Welcome back, {multiRoleSession?.name || "Partner"}!
+                </h2>
+                <p style={{ margin: 0, fontSize: "13.5px", color: "#62746a" }}>
+                  Your account has multiple roles. Select a workspace to continue:
+                </p>
+              </div>
+
+              {error && (
+                <div
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: "12px",
+                    backgroundColor: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    color: "#dc2626",
+                    fontSize: "13px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {/* Continue as Seller (if authorized) */}
+                {(multiRoleSession?.authorized_roles?.includes("SELLER") ||
+                  multiRoleSession?.role === "SELLER") && (
+                  <button
+                    onClick={() => handleSelectWorkspace("SELLER")}
+                    disabled={switchingRole !== null}
+                    style={{
+                      width: "100%",
+                      padding: "16px 18px",
+                      borderRadius: "16px",
+                      border: "1.5px solid #fed7aa",
+                      backgroundColor: "#fff7ed",
+                      color: "#9a3412",
+                      textAlign: "left",
+                      cursor: switchingRole ? "wait" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      transition: "transform 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div
+                        style={{
+                          width: "40px",
+                          height: "40px",
+                          borderRadius: "12px",
+                          backgroundColor: "#ea580c",
+                          color: "#ffffff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Store size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "15px", fontWeight: 800 }}>
+                          Continue as Seller
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#c2410c" }}>
+                          Store dashboard, farm produce catalog &amp; orders
+                        </div>
+                      </div>
+                    </div>
+                    {switchingRole === "SELLER" ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <ChevronRight size={18} />
+                    )}
+                  </button>
+                )}
+
+                {/* Continue as Delivery Partner (if authorized) */}
+                {(multiRoleSession?.authorized_roles?.includes("DELIVERY_PARTNER") ||
+                  multiRoleSession?.role === "DELIVERY_PARTNER") && (
+                  <button
+                    onClick={() => handleSelectWorkspace("DELIVERY_PARTNER")}
+                    disabled={switchingRole !== null}
+                    style={{
+                      width: "100%",
+                      padding: "16px 18px",
+                      borderRadius: "16px",
+                      border: "1.5px solid #bfdbfe",
+                      backgroundColor: "#eff6ff",
+                      color: "#1e40af",
+                      textAlign: "left",
+                      cursor: switchingRole ? "wait" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      transition: "transform 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div
+                        style={{
+                          width: "40px",
+                          height: "40px",
+                          borderRadius: "12px",
+                          backgroundColor: "#2563eb",
+                          color: "#ffffff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Bike size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "15px", fontWeight: 800 }}>
+                          Continue Delivery
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#3b82f6" }}>
+                          Live dispatch, order tasks &amp; doorstep delivery
+                        </div>
+                      </div>
+                    </div>
+                    {switchingRole === "DELIVERY_PARTNER" ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <ChevronRight size={18} />
+                    )}
+                  </button>
+                )}
+
+                {/* Continue Shopping (Customer) — Available for everyone */}
+                <button
+                  onClick={() => handleSelectWorkspace("CUSTOMER")}
+                  disabled={switchingRole !== null}
+                  style={{
+                    width: "100%",
+                    padding: "16px 18px",
+                    borderRadius: "16px",
+                    border: "1.5px solid #a7f3d0",
+                    backgroundColor: "#ecfdf5",
+                    color: "#065f46",
+                    textAlign: "left",
+                    cursor: switchingRole ? "wait" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    transition: "transform 0.15s ease",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "12px",
+                        backgroundColor: "#16835b",
+                        color: "#ffffff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <ShoppingBag size={20} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "15px", fontWeight: 800 }}>
+                        Continue Shopping
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#059669" }}>
+                        Browse fresh vegetables, farm harvest &amp; cart
+                      </div>
+                    </div>
+                  </div>
+                  {switchingRole === "CUSTOMER" ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <ChevronRight size={18} />
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer Partner Link */}
+        <div style={{ textAlign: "center", marginTop: "24px" }}>
+          <p style={{ margin: 0, fontSize: "13px", color: "#62746a" }}>
+            Want to register a business or fleet?{" "}
+            <Link
+              href="/partner"
+              style={{ color: "#16835b", fontWeight: 800, textDecoration: "none" }}
+            >
+              Partner Hub →
+            </Link>
+          </p>
         </div>
       </div>
-    </div>
+
+      {/* Empty footer spacer */}
+      <div style={{ height: "20px" }} />
+    </main>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: "100vh", backgroundColor: "#f3f8f4" }} />}>
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Loader2 size={32} className="animate-spin" color="#16835b" />
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );

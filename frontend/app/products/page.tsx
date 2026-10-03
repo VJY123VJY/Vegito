@@ -42,7 +42,7 @@ export default function BrowseProductsPage() {
       getProducts({
         categoryId: selectedCategory || undefined,
         search: search.trim() || undefined,
-        pageSize: 50,
+        pageSize: 100,
       }),
   });
   const favorites = useQuery({ queryKey: ["customer-favorites"], queryFn: listFavorites });

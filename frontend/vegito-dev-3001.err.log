@@ -1,0 +1,7 @@
+ ⚠ Found a change in next.config.ts. Restarting the server to apply the changes...
+[Error: EPERM: operation not permitted, scandir 'C:\Users\vijay\OneDrive\Desktop\Vegito\frontend\.next\types\app\notifications'] {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'scandir',
+  path: 'C:\\Users\\vijay\\OneDrive\\Desktop\\Vegito\\frontend\\.next\\types\\app\\notifications'
+}

@@ -118,19 +118,25 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       if (typeof window !== "undefined") {
-        const keys = [
-          "vegito.access-token",
-          "vegito.user-role",
-          "vegito.user-name",
-          "vegito.user-id",
-          "vegito.user-phone",
-          "vegito_read_notifications",
-        ];
-        keys.forEach((k) => {
-          window.localStorage.removeItem(k);
-          window.sessionStorage.removeItem(k);
-        });
-        window.dispatchEvent(new CustomEvent("vegito:auth_state_changed", { detail: { loggedIn: false } }));
+        const hasStoredToken = Boolean(
+          window.localStorage.getItem("vegito.access-token") ||
+          window.sessionStorage.getItem("vegito.access-token")
+        );
+        if (hasStoredToken) {
+          const keys = [
+            "vegito.access-token",
+            "vegito.user-role",
+            "vegito.user-name",
+            "vegito.user-id",
+            "vegito.user-phone",
+            "vegito_read_notifications",
+          ];
+          keys.forEach((k) => {
+            window.localStorage.removeItem(k);
+            window.sessionStorage.removeItem(k);
+          });
+          window.dispatchEvent(new CustomEvent("vegito:auth_state_changed", { detail: { loggedIn: false } }));
+        }
       }
     }
     if (apiDebugEnabled) {

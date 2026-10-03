@@ -56,8 +56,10 @@ import { LocationModal, getStoredLocation, type SelectedLocationData } from "@/c
 import { SmartBasket } from "@/components/customer/smart-basket";
 import { GroceryReminders } from "@/components/customer/grocery-reminders";
 import { SmartReorder } from "@/components/customer/smart-reorder";
-import { SmartLocationBar } from "@/components/location/smart-location-bar";
 import { ZigZagOffers } from "@/components/customer/zigzag-offers";
+import { OfferCarousel } from "@/components/customer/offer-carousel";
+import { CustomerHero } from "@/components/customer/customer-hero";
+import { ZigZagProductSection } from "@/components/product/zigzag-product-section";
 import { NearbySellersSection } from "@/components/customer/nearby-sellers-section";
 import { getNearbySellers } from "@/lib/api/customers";
 import { VoiceShoppingModal } from "@/components/customer/voice-shopping-modal";
@@ -197,7 +199,7 @@ export function PublicHome() {
       getProducts({
         categoryId: selectedCategoryId || undefined,
         search: searchQuery.trim() || undefined,
-        pageSize: 30,
+        pageSize: 100,
       }),
     staleTime: 30_000,
   });
@@ -305,6 +307,10 @@ export function PublicHome() {
   const productList = productsQuery.data?.items ?? [];
 
   const isFruit = (p: ApiProduct) => {
+    const categoryName = p.category?.name?.toLowerCase() ?? "";
+    if (categoryName.includes("fruit")) return true;
+    if (/(vegetable|leafy|root|greens)/.test(categoryName)) return false;
+
     const text = `${p.name} ${p.description || ""}`.toLowerCase();
     const fruitKeywords = [
       "fruit", "apple", "banana", "orange", "grape", "mango", "papaya",
@@ -936,214 +942,36 @@ export function PublicHome() {
           gap: "28px",
         }}
       >
-        {/* ── 1. HERO WITH SUBTLE VEGETABLE ANIMATIONS & CTAS (Section 3) ── */}
-        <section
-          style={{
-            position: "relative",
-            borderRadius: "28px",
-            overflow: "hidden",
-            background: "linear-gradient(135deg, #063c32 0%, #0d5843 55%, #16835b 100%)",
-            color: "#ffffff",
-            padding: "36px 30px",
-            boxShadow: "0 14px 40px rgba(6, 60, 50, 0.18)",
-          }}
-        >
-          {/* Subtle floating animated vegetables */}
-          <div
-            className="veg-float"
-            style={{
-              position: "absolute",
-              top: "15px",
-              right: "40px",
-              fontSize: "44px",
-              opacity: 0.35,
-              userSelect: "none",
-              pointerEvents: "none",
-              animation: "floatVeg1 5s ease-in-out infinite",
-            }}
+        {/* ── 1. DYNAMIC HERO WITH FLOATING PRODUCE & INSTANT SEARCH ── */}
+        <CustomerHero
+          selectedLocation={selectedLocation}
+          onOpenLocationModal={() => setAddressModalOpen(true)}
+          userName={userName}
+          searchQuery={searchQuery}
+          onSearchChange={(val) => setSearchQuery(val)}
+          onOpenVoiceModal={() => setVoiceModalOpen(true)}
+        />
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "-16px" }}>
+          <a
+            href="https://wa.me/c/918855969612"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#0a4d3c", fontSize: "13px", fontWeight: 800 }}
           >
-            🍅
-          </div>
-          <div
-            className="veg-float"
-            style={{
-              position: "absolute",
-              bottom: "20px",
-              right: "120px",
-              fontSize: "40px",
-              opacity: 0.35,
-              userSelect: "none",
-              pointerEvents: "none",
-              animation: "floatVeg2 6s ease-in-out infinite",
-            }}
-          >
-            🥕
-          </div>
-          <div
-            className="veg-float"
-            style={{
-              position: "absolute",
-              top: "55px",
-              right: "210px",
-              fontSize: "36px",
-              opacity: 0.28,
-              userSelect: "none",
-              pointerEvents: "none",
-              animation: "floatVeg1 5.5s ease-in-out infinite",
-            }}
-          >
-            🥦
-          </div>
-          <div
-            style={{
-              position: "absolute",
-              right: "-20px",
-              bottom: "-25px",
-              fontSize: "140px",
-              opacity: 0.14,
-              userSelect: "none",
-              pointerEvents: "none",
-            }}
-          >
-            🥬
-          </div>
+            {t("customer.whatsappCatalogue", "View WhatsApp catalogue")}
+            <ExternalLink size={14} aria-hidden="true" />
+          </a>
+        </div>
 
-          <div
-            style={{
-              position: "relative",
-              zIndex: 2,
-              maxWidth: "620px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "14px",
-            }}
-          >
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "5px 12px",
-                borderRadius: "20px",
-                backgroundColor: "rgba(52, 211, 153, 0.18)",
-                color: "#a7f3d0",
-                fontSize: "12px",
-                fontWeight: 800,
-                width: "fit-content",
-                border: "1px solid rgba(52, 211, 153, 0.3)",
-              }}
-            >
-              <Sparkles size={14} />
-              <span>Fresh produce from Vegito sellers</span>
-            </div>
-
-            <h1
-              style={{
-                margin: 0,
-                fontSize: "clamp(26px, 5vw, 40px)",
-                fontWeight: 900,
-                lineHeight: 1.15,
-                letterSpacing: "-0.03em",
-                color: "#ffffff",
-              }}
-            >
-              Fresh choices for the way you cook.
-            </h1>
-
-            <p
-              style={{
-                margin: 0,
-                fontSize: "clamp(13px, 2.5vw, 15px)",
-                color: "rgba(255, 255, 255, 0.88)",
-                lineHeight: 1.5,
-              }}
-            >
-              Browse current products and choose a delivery location to check availability.
-            </p>
-
-            {/* Buttons */}
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "10px",
-                marginTop: "10px",
-              }}
-            >
-              <a
-                href="#products"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "10px 18px",
-                  borderRadius: "14px",
-                  backgroundColor: "#ffffff",
-                  color: "#063c32",
-                  fontSize: "13px",
-                  fontWeight: 800,
-                  textDecoration: "none",
-                  boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
-                }}
-              >
-                <span>Shop Fresh Produce</span>
-                <ArrowRight size={14} />
-              </a>
-
-              <a
-                href="#offers"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "10px 18px",
-                  borderRadius: "14px",
-                  backgroundColor: "rgba(255, 255, 255, 0.15)",
-                  color: "#ffffff",
-                  fontSize: "13px",
-                  fontWeight: 800,
-                  textDecoration: "none",
-                  backdropFilter: "blur(8px)",
-                  border: "1px solid rgba(255, 255, 255, 0.25)",
-                }}
-              >
-                <span>Explore Offers</span>
-                <Tag size={14} />
-              </a>
-
-              <Link
-                href="/customer/b2b"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "10px 18px",
-                  borderRadius: "14px",
-                  backgroundColor: "#10b981",
-                  color: "#ffffff",
-                  fontSize: "13px",
-                  fontWeight: 800,
-                  textDecoration: "none",
-                  boxShadow: "0 4px 14px rgba(16, 185, 129, 0.3)",
-                }}
-              >
-                <span>Bulk & Business</span>
-                <ChevronRight size={14} />
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* ── 2. EXACT SMART LOCATION BAR (Section 5 & 6) ────────── */}
-        <SmartLocationBar onOpenModal={() => setAddressModalOpen(true)} />
-
-        {/* ── 3. ZIG-ZAG ANIMATED OFFERS (Section 4) ──────────────── */}
+        {/* ── 2. MULTIPLE OFFERS SLIDING CAROUSEL ──────────────── */}
         <div id="offers">
-          <ZigZagOffers
+          <OfferCarousel
             promotions={promotionsQuery.data ?? []}
             isLoading={promotionsQuery.isLoading}
             isError={promotionsQuery.isError}
             onRetry={() => promotionsQuery.refetch()}
+            onAddToCart={(spId) => addCartMut.mutate({ sellerProductId: spId, qty: 1 })}
           />
         </div>
 
@@ -1232,7 +1060,7 @@ export function PublicHome() {
                   {searchQuery ? `Results for "${searchQuery}"` : "Filtered Fresh Produce"}
                 </h2>
                 <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#62746a" }}>
-                  {productList.length} farm items found in Solapur
+                  {productsQuery.isLoading ? "Loading products..." : `${productList.length} products`}
                 </p>
               </div>
 
@@ -1265,6 +1093,18 @@ export function PublicHome() {
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                   <ProductCardSkeleton key={n} />
                 ))}
+              </div>
+            ) : productsQuery.isError ? (
+              <div
+                role="alert"
+                style={{ padding: "30px 20px", textAlign: "center", backgroundColor: "#ffffff", borderRadius: "18px", border: "1px dashed #d1ded5" }}
+              >
+                <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#62746a" }}>
+                  Products couldn&apos;t be loaded right now.
+                </p>
+                <button type="button" onClick={() => productsQuery.refetch()} style={{ color: "#16835b", fontWeight: 700 }}>
+                  Try again
+                </button>
               </div>
             ) : productList.length === 0 ? (
               <div
@@ -1365,7 +1205,7 @@ export function PublicHome() {
                     border: "1px solid #a7f3d0",
                   }}
                 >
-                  {vegetableProducts.length} items
+                  {productsQuery.isLoading ? "Loading..." : productsQuery.isError ? "Unavailable" : `${vegetableProducts.length} items`}
                 </span>
               </div>
 
@@ -1380,6 +1220,11 @@ export function PublicHome() {
                   {[1, 2, 3, 4, 5, 6].map((n) => (
                     <ProductCardSkeleton key={n} />
                   ))}
+                </div>
+              ) : productsQuery.isError ? (
+                <div role="alert" style={{ padding: "30px 20px", textAlign: "center", backgroundColor: "#ffffff", borderRadius: "18px", border: "1px dashed #d1ded5" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#62746a" }}>Vegetables couldn&apos;t be loaded right now.</p>
+                  <button type="button" onClick={() => productsQuery.refetch()} style={{ color: "#16835b", fontWeight: 700 }}>Try again</button>
                 </div>
               ) : vegetableProducts.length === 0 ? (
                 <div
@@ -1396,27 +1241,40 @@ export function PublicHome() {
                   </p>
                 </div>
               ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                    gap: "14px",
-                  }}
-                >
-                  {vegetableProducts.slice(0, 12).map((product) => {
-                    const cartQty = cartQuantityByProduct[product.id]?.qty ?? 0;
-                    return (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        quantity={cartQty}
-                        onChange={(newQty) => handleProductQtyChange(product, newQty)}
-                        onAddToCart={handleAddToCartDirect}
-                        onLoginRequired={() => router.push("/auth/login?role=customer")}
-                      />
-                    );
-                  })}
-                </div>
+                <>
+                  <ZigZagProductSection
+                    products={vegetableProducts.slice(0, 24)}
+                    cartQuantityByProduct={cartQuantityByProduct}
+                    onProductQtyChange={handleProductQtyChange}
+                    onAddToCart={handleAddToCartDirect}
+                    onLoginRequired={() => router.push("/auth/login?role=customer")}
+                    title="Fresh Near You — Vegetables"
+                    subtitle="Harvested daily with live freshness scores from Solapur mandis"
+                  />
+                  {vegetableProducts.length > 24 && (
+                    <div style={{ textAlign: "center", marginTop: "16px" }}>
+                      <Link
+                        href="/products?categoryId=1"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          padding: "10px 24px",
+                          backgroundColor: "#f0fdf4",
+                          color: "#16a34a",
+                          borderRadius: "14px",
+                          fontWeight: 800,
+                          fontSize: "13px",
+                          border: "1px solid #bbf7d0",
+                          textDecoration: "none",
+                        }}
+                      >
+                        <span>View All {vegetableProducts.length} Vegetables</span>
+                        <ArrowRight size={14} />
+                      </Link>
+                    </div>
+                  )}
+                </>
               )}
             </section>
 
@@ -1475,7 +1333,7 @@ export function PublicHome() {
                     border: "1px solid #fecdd3",
                   }}
                 >
-                  {`${fruitProducts.length} varieties`}
+                  {productsQuery.isLoading ? "Loading..." : productsQuery.isError ? "Unavailable" : `${fruitProducts.length} varieties`}
                 </span>
               </div>
 
@@ -1490,6 +1348,11 @@ export function PublicHome() {
                   {[1, 2, 3, 4].map((n) => (
                     <ProductCardSkeleton key={n} />
                   ))}
+                </div>
+              ) : productsQuery.isError ? (
+                <div role="alert" style={{ padding: "30px 20px", textAlign: "center", backgroundColor: "#ffffff", borderRadius: "18px", border: "1px dashed #d1ded5" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#62746a" }}>Fruits couldn&apos;t be loaded right now.</p>
+                  <button type="button" onClick={() => productsQuery.refetch()} style={{ color: "#16835b", fontWeight: 700 }}>Try again</button>
                 </div>
               ) : fruitProducts.length === 0 ? (
                 <div
@@ -1506,27 +1369,15 @@ export function PublicHome() {
                   </p>
                 </div>
               ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                    gap: "14px",
-                  }}
-                >
-                  {fruitProducts.map((product) => {
-                    const cartQty = cartQuantityByProduct[product.id]?.qty ?? 0;
-                    return (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        quantity={cartQty}
-                        onChange={(newQty) => handleProductQtyChange(product, newQty)}
-                        onAddToCart={handleAddToCartDirect}
-                        onLoginRequired={() => router.push("/auth/login?role=customer")}
-                      />
-                    );
-                  })}
-                </div>
+                <ZigZagProductSection
+                  products={fruitProducts}
+                  cartQuantityByProduct={cartQuantityByProduct}
+                  onProductQtyChange={handleProductQtyChange}
+                  onAddToCart={handleAddToCartDirect}
+                  onLoginRequired={() => router.push("/auth/login?role=customer")}
+                  title="Fresh Fruits &amp; Seasonal Picks"
+                  subtitle="Naturally ripened fruits from Solapur orchards"
+                />
               )}
             </section>
           </>

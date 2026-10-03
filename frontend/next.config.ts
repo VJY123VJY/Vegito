@@ -2,7 +2,6 @@ import path from "path";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  distDir: ".next-local",
   outputFileTracingRoot: path.join(__dirname),
   output: process.env.NODE_ENV === "production" ? "export" : undefined,
   reactStrictMode: true,

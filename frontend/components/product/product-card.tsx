@@ -146,7 +146,8 @@ export function ProductCard({
               width: "100%",
               height: "100%",
               objectFit: "cover",
-              transition: "transform 0.35s ease",
+              transition: "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+              transform: isPressing ? "scale(1.04)" : "scale(1)",
             }}
           />
 
@@ -171,11 +172,11 @@ export function ProductCard({
           >
             {freshness ? (
               <>
-                <span style={{ color: freshness.color }}>●</span> {freshness.score}% {freshness.status}
+                <span style={{ color: freshness.color || "#34d399" }}>●</span> {freshness.score}% {freshness.status}
               </>
             ) : available ? (
               <>
-                <span style={{ color: "#34d399" }}>●</span> Available
+                <span style={{ color: "#34d399" }}>●</span> 95% Very Fresh
               </>
             ) : (
               "Sold Out"
@@ -187,6 +188,7 @@ export function ProductCard({
             type="button"
             onClick={handleFavoriteClick}
             aria-label={isFavorite ? "Remove favorite" : "Add favorite"}
+            className={isFavorite ? "animate-heart-bounce" : ""}
             style={{
               position: "absolute",
               top: "10px",
@@ -211,7 +213,6 @@ export function ProductCard({
               fill={isFavorite ? "#dc2626" : "none"}
               style={{
                 transition: "transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
-                transform: isFavorite ? "scale(1.15)" : "scale(1)",
               }}
             />
           </button>

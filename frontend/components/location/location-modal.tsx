@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/map";
 import { listAddresses, type Address } from "@/lib/api/addresses";
 import { isLoggedIn } from "@/lib/api/auth";
+import { MapPinPicker } from "./map-pin-picker";
 
 export interface SelectedLocationData {
   address: string;
@@ -69,6 +70,7 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
   const [currentLoc, setCurrentLoc] = useState<SelectedLocationData | null>(getStoredLocation());
   const [geoState, setGeoState] = useState<"idle" | "requesting" | "detecting" | "detected" | "error">("idle");
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<GeocodingResult[]>([]);
@@ -98,6 +100,7 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
       setGeoError(null);
       setSearchQuery("");
       setSearchResults([]);
+      setViewMode("list");
     }
   }, [isOpen]);
 
@@ -244,151 +247,212 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
           overflow: "hidden",
         }}
       >
-        {/* Top Header */}
-        <div
-          style={{
-            padding: "20px 22px 16px",
-            borderBottom: "1px solid #edf2ee",
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: "12px",
-          }}
-        >
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-              <span style={{ fontSize: "16px" }}>📍</span>
-              <h2
-                id="location-dialog-title"
-                style={{
-                  margin: 0,
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#063c32",
-                  letterSpacing: "-0.02em",
-                }}
-              >
-                Choose Delivery Location
-              </h2>
-            </div>
-            <p style={{ margin: 0, fontSize: "12.5px", color: "#62746a" }}>
-              Find fresh groceries &amp; farm vegetables near you
-            </p>
+        {/* Modal Content */}
+        {viewMode === "map" ? (
+          <div style={{ padding: "12px", height: "540px", display: "flex", flexDirection: "column" }}>
+            <MapPinPicker
+              initialLat={currentLoc?.latitude}
+              initialLng={currentLoc?.longitude}
+              onConfirm={(loc) => handleSelectLocation(loc)}
+              onCancel={() => setViewMode("list")}
+            />
           </div>
-
-          <button
-            onClick={onClose}
-            aria-label="Close location selector"
-            style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "12px",
-              border: "none",
-              backgroundColor: "#f2f6f3",
-              color: "#62746a",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              transition: "all 0.15s",
-            }}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Scrollable Body */}
-        <div
-          style={{
-            padding: "18px 22px",
-            overflowY: "auto",
-            display: "flex",
-            flexDirection: "column",
-            gap: "18px",
-          }}
-        >
-          {/* 1. Browser Geolocation Button */}
-          <div>
-            <button
-              onClick={handleDetectCurrentLocation}
-              disabled={geoState === "requesting" || geoState === "detecting"}
+        ) : (
+          <>
+            {/* Top Header */}
+            <div
               style={{
-                width: "100%",
-                padding: "14px 16px",
-                borderRadius: "16px",
-                border: "1.5px solid #16835b",
-                backgroundColor: geoState === "detected" ? "#ecfdf5" : "#f0fdf4",
-                color: "#16835b",
+                padding: "20px 22px 16px",
+                borderBottom: "1px solid #edf2ee",
                 display: "flex",
-                alignItems: "center",
+                alignItems: "flex-start",
                 justifyContent: "space-between",
                 gap: "12px",
-                cursor: geoState === "requesting" || geoState === "detecting" ? "wait" : "pointer",
-                transition: "all 0.2s",
-                boxShadow: "0 2px 8px rgba(22, 131, 91, 0.08)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", textAlign: "left" }}>
-                <div
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "10px",
-                    backgroundColor: "#16835b",
-                    color: "#ffffff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  {geoState === "requesting" || geoState === "detecting" ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : geoState === "detected" ? (
-                    <CheckCircle2 size={18} />
-                  ) : (
-                    <Navigation size={18} />
-                  )}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                  <span style={{ fontSize: "16px" }}>📍</span>
+                  <h2
+                    id="location-dialog-title"
+                    style={{
+                      margin: 0,
+                      fontSize: "18px",
+                      fontWeight: 800,
+                      color: "#063c32",
+                      letterSpacing: "-0.02em",
+                    }}
+                  >
+                    Choose Delivery Location
+                  </h2>
                 </div>
-                <div>
-                  <div style={{ fontSize: "14px", fontWeight: 800, color: "#063c32" }}>
-                    {geoState === "requesting"
-                      ? "Requesting GPS Permission..."
-                      : geoState === "detecting"
-                      ? "Finding Farm Near You..."
-                      : geoState === "detected"
-                      ? "Location Detected!"
-                      : "Use My Current Location"}
-                  </div>
-                  <div style={{ fontSize: "11.5px", color: "#62746a" }}>
-                    {geoState === "detected" ? "Applying coordinates..." : "Fastest delivery to your exact doorstep"}
-                  </div>
-                </div>
+                <p style={{ margin: 0, fontSize: "12.5px", color: "#62746a" }}>
+                  Find fresh groceries &amp; farm vegetables near you in Solapur
+                </p>
               </div>
 
-              <ChevronRight size={17} color="#16835b" />
-            </button>
-
-            {geoError && (
-              <div
+              <button
+                onClick={onClose}
+                aria-label="Close location selector"
                 style={{
-                  marginTop: "8px",
-                  padding: "8px 12px",
-                  borderRadius: "10px",
-                  backgroundColor: "#fef2f2",
-                  border: "1px solid #fecaca",
-                  color: "#dc2626",
-                  fontSize: "12px",
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "12px",
+                  border: "none",
+                  backgroundColor: "#f2f6f3",
+                  color: "#62746a",
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  transition: "all 0.15s",
                 }}
               >
-                <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                <span>{geoError}</span>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div
+              style={{
+                padding: "18px 22px",
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: "16px",
+              }}
+            >
+              {/* 1. Browser Geolocation Button */}
+              <div>
+                <button
+                  onClick={handleDetectCurrentLocation}
+                  disabled={geoState === "requesting" || geoState === "detecting"}
+                  style={{
+                    width: "100%",
+                    padding: "14px 16px",
+                    borderRadius: "16px",
+                    border: "1.5px solid #16835b",
+                    backgroundColor: geoState === "detected" ? "#ecfdf5" : "#f0fdf4",
+                    color: "#16835b",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    cursor: geoState === "requesting" || geoState === "detecting" ? "wait" : "pointer",
+                    transition: "all 0.2s",
+                    boxShadow: "0 2px 8px rgba(22, 131, 91, 0.08)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", textAlign: "left" }}>
+                    <div
+                      style={{
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "10px",
+                        backgroundColor: "#16835b",
+                        color: "#ffffff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {geoState === "requesting" || geoState === "detecting" ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : geoState === "detected" ? (
+                        <CheckCircle2 size={18} />
+                      ) : (
+                        <Navigation size={18} />
+                      )}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "14px", fontWeight: 800, color: "#063c32" }}>
+                        {geoState === "requesting"
+                          ? "Requesting GPS Permission..."
+                          : geoState === "detecting"
+                          ? "Finding Farm Near You..."
+                          : geoState === "detected"
+                          ? "Location Detected!"
+                          : "Use My Current Location"}
+                      </div>
+                      <div style={{ fontSize: "11.5px", color: "#62746a" }}>
+                        {geoState === "detected" ? "Applying coordinates..." : "Fastest delivery to your exact doorstep"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={17} color="#16835b" />
+                </button>
+
+                {geoError && (
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      padding: "8px 12px",
+                      borderRadius: "10px",
+                      backgroundColor: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      color: "#dc2626",
+                      fontSize: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                    <span>{geoError}</span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+
+              {/* 2. Choose on Map Button */}
+              <div>
+                <button
+                  onClick={() => setViewMode("map")}
+                  style={{
+                    width: "100%",
+                    padding: "14px 16px",
+                    borderRadius: "16px",
+                    border: "1.5px solid #dce8df",
+                    backgroundColor: "#ffffff",
+                    color: "#063c32",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", textAlign: "left" }}>
+                    <div
+                      style={{
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "10px",
+                        backgroundColor: "#f0f4f1",
+                        color: "#0a4d3c",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <MapPin size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "14px", fontWeight: 800, color: "#063c32" }}>
+                        Choose on Map
+                      </div>
+                      <div style={{ fontSize: "11.5px", color: "#62746a" }}>
+                        Pin your exact house or landmark on interactive Mapbox
+                      </div>
+                    </div>
+                  </div>
+
+                  <ChevronRight size={17} color="#62746a" />
+                </button>
+              </div>
 
           {/* 2. Search Localities Autocomplete */}
           <div>
@@ -548,8 +612,50 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
               </div>
             </div>
           )}
+          <div>
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: 800,
+                color: "#62746a",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+                marginBottom: "8px",
+              }}
+            >
+              Popular Areas in Solapur
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              {["Jule Solapur", "Saat Rasta", "Old Pune Naka", "Hotgi Road", "Ashok Chowk", "Lashkar"].map((area) => (
+                <button
+                  key={area}
+                  onClick={() =>
+                    handleSelectLocation({
+                      address: `${area}, Solapur`,
+                      city: "Solapur",
+                      pincode: "413001",
+                    })
+                  }
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "10px",
+                    border: "1px solid #dce8df",
+                    backgroundColor: "#f5f8f6",
+                    color: "#063c32",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  {area}
+                </button>
+              ))}
+            </div>
+          </div>
 
         </div>
+          </>
+        )}
       </div>
     </div>
   );

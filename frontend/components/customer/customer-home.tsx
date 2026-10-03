@@ -2,19 +2,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Building2, Heart, MapPin, Package, ShoppingBasket, Sparkles, Truck, UserRound } from "lucide-react";
+import { ArrowRight, Building2, ExternalLink, Heart, MapPin, Package, ShoppingBasket, Sparkles, Truck, UserRound } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCategories } from "@/lib/api/categories";
 import { addCartItem, getCart, removeCartItem, updateCartItem } from "@/lib/api/cart";
 import { getOrder, listOrders, Order, reorder } from "@/lib/api/orders";
 import { getProducts } from "@/lib/api/products";
+import { listPromotions } from "@/lib/api/promotions";
 import { listFavorites } from "@/lib/api/favorites";
 import { getStoredUserName } from "@/lib/api/auth";
+import { getCustomerHomeFeed } from "@/lib/api/customers";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { AddressSelector } from "@/components/customer/address-selector";
 import { CustomerInsights } from "@/components/customer/customer-insights";
 import { SmartBasket } from "@/components/customer/smart-basket";
 import { ProductCard } from "@/components/product/product-card";
+import { ZigZagProductSection } from "@/components/product/zigzag-product-section";
+import { OfferCarousel } from "@/components/customer/offer-carousel";
 import { CustomerLocationMap } from "@/components/map/customer-location-map";
 import { OrderComplaintModal } from "@/components/order/order-complaint-modal";
 import { DeliveryReviewModal } from "@/components/order/delivery-review-modal";
@@ -28,9 +32,7 @@ const ACTIVE_STATUSES = ["PENDING", "NEW", "ACCEPTED", "CONFIRMED", "PACKING", "
 const ORDER_STEPS = ["Confirmed", "Packing", "Ready", "Out for delivery", "Delivered"];
 
 function getGreeting(name: string) {
-  const hour = new Date().getHours();
-  const period = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : hour < 21 ? "Good evening" : "Good night";
-  return `${period}, ${name || "there"}`;
+  return `Welcome, ${name || "there"}`;
 }
 
 function categoryEmoji(name: string) {
@@ -67,9 +69,15 @@ export function CustomerHome() {
   const cart = useQuery({ queryKey: ["cart"], queryFn: getCart });
   const orders = useQuery({ queryKey: ["customer-orders"], queryFn: () => listOrders() });
   const favorites = useQuery({ queryKey: ["customer-favorites"], queryFn: listFavorites });
+  const homeFeed = useQuery({ queryKey: ["customer-home-feed"], queryFn: getCustomerHomeFeed });
+  const promotions = useQuery({
+    queryKey: ["marketplace-promotions"],
+    queryFn: listPromotions,
+    staleTime: 60_000,
+  });
   const products = useQuery({
     queryKey: ["customer-products", selectedCategoryId, searchQuery],
-    queryFn: () => getProducts({ categoryId: selectedCategoryId || undefined, search: searchQuery.trim() || undefined, pageSize: 24 }),
+    queryFn: () => getProducts({ categoryId: selectedCategoryId || undefined, search: searchQuery.trim() || undefined, pageSize: 100 }),
   });
 
   const orderList = orders.data?.items ?? [];
@@ -77,6 +85,14 @@ export function CustomerHome() {
   const cartItems = cart.data?.items ?? [];
   const cartCount = cart.data?.total_items_count ?? cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const favoriteCount = favorites.data?.length ?? 0;
+
+  const cartQuantityByProduct = useMemo(() => {
+    const map: Record<number, { qty: number; sellerProductId: number }> = {};
+    cartItems.forEach((item) => {
+      map[item.product_id] = { qty: item.quantity, sellerProductId: item.seller_product_id };
+    });
+    return map;
+  }, [cartItems]);
 
   const activeOrderDetail = useQuery({
     queryKey: ["customer-order-detail", activeOrder?.id],
@@ -257,6 +273,14 @@ export function CustomerHome() {
               )}
             </section>
 
+            <OfferCarousel
+              promotions={promotions.data ?? []}
+              isLoading={promotions.isLoading}
+              isError={promotions.isError}
+              onRetry={() => promotions.refetch()}
+              onAddToCart={(spId) => addMutation.mutate(spId)}
+            />
+
             {/* Product Catalogue & Category Filter */}
             <section className={styles.section} id="fresh-today" aria-labelledby="fresh-title">
               <div className={styles.sectionHead}>
@@ -264,9 +288,19 @@ export function CustomerHome() {
                   <h2 id="fresh-title">{t("customer.freshToday", "Fresh today")}</h2>
                   <p>{t("customer.realStock", "Real availability and freshness indicators from Vegito sellers.")}</p>
                 </div>
-                <Link className={styles.textAction} href="/search">
-                  {t("common.all", "Explore all")} <ArrowRight size={14} />
-                </Link>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 14 }}>
+                  <a
+                    className={styles.textAction}
+                    href="https://wa.me/c/918855969612"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {t("customer.whatsappCatalogue", "WhatsApp catalogue")} <ExternalLink size={14} aria-hidden="true" />
+                  </a>
+                  <Link className={styles.textAction} href="/search">
+                    {t("common.all", "Explore all")} <ArrowRight size={14} />
+                  </Link>
+                </div>
               </div>
 
               <div className={styles.catalogLayout}>
@@ -311,23 +345,14 @@ export function CustomerHome() {
                       <span>Try another category or search term.</span>
                     </div>
                   ) : (
-                    <div className={styles.productGrid}>
-                      {availableProducts.map((product) => {
-                        const offer =
-                          product.seller_products
-                            .filter((sellerOffer) => sellerOffer.is_available && Number(sellerOffer.stock_quantity) > 0)
-                            .sort((a, b) => Number(a.price) - Number(b.price))[0] ?? product.seller_products[0];
-                        return (
-                          <ProductCard
-                            key={product.id}
-                            product={{ ...product, seller_products: offer ? [offer] : [] }}
-                            quantity={productQuantity(product.id)}
-                            onChange={(quantity) => changeProductQuantity(product.id, quantity)}
-                            onAddToCart={(sellerProductId) => addMutation.mutate(sellerProductId)}
-                          />
-                        );
-                      })}
-                    </div>
+                    <ZigZagProductSection
+                      products={availableProducts}
+                      cartQuantityByProduct={cartQuantityByProduct}
+                      onProductQtyChange={(product, qty) => changeProductQuantity(product.id, qty)}
+                      onAddToCart={(sellerProductId) => addMutation.mutate(sellerProductId)}
+                      title={t("customer.freshToday", "Fresh today")}
+                      subtitle={t("customer.realStock", "Real availability and freshness indicators from Vegito sellers.")}
+                    />
                   )}
                 </div>
 
@@ -358,6 +383,33 @@ export function CustomerHome() {
             </section>
 
             {/* Buy Again (Previous Orders) */}
+            {homeFeed.data?.buy_again.length ? (
+              <section className={styles.section} aria-labelledby="personalized-buy-again-title">
+                <div className={styles.sectionHead}>
+                  <div>
+                    <h2 id="personalized-buy-again-title">Based on your previous orders</h2>
+                    <p>Current prices and stock from available local sellers.</p>
+                  </div>
+                </div>
+                <div className={styles.productGrid}>
+                  {homeFeed.data.buy_again.map((product) => {
+                    const offer = product.seller_products
+                      .filter((sellerOffer) => sellerOffer.is_available && Number(sellerOffer.stock_quantity) > 0)
+                      .sort((a, b) => Number(a.price) - Number(b.price))[0];
+                    return offer ? (
+                      <ProductCard
+                        key={product.id}
+                        product={{ ...product, seller_products: [offer] }}
+                        quantity={productQuantity(product.id)}
+                        onChange={(quantity) => changeProductQuantity(product.id, quantity)}
+                        onAddToCart={(sellerProductId) => addMutation.mutate(sellerProductId)}
+                      />
+                    ) : null;
+                  })}
+                </div>
+              </section>
+            ) : null}
+
             {orderList.length > 0 && (
               <section className={styles.section} aria-labelledby="buy-again-title">
                 <div className={styles.sectionHead}>

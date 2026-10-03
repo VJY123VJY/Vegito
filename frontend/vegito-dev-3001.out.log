@@ -1,0 +1,34 @@
+
+> vegito-frontend@1.0.0 dev
+> next dev -p 3001
+
+   ▲ Next.js 15.5.24
+   - Local:        http://localhost:3001
+   - Network:      http://10.59.139.29:3001
+   - Environments: .env.local, .env
+   - Experiments (use with caution):
+     ⨯ webpackBuildWorker
+
+ ✓ Starting...
+ ✓ Ready in 17.4s
+ ○ Compiling / ...
+ ✓ Compiled / in 29.4s (1110 modules)
+ ✓ Compiled in 3.5s (1081 modules)
+ ✓ Compiled in 1731ms (1081 modules)
+ GET / 200 in 1237ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 1045ms (1086 modules)
+ GET / 404 in 1579ms
+ ✓ Compiled in 2.9s (1086 modules)
+ GET / 200 in 1148ms
+ ✓ Compiled in 1828ms (1081 modules)
+ ○ Compiling /_not-found ...
+   ▲ Next.js 15.5.24
+   - Local:        http://localhost:3001
+   - Network:      http://10.59.139.29:3001
+   - Environments: .env.local, .env
+   - Experiments (use with caution):
+     ⨯ webpackBuildWorker
+
+ ✓ Starting...
+[?25h
