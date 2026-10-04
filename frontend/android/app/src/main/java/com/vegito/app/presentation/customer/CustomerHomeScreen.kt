@@ -42,6 +42,7 @@ fun CustomerHomeScreen(
     onProductClick: (Product) -> Unit,
     onAddToCart: (Product) -> Unit,
     onUpdateQuantity: ((Product, Double) -> Unit)? = null,
+    onToggleFavorite: ((Product) -> Unit)? = null,
     onOfferClick: (Offer) -> Unit,
     onQuickAddOffer: ((Offer) -> Unit)? = null,
     onB2BClick: () -> Unit
@@ -109,6 +110,10 @@ fun CustomerHomeScreen(
             it.category.contains(selectedFruitFilter.replace("Fruits", "").trim(), ignoreCase = true) ||
             it.description.contains(selectedFruitFilter.replace("Fruits", "").trim(), ignoreCase = true)
         }
+    }
+
+    val basketSuggestions = remember(allProducts, cartItemQuantities) {
+        allProducts.filter { (cartItemQuantities[it.id] ?: 0.0) <= 0.0 }.take(4)
     }
 
     LazyColumn(
@@ -196,7 +201,8 @@ fun CustomerHomeScreen(
                     modifier = Modifier.weight(1f),
                     onProductClick = onProductClick,
                     onAddToCart = onAddToCart,
-                    onUpdateQuantity = onUpdateQuantity
+                    onUpdateQuantity = onUpdateQuantity,
+                    onToggleFavorite = onToggleFavorite
                 )
 
                 if (pair.size > 1) {
@@ -206,7 +212,8 @@ fun CustomerHomeScreen(
                         modifier = Modifier.weight(1f),
                         onProductClick = onProductClick,
                         onAddToCart = onAddToCart,
-                        onUpdateQuantity = onUpdateQuantity
+                        onUpdateQuantity = onUpdateQuantity,
+                        onToggleFavorite = onToggleFavorite
                     )
                 } else {
                     Spacer(modifier = Modifier.weight(1f))
@@ -285,7 +292,8 @@ fun CustomerHomeScreen(
                     modifier = Modifier.weight(1f),
                     onProductClick = onProductClick,
                     onAddToCart = onAddToCart,
-                    onUpdateQuantity = onUpdateQuantity
+                    onUpdateQuantity = onUpdateQuantity,
+                    onToggleFavorite = onToggleFavorite
                 )
 
                 if (pair.size > 1) {
@@ -295,7 +303,8 @@ fun CustomerHomeScreen(
                         modifier = Modifier.weight(1f),
                         onProductClick = onProductClick,
                         onAddToCart = onAddToCart,
-                        onUpdateQuantity = onUpdateQuantity
+                        onUpdateQuantity = onUpdateQuantity,
+                        onToggleFavorite = onToggleFavorite
                     )
                 } else {
                     Spacer(modifier = Modifier.weight(1f))
@@ -325,11 +334,120 @@ fun CustomerHomeScreen(
                 products = allProducts.take(4),
                 onProductClick = onProductClick,
                 onAddToCart = onAddToCart,
-                onToggleFavorite = {}
+                onToggleFavorite = { onToggleFavorite?.invoke(it) }
             )
         }
 
-        // 5. B2B / RESTAURANT BULK BANNER
+        // 5. SMART BASKET / AI PANTRY SUGGESTIONS
+        if (basketSuggestions.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(20.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8F5)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD0E8DC))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🧺", fontSize = 18.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text(
+                                        text = "Smart Basket • AI Essentials",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = VegitoPrimary
+                                    )
+                                    Text(
+                                        text = "Popular items frequently paired with your selection",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            // Add All Button
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = VegitoPrimary,
+                                modifier = Modifier
+                                    .clickable {
+                                        basketSuggestions.forEach { onAddToCart(it) }
+                                    }
+                            ) {
+                                Text(
+                                    text = "Add All +",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(basketSuggestions) { prod ->
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    shadowElevation = 1.dp,
+                                    modifier = Modifier
+                                        .width(135.dp)
+                                        .clickable { onProductClick(prod) }
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text(
+                                            text = prod.name,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "₹${prod.price.toInt()} / ${prod.unit}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = VegitoPrimary
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = VegitoPrimary.copy(alpha = 0.1f),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { onAddToCart(prod) }
+                                        ) {
+                                            Text(
+                                                text = "+ Add",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = VegitoPrimary,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                modifier = Modifier.padding(vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 6. B2B / RESTAURANT BULK BANNER
         item {
             Spacer(modifier = Modifier.height(16.dp))
             Card(

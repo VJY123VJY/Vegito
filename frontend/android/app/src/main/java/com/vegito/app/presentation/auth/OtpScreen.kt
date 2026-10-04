@@ -1,16 +1,33 @@
 package com.vegito.app.presentation.auth
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.vegito.app.ui.theme.VegitoPrimary
+import com.vegito.app.ui.theme.*
 
 @Composable
 fun OtpScreen(
@@ -22,48 +39,197 @@ fun OtpScreen(
     onVerifyOtp: (otp: String) -> Unit,
     onResendOtp: () -> Unit = {}
 ) {
-    var otp by remember { mutableStateOf(TextFieldValue(devOtp ?: "")) }
+    val activeDevOtp = devOtp ?: "123456"
+    var otp by remember { mutableStateOf(TextFieldValue(activeDevOtp)) }
+
+    LaunchedEffect(devOtp) {
+        if (!devOtp.isNullOrEmpty()) {
+            otp = TextFieldValue(devOtp)
+        }
+    }
+
+    // Error shake animation
+    var shakeTrigger by remember { mutableStateOf(false) }
+    LaunchedEffect(errorMessage) {
+        if (!errorMessage.isNullOrEmpty()) {
+            shakeTrigger = true
+        }
+    }
+
+    val shakeOffset by animateFloatAsState(
+        targetValue = if (shakeTrigger) 0f else 0f,
+        animationSpec = repeatable(
+            iterations = 4,
+            animation = tween(durationMillis = 60, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        finishedListener = { shakeTrigger = false },
+        label = "shakeOffset"
+    )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(
-            text = "Verify OTP",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = "Enter 6-digit OTP sent to +91 $phone",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        if (!devOtp.isNullOrEmpty()) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = "Development OTP: $devOtp",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.Bold
+        // Living Shield Icon
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = VegitoPrimary.copy(alpha = 0.12f),
+            modifier = Modifier
+                .size(70.dp)
+                .organicFloating(rangeDp = 4.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Default.Shield,
+                    contentDescription = "OTP Verify",
+                    tint = VegitoPrimary,
+                    modifier = Modifier.size(38.dp)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
+        Text(
+            text = "ओटीपी पडताळणी / Verify OTP",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = VegitoPrimary
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = "+91 $phone ($role) साठी OTP प्रविष्ट करा",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Visual 6-Digit Animated OTP Box Cluster
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            for (i in 0 until 6) {
+                val digitChar = otp.text.getOrNull(i)?.toString() ?: ""
+                val isFilled = digitChar.isNotEmpty()
+                val isFocused = otp.text.length == i
+
+                val boxScale by animateFloatAsState(
+                    targetValue = if (isFilled) 1.05f else 1.0f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                    label = "digitScale"
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isFilled) VegitoPrimary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(
+                        width = if (isFocused) 2.dp else 1.2.dp,
+                        color = if (isFocused) VegitoPrimary else if (isFilled) VegitoPrimaryLight else Color.LightGray.copy(alpha = 0.6f)
+                    ),
+                    modifier = Modifier
+                        .size(46.dp)
+                        .scale(boxScale),
+                    shadowElevation = if (isFocused) 3.dp else 0.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        AnimatedContent(
+                            targetState = digitChar,
+                            transitionSpec = {
+                                (slideInVertically { height -> -height } + fadeIn()) togetherWith
+                                        (slideOutVertically { height -> height } + fadeOut())
+                            },
+                            label = "digitAnim"
+                        ) { char ->
+                            Text(
+                                text = char,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = VegitoPrimary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Development OTP Banner & 1-Tap Autofill Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+            border = BorderStroke(1.2.dp, Color(0xFF81C784))
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("⚡", fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "विकास चाचणी कोड (Dev OTP): $activeDevOtp",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.sp,
+                        color = Color(0xFF1B5E20)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "एसएमएसची वाट पाहू नका. चाचणीसाठी हा कोड थेट वापरता येईल.",
+                    fontSize = 11.sp,
+                    color = Color(0xFF2E7D32)
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Instant 1-Tap Fill & Sign In Button with bounceClick
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = VegitoPrimaryLight,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .bounceClick(scaleDown = 0.96f) {
+                            otp = TextFieldValue(activeDevOtp)
+                            onVerifyOtp(activeDevOtp)
+                        }
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "⚡ 1-क्लिक OTP भरा आणि पुढे जा ($activeDevOtp)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Hidden input for keyboard capture
         OutlinedTextField(
             value = otp,
             onValueChange = { if (it.text.length <= 6) otp = it },
-            label = { Text("Enter 6-Digit OTP") },
+            label = { Text("Enter OTP directly or edit above") },
+            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = VegitoPrimary) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp)
@@ -71,38 +237,27 @@ fun OtpScreen(
 
         errorMessage?.let {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+            Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
-        Button(
+        // Primary Verification Button
+        VegitoButton(
+            text = "सत्यापित करा (Verify & Continue) →",
             onClick = { if (otp.text.length >= 4) onVerifyOtp(otp.text.trim()) },
+            isLoading = isLoading,
             enabled = !isLoading && otp.text.length >= 4,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp
-                )
-            } else {
-                Text("Verify & Continue", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+            modifier = Modifier.fillMaxWidth()
+        )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         TextButton(
             onClick = onResendOtp,
             enabled = !isLoading
         ) {
-            Text("Didn't receive OTP? Resend", color = VegitoPrimary, fontWeight = FontWeight.Medium)
+            Text("ओटीपी पुन्हा पाठवा / Resend OTP", color = VegitoPrimary, fontWeight = FontWeight.Medium)
         }
     }
 }

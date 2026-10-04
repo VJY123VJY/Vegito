@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 160" width="100%" height="100%">
+  <defs>
+    <linearGradient id="vegitoEmerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A4D3C"/>
+      <stop offset="50%" stop-color="#1B5E20"/>
+      <stop offset="100%" stop-color="#2E7D32"/>
+    </linearGradient>
+    <linearGradient id="leafGradLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4CAF50"/>
+      <stop offset="100%" stop-color="#2E7D32"/>
+    </linearGradient>
+    <linearGradient id="leafGradRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#81C784"/>
+      <stop offset="100%" stop-color="#388E3C"/>
+    </linearGradient>
+    <linearGradient id="harvestSun" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF9800"/>
+      <stop offset="100%" stop-color="#F57C00"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ICON SYMBOL: Stylized Living 'V' (Size: 140x140) -->
+  <g transform="translate(10, 10)">
+    <!-- App Squircle Tile (Soft Glass Shadow Base) -->
+    <rect x="0" y="0" width="140" height="140" rx="36" fill="url(#vegitoEmerald)" />
+    
+    <!-- Left Organic Leaf Wing of V -->
+    <path d="M70,105 C58,95 35,72 30,46 C52,41 68,58 70,105 Z" fill="url(#leafGradLeft)" />
+    
+    <!-- Right Organic Leaf Wing / Harvest Shoot of V -->
+    <path d="M70,105 C82,95 105,72 110,46 C88,41 72,58 70,105 Z" fill="url(#leafGradRight)" />
+    
+    <!-- Central Tech Speed Notch / Dynamic Motion Flow -->
+    <path d="M70,105 C65,92 52,68 50,54 C61,56 68,72 70,105 C72,72 79,56 90,54 C88,68 75,92 70,105 Z" fill="#FFFFFF" opacity="0.95" />
+    
+    <!-- Golden Harvest Dewdrop Seed -->
+    <circle cx="70" cy="62" r="5" fill="url(#harvestSun)" />
+  </g>
+
+  <!-- WORDMARK: 'Vegito' in Modern Rounded Sans-Serif Typography -->
+  <g transform="translate(175, 96)">
+    <!-- 'V' -->
+    <text x="0" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="76" font-weight="900" fill="#0A4D3C" letter-spacing="-1.5">V</text>
+    <!-- 'e' -->
+    <text x="56" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="76" font-weight="800" fill="#0A4D3C" letter-spacing="-1">e</text>
+    <!-- 'g' -->
+    <text x="104" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="76" font-weight="800" fill="#0A4D3C" letter-spacing="-1">g</text>
+    <!-- 'i' stem -->
+    <rect x="156" y="-55" width="16" height="55" rx="8" fill="#0A4D3C" />
+    <!-- Leaf dotting the 'i' -->
+    <path d="M164,-63 C158,-72 154,-82 170,-80 C172,-68 168,-63 164,-63 Z" fill="#4CAF50" />
+    <!-- 't' -->
+    <text x="180" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="76" font-weight="800" fill="#0A4D3C" letter-spacing="-1">t</text>
+    <!-- 'o' -->
+    <text x="216" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="76" font-weight="800" fill="#0A4D3C" letter-spacing="-1">o</text>
+  </g>
+
+  <!-- TAGLINE: 'Fresh • Smart • Fast' -->
+  <g transform="translate(180, 134)">
+    <text x="0" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="20" font-weight="700" fill="#2E7D32" letter-spacing="3.5">FRESH • SMART • FAST</text>
+  </g>
+</svg>

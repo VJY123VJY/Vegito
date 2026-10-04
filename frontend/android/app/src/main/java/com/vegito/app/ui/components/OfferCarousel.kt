@@ -11,8 +11,11 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,12 +28,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.vegito.app.data.model.Offer
 import com.vegito.app.ui.theme.VegitoPrimary
 import com.vegito.app.ui.theme.VegitoSecondary
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -179,10 +185,10 @@ fun OfferCarousel(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            Icons.Default.ChevronLeft,
+                            Icons.Default.ArrowBack,
                             contentDescription = "Previous",
                             tint = Color(0xFF063C32),
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
@@ -205,10 +211,10 @@ fun OfferCarousel(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            Icons.Default.ChevronRight,
+                            Icons.Default.ArrowForward,
                             contentDescription = "Next",
                             tint = Color(0xFF063C32),
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
@@ -345,7 +351,10 @@ private fun OfferImageColumn(
             .background(Color(0xFFF4F7F4))
     ) {
         AsyncImage(
-            model = offer.imageUrl ?: "https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=500",
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(offer.imageUrl ?: "https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=500")
+                .crossfade(true)
+                .build(),
             contentDescription = offer.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
@@ -364,7 +373,7 @@ private fun OfferImageColumn(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
             ) {
                 Icon(
-                    Icons.Default.Tag,
+                    Icons.Default.LocalOffer,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(11.dp)
@@ -460,7 +469,7 @@ private fun OfferContentColumn(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Default.Place,
+                    Icons.Default.LocationOn,
                     contentDescription = null,
                     tint = Color(0xFF16835B),
                     modifier = Modifier.size(11.dp)
@@ -604,7 +613,7 @@ private fun OfferContentColumn(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        Icons.Default.AddShoppingCart,
+                        Icons.Default.ShoppingCart,
                         contentDescription = "Quick Add",
                         tint = Color(0xFF16835B),
                         modifier = Modifier.size(16.dp)

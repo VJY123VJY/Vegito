@@ -9,8 +9,10 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    // 127.0.0.1 works seamlessly on physical devices connected via USB using `adb reverse tcp:8000 tcp:8000`
-    private const val BASE_URL = "http://127.0.0.1:8000"
+
+    // For physical Android device connected through USB:
+    // adb reverse tcp:8000 tcp:8000
+    private const val BASE_URL = "http://127.0.0.1:8000/"
 
     private var sessionManager: SessionManager? = null
 
@@ -19,30 +21,38 @@ object RetrofitClient {
     }
 
     private val authInterceptor = Interceptor { chain ->
+
         val originalRequest = chain.request()
         val token = sessionManager?.getToken()
 
         val requestBuilder = originalRequest.newBuilder()
-        if (!token.isNull_Empty()) {
-            requestBuilder.header("Authorization", "Bearer $token")
+
+        if (!token.isNullOrBlank()) {
+            requestBuilder.header(
+                "Authorization",
+                "Bearer $token"
+            )
         }
+
         chain.proceed(requestBuilder.build())
     }
 
-    private fun String?.isNull_Empty(): Boolean = this == null || this.trim().isEmpty()
+    private val loggingInterceptor =
+        HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
 
-    private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
-    }
-
-    private val okHttpClient = OkHttpClient.Builder()
-        .addInterceptor(authInterceptor)
-        .addInterceptor(loggingInterceptor)
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .build()
+    private val okHttpClient =
+        OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .build()
 
     val apiService: VegitoApiService by lazy {
+
         Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(okHttpClient)

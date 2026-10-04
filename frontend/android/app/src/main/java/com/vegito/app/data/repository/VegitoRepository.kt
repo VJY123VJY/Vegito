@@ -52,17 +52,94 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         }
     }
 
-    suspend fun getProfile(): UserProfile? {
+    suspend fun registerUser(dto: UnifiedRegisterRequestDto): RegisterResponseDto? {
         return try {
-            val response = apiService.getProfile()
+            val response = apiService.registerUser(dto)
             if (response.isSuccessful && response.body()?.success == true) {
                 response.body()?.data
             } else {
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "getProfile error: ${e.message}")
+            Log.e(TAG, "registerUser error: ${e.message}")
             null
+        }
+    }
+
+    suspend fun loginWithPassword(phone: String, pass: String, role: String? = null): TokenResponseDto? {
+        return try {
+            val response = apiService.loginWithPassword(PasswordLoginRequestDto(phone = phone, password = pass, role = role))
+            if (response.isSuccessful && response.body()?.success == true) {
+                response.body()?.data
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "loginWithPassword error: ${e.message}")
+            null
+        }
+    }
+
+    suspend fun getFavorites(): List<Int> {
+        return try {
+            val response = apiService.getFavorites()
+            if (response.isSuccessful && response.body()?.success == true) {
+                response.body()?.data?.map { it.productId } ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getFavorites error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun toggleFavorite(productId: Int, isFav: Boolean): Boolean {
+        return try {
+            if (isFav) {
+                apiService.removeFavorite(productId).isSuccessful
+            } else {
+                apiService.addFavorite(productId).isSuccessful
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "toggleFavorite error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun getNotifications(): List<NotificationDto> {
+        return try {
+            val response = apiService.getNotifications()
+            if (response.isSuccessful && response.body()?.success == true) {
+                response.body()?.data ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getNotifications error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun submitReview(dto: ReviewCreateDto): Boolean {
+        return try {
+            val response = apiService.submitReview(dto)
+            response.isSuccessful
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun submitReview(orderId: Int, rating: Int, comment: String?): Boolean {
+        return submitReview(ReviewCreateDto(orderId = orderId, rating = rating, comment = comment))
+    }
+
+    suspend fun createComplaint(dto: ComplaintCreateDto): Boolean {
+        return try {
+            val response = apiService.createComplaint(dto)
+            response.isSuccessful
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -110,6 +187,9 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         Product("vf8", "Cauliflower (Gobi)", "Vegetables", 34.0, "piece", 95.0, 95, "Ultra Fresh", "https://images.unsplash.com/photo-1568584711075-3d021a7c3ca3?w=500", "Crisp white fresh cauliflower heads.", "1", "Solapur Mandi"),
         Product("vf9", "Green Cabbage (Patta Gobi)", "Vegetables", 26.0, "kg", 120.0, 96, "Ultra Fresh", "https://images.unsplash.com/photo-1594282486552-05b4d80fbb9f?w=500", "Solid green farm cabbage.", "1", "Solapur Mandi"),
         Product("vf10", "Green Peas (Matar)", "Vegetables", 55.0, "kg", 140.0, 97, "Ultra Fresh", "https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?w=500", "Fresh green peas pods.", "1", "Solapur Mandi"),
+        Product("v11", "Fresh Green Chana (Hira Chana)", "Beans & Peas", 60.0, "kg", 180.0, 97, "Ultra Fresh", "https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?w=500", "Fresh green chana pods direct from farm.", "1", "Solapur Mandi"),
+        Product("v12", "Kala Chana (Black Chickpeas)", "Beans & Peas", 75.0, "kg", 220.0, 99, "Ultra Fresh", "https://images.unsplash.com/photo-1585998066891-63f58e7c9397?w=500", "Nutritious organic black chana.", "1", "Solapur Mandi"),
+        Product("v13", "Kabuli Chana (White Chickpeas)", "Beans & Peas", 90.0, "kg", 190.0, 98, "Ultra Fresh", "https://images.unsplash.com/photo-1585998066891-63f58e7c9397?w=500", "Large premium white kabuli chana.", "1", "Solapur Mandi"),
 
         // FRUITS CATALOG - Citrus, Tropical, Exotic, Berries & Melons
         Product("fr1", "Nagpur Orange (Santra)", "Fruits", 75.0, "kg", 200.0, 96, "Ultra Fresh", "https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?w=500", "Sweet juicy Nagpur oranges.", "1", "Solapur Mandi"),
@@ -322,4 +402,450 @@ class VegitoRepository(private val apiService: VegitoApiService) {
             null
         }
     }
+
+    // SELLER WORKSPACE
+    suspend fun getSellerDashboardStats(): SellerDashboardStats? {
+        return try {
+            val response = apiService.getSellerDashboard()
+            if (response.isSuccessful && response.body()?.success == true) {
+                response.body()?.data
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSellerDashboardStats error: ${e.message}")
+            null
+        }
+    }
+
+    suspend fun getSellerOrders(): List<Order> {
+        return try {
+            val response = apiService.getSellerOrders()
+            if (response.isSuccessful && response.body()?.success == true) {
+                response.body()?.data?.items?.map { it.toDomainOrder() } ?: emptyList()
+            } else {
+                Log.w(TAG, "getSellerOrders returned ${response.code()}: ${response.errorBody()?.string()}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSellerOrders error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun updateOrderStatus(orderId: Int, status: String): Boolean {
+        return try {
+            val response = apiService.updateOrderStatus(orderId, OrderStatusUpdateRequest(status = status))
+            if (response.isSuccessful && response.body()?.success == true) {
+                true
+            } else {
+                Log.w(TAG, "updateOrderStatus failed code=${response.code()}: ${response.errorBody()?.string()}")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "updateOrderStatus error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun verifyPickupOtp(orderId: Int, otp: String): Boolean {
+        return try {
+            val response = apiService.verifyPickupOtp(orderId, otp)
+            response.isSuccessful && response.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "verifyPickupOtp error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun getSellerProfile(): SellerProfileDto? {
+        return try {
+            val response = apiService.getSellerProfile()
+            if (response.isSuccessful && response.body()?.success == true) {
+                response.body()?.data
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSellerProfile error: ${e.message}")
+            null
+        }
+    }
+
+    suspend fun updateSellerProfile(dto: SellerProfileUpdateDto): SellerProfileDto? {
+        return try {
+            val response = apiService.updateSellerProfile(dto)
+            if (response.isSuccessful && response.body()?.success == true) {
+                response.body()?.data
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "updateSellerProfile error: ${e.message}")
+            null
+        }
+    }
+
+    suspend fun setSellerAvailability(isAvailable: Boolean): Boolean {
+        return try {
+            val response = apiService.setSellerAvailability(mapOf("is_available" to isAvailable))
+            response.isSuccessful
+        } catch (e: Exception) {
+            Log.e(TAG, "setSellerAvailability error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun deleteAddress(addressId: Int): Boolean {
+        return try {
+            val res = apiService.deleteAddress(addressId)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteAddress error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun getCustomerOrders(): List<OrderResponseDto> {
+        return try {
+            val res = apiService.getCustomerOrders()
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data?.items ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getCustomerOrders error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    // SELLER INVENTORY
+    suspend fun getSellerInventory(lowStockOnly: Boolean = false): List<InventoryItem> {
+        return try {
+            val res = apiService.getSellerInventory(lowStockOnly)
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data?.items ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSellerInventory error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun adjustInventory(sellerProductId: Int, change: Double, type: String = "STOCK_IN", note: String? = null): Boolean {
+        return try {
+            val req = InventoryAdjustRequest(quantityChange = change, transactionType = type, note = note)
+            val res = apiService.adjustInventory(sellerProductId, req)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "adjustInventory error: ${e.message}")
+            false
+        }
+    }
+
+    // SELLER PRODUCTS MANAGEMENT
+    suspend fun addSellerProduct(request: SellerAddProductRequest): Boolean {
+        return try {
+            val res = apiService.addSellerProduct(request)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "addSellerProduct error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun updateSellerProductStock(sellerProductId: Int, newPrice: Double?, newStock: Double?): Boolean {
+        return try {
+            val req = SellerProductUpdateRequest(price = newPrice, stockQuantity = newStock)
+            val res = apiService.updateSellerProduct(sellerProductId, req)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "updateSellerProductStock error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun deleteSellerProduct(sellerProductId: Int): Boolean {
+        return try {
+            val res = apiService.deleteSellerProduct(sellerProductId)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteSellerProduct error: ${e.message}")
+            false
+        }
+    }
+
+    // SELLER ANALYTICS
+    suspend fun getSellerRevenueAnalytics(range: String = "30d"): List<TimeSeriesPointDto> {
+        return try {
+            val res = apiService.getSellerRevenueAnalytics(range)
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSellerRevenueAnalytics error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun getSellerTopProducts(): List<TopProductAnalyticsDto> {
+        return try {
+            val res = apiService.getSellerTopProductsAnalytics(10)
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSellerTopProducts error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    // SELLER B2B BULK ORDERS
+    suspend fun getSellerBulkOrders(status: String? = null): List<BulkOrderSummary> {
+        return try {
+            val res = apiService.getSellerBulkOrders(status)
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSellerBulkOrders error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun getSellerBulkOrderDetail(orderId: Int): BulkOrderDetail? {
+        return try {
+            val res = apiService.getSellerBulkOrderDetail(orderId)
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSellerBulkOrderDetail error: ${e.message}")
+            null
+        }
+    }
+
+    suspend fun acceptSellerBulkOrder(orderId: Int): Boolean {
+        return try {
+            val res = apiService.acceptSellerBulkOrder(orderId)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "acceptSellerBulkOrder error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun sendSellerBulkQuote(orderId: Int, request: SendCustomQuoteRequest): Boolean {
+        return try {
+            val res = apiService.sendSellerBulkQuote(orderId, request)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "sendSellerBulkQuote error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun rejectSellerBulkOrder(orderId: Int, reason: String): Boolean {
+        return try {
+            val res = apiService.rejectSellerBulkOrder(orderId, mapOf("reason" to reason))
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "rejectSellerBulkOrder error: ${e.message}")
+            false
+        }
+    }
+
+    // DELIVERY WORKSPACE
+    suspend fun getDeliveryTasks(): List<DeliveryTask> {
+        return try {
+            val response = apiService.getDeliveryTasksBackend()
+            if (response.isSuccessful && response.body()?.success == true) {
+                response.body()?.data?.map { it.toDomainTask() } ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getDeliveryTasks error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun acceptDeliveryTask(taskId: String): Boolean {
+        return try {
+            val idInt = taskId.toIntOrNull()
+            if (idInt != null) {
+                val res = apiService.acceptDeliveryOrder(idInt)
+                res.isSuccessful && res.body()?.success == true
+            } else {
+                val response = apiService.acceptDeliveryTask(taskId)
+                response.isSuccessful && response.body()?.success == true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "acceptDeliveryTask error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun verifyDeliverySellerOtp(taskId: String, otp: String): Boolean {
+        return try {
+            val idInt = taskId.toIntOrNull()
+            if (idInt != null) {
+                val res = apiService.verifyDeliveryTaskPickupOtp(idInt, mapOf("otp" to otp))
+                res.isSuccessful && res.body()?.success == true
+            } else {
+                val response = apiService.verifyDeliverySellerOtp(taskId, otp)
+                response.isSuccessful && response.body()?.success == true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "verifyDeliverySellerOtp error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun verifyDeliveryCustomerOtp(taskId: String, otp: String): Boolean {
+        return try {
+            val idInt = taskId.toIntOrNull()
+            if (idInt != null) {
+                val res = apiService.verifyDeliveryCustomerOtpDoorstep(idInt, mapOf("delivery_otp" to otp))
+                res.isSuccessful && res.body()?.success == true
+            } else {
+                val response = apiService.verifyDeliveryCustomerOtp(taskId, otp)
+                response.isSuccessful && response.body()?.success == true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "verifyDeliveryCustomerOtp error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun getDeliveryProfile(): DeliveryPartnerProfileDto? {
+        return try {
+            val res = apiService.getDeliveryProfile()
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getDeliveryProfile error: ${e.message}")
+            null
+        }
+    }
+
+    suspend fun setDeliveryAvailability(isAvailable: Boolean): Boolean {
+        return try {
+            val res = apiService.setDeliveryAvailability(DeliveryPartnerAvailabilityUpdate(isAvailable))
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "setDeliveryAvailability error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun getDeliveryEarnings(period: String? = null): DeliveryEarningsData? {
+        return try {
+            val res = apiService.getDeliveryEarnings()
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getDeliveryEarnings error: ${e.message}")
+            null
+        }
+    }
+
+    // ADMIN WORKSPACE
+    suspend fun getAdminDashboardMetrics(): AdminDashboardMetricsDto? {
+        return try {
+            val res = apiService.getAdminDashboardMetrics()
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getAdminDashboardMetrics error: ${e.message}")
+            null
+        }
+    }
+
+    suspend fun getAdminSellers(search: String? = null, isVerified: Boolean? = null): List<AdminSellerItemDto> {
+        return try {
+            val res = apiService.getAdminSellers(search, isVerified)
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data?.items ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getAdminSellers error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun verifyAdminSeller(sellerId: Int, isVerified: Boolean = true): Boolean {
+        return try {
+            val res = apiService.verifyAdminSeller(sellerId, isVerified)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "verifyAdminSeller error: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun getAdminDeliveryPartners(): List<AdminDeliveryPartnerItemDto> {
+        return try {
+            val res = apiService.getAdminDeliveryPartners()
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getAdminDeliveryPartners error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun verifyAdminDeliveryPartner(partnerId: Int, isVerified: Boolean = true): Boolean {
+        return try {
+            val res = apiService.verifyAdminDeliveryPartner(partnerId, isVerified)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "verifyAdminDeliveryPartner error: ${e.message}")
+            false
+        }
+    }
+
+    // ALIAS CONVENIENCE WRAPPERS
+    suspend fun getSellerProductAnalytics(): List<TopProductAnalyticsDto> = getSellerTopProducts()
+    suspend fun getDeliveryPartnerProfile(): DeliveryPartnerProfileDto? = getDeliveryProfile()
+    suspend fun getAdminMetrics(): AdminAnalytics? {
+        val m = getAdminDashboardMetrics() ?: return null
+        return AdminAnalytics(
+            totalCustomers = m.customers,
+            totalSellers = m.sellers,
+            totalDeliveryPartners = m.deliveryPartners,
+            totalOrdersToday = m.orders,
+            grossRevenueToday = m.revenue,
+            pendingKycCount = m.pendingOrders
+        )
+    }
+    suspend fun sellerAddProduct(request: SellerAddProductRequest): Boolean = addSellerProduct(request)
+    suspend fun setDeliveryPartnerAvailability(isAvailable: Boolean): Boolean = setDeliveryAvailability(isAvailable)
+    suspend fun verifyDeliveryPickup(taskId: String, otp: String): Boolean = verifyDeliverySellerOtp(taskId, otp)
+    suspend fun verifyDeliveryOtp(taskId: String, otp: String): Boolean = verifyDeliveryCustomerOtp(taskId, otp)
 }

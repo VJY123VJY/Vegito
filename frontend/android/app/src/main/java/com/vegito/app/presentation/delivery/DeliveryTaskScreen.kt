@@ -23,10 +23,47 @@ import com.vegito.app.ui.theme.VegitoPrimary
 fun DeliveryTaskScreen(
     tasks: List<DeliveryTask>,
     onAcceptTask: (taskId: String) -> Unit,
-    onVerifyCustomerOtp: (taskId: String, otp: String) -> Unit
+    onVerifyPickupOtp: (taskId: String, otp: String) -> Unit = { _, _ -> },
+    onVerifyCustomerOtp: (taskId: String, otp: String) -> Unit,
+    onNavigateMap: (taskId: String) -> Unit = {}
 ) {
     var showCustomerOtpDialogForTask by remember { mutableStateOf<DeliveryTask?>(null) }
+    var showPickupOtpDialogForTask by remember { mutableStateOf<DeliveryTask?>(null) }
     var enteredCustomerOtp by remember { mutableStateOf("") }
+    var enteredPickupOtp by remember { mutableStateOf("") }
+
+    if (showPickupOtpDialogForTask != null) {
+        AlertDialog(
+            onDismissRequest = { showPickupOtpDialogForTask = null },
+            title = { Text("Mandi Seller Pickup OTP") },
+            text = {
+                Column {
+                    Text("Enter 4-digit OTP provided by the mandi seller to verify package pickup.")
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = enteredPickupOtp,
+                        onValueChange = { enteredPickupOtp = it },
+                        label = { Text("Seller Pickup OTP") },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPickupOtpDialogForTask?.let { onVerifyPickupOtp(it.id, enteredPickupOtp) }
+                        showPickupOtpDialogForTask = null
+                        enteredPickupOtp = ""
+                    }
+                ) {
+                    Text("Verify & Unlock Customer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPickupOtpDialogForTask = null }) { Text("Cancel") }
+            }
+        )
+    }
 
     if (showCustomerOtpDialogForTask != null) {
         AlertDialog(
@@ -50,7 +87,8 @@ fun DeliveryTaskScreen(
                         showCustomerOtpDialogForTask?.let { onVerifyCustomerOtp(it.id, enteredCustomerOtp) }
                         showCustomerOtpDialogForTask = null
                         enteredCustomerOtp = ""
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
                 ) {
                     Text("Complete Delivery")
                 }
@@ -70,12 +108,26 @@ fun DeliveryTaskScreen(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
+        if (tasks.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No available delivery assignments right now", color = Color.Gray)
+                }
+            }
+        }
+
         items(tasks) { task ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 6.dp),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -128,14 +180,29 @@ fun DeliveryTaskScreen(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        OutlinedButton(
+                            onClick = { onNavigateMap(task.id) },
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Navigation, contentDescription = "Map", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Map Route")
+                        }
+
                         if (task.status == "PENDING") {
                             Button(onClick = { onAcceptTask(task.id) }) { Text("Accept Task") }
-                        } else if (task.isPickupVerified) {
-                            Button(onClick = { showCustomerOtpDialogForTask = task }) { Text("Verify Customer OTP & Complete") }
+                        } else if (!task.isPickupVerified) {
+                            Button(onClick = { showPickupOtpDialogForTask = task }) { Text("Verify Pickup OTP") }
                         } else {
-                            OutlinedButton(onClick = {}) { Text("Navigate to Seller") }
+                            Button(
+                                onClick = { showCustomerOtpDialogForTask = task },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                            ) {
+                                Text("Complete Delivery")
+                            }
                         }
                     }
                 }

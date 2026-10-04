@@ -20,9 +20,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.vegito.app.data.model.Product
 import com.vegito.app.ui.theme.VegitoPrimary
 
@@ -91,7 +93,10 @@ private fun ProductImageBlock(product: Product, modifier: Modifier = Modifier) {
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
         AsyncImage(
-            model = product.imageUrl.ifEmpty { "https://images.unsplash.com/photo-1597362925123-77861d3fbac7?w=300" },
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(product.imageUrl)
+                .crossfade(true)
+                .build(),
             contentDescription = product.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()

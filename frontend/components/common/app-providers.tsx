@@ -48,6 +48,22 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // Register Service Worker for PWA installability & offline shell caching
+    if (typeof window !== "undefined" && "serviceWorker" in navigator && !Capacitor.isNativePlatform()) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .then((reg) => {
+            if (process.env.NODE_ENV !== "production") {
+              console.info("[Vegito PWA] Service worker registered with scope:", reg.scope);
+            }
+          })
+          .catch((err) => {
+            console.warn("[Vegito PWA] Service worker registration failed:", err);
+          });
+      });
+    }
+
     return () => {
       window.removeEventListener("vegito:auth_state_changed", handleAuthStateChange);
       backListener.then((l) => l.remove());
