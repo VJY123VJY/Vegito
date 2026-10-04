@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ThemeProvider } from "@/context/theme-context";
 import { I18nProvider } from "@/context/i18n-context";
 import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { useRouter } from "next/navigation";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
