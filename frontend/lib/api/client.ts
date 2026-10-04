@@ -129,6 +129,7 @@ api.interceptors.response.use(
             "vegito.user-name",
             "vegito.user-id",
             "vegito.user-phone",
+            "vegito.authorized-roles",
             "vegito_read_notifications",
           ];
           keys.forEach((k) => {
