@@ -1327,7 +1327,7 @@ export function PublicHome() {
                     gap: "14px",
                   }}
                 >
-                  {vegetableProducts.slice(0, 12).map((product) => {
+                  {vegetableProducts.slice(0, 16).map((product) => {
                     const cartQty = cartQuantityByProduct[product.id]?.qty ?? 0;
                     return (
                       <ProductCard
@@ -1423,7 +1423,7 @@ export function PublicHome() {
                     gap: "14px",
                   }}
                 >
-                  {(fruitProducts.length > 0 ? fruitProducts : productList.slice(0, 4)).map((product) => {
+                  {(fruitProducts.length > 0 ? fruitProducts : productList.slice(0, 8)).map((product) => {
                     const cartQty = cartQuantityByProduct[product.id]?.qty ?? 0;
                     return (
                       <ProductCard

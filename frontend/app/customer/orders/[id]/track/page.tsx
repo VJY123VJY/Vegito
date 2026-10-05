@@ -235,6 +235,96 @@ export default function CustomerOrderTrackPage() {
               {order.status.replace(/_/g, " ")}
             </span>
           </div>
+          {/* Order Progress Timeline */}
+<div
+  style={{
+    padding: "18px 20px",
+    backgroundColor: "#ffffff",
+    borderBottom: "1px solid #e1e8e2",
+  }}
+>
+  <p
+    style={{
+      margin: "0 0 14px",
+      fontSize: "11.5px",
+      fontWeight: 800,
+      color: "#62746a",
+      letterSpacing: "0.5px",
+    }}
+  >
+    ORDER PROGRESS
+  </p>
+
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(4, 1fr)",
+      gap: "8px",
+    }}
+  >
+    {[
+      { key: "PLACED", label: "Placed" },
+      { key: "ACCEPTED", label: "Accepted" },
+      { key: "READY", label: "Ready" },
+      { key: "DELIVERED", label: "Delivered" },
+    ].map((step, index) => {
+      const statusOrder = [
+        "PLACED",
+        "ACCEPTED",
+        "PACKING",
+        "READY",
+        "READY_FOR_PICKUP",
+        "PICKED_UP",
+        "OUT_FOR_DELIVERY",
+        "DELIVERED",
+      ];
+
+      const currentIndex = statusOrder.indexOf(order.status);
+      const stepIndex = statusOrder.indexOf(step.key);
+
+      const completed =
+        currentIndex >= stepIndex && currentIndex !== -1;
+
+      return (
+        <div
+          key={step.key}
+          style={{
+            textAlign: "center",
+            position: "relative",
+          }}
+        >
+          <div
+            style={{
+              width: "30px",
+              height: "30px",
+              borderRadius: "50%",
+              margin: "0 auto 6px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: completed ? "#16835b" : "#eef2ef",
+              color: completed ? "#ffffff" : "#62746a",
+              fontSize: "12px",
+              fontWeight: 800,
+            }}
+          >
+            {completed ? <CheckCircle size={15} /> : index + 1}
+          </div>
+
+          <span
+            style={{
+              fontSize: "11px",
+              fontWeight: completed ? 800 : 600,
+              color: completed ? "#063c32" : "#62746a",
+            }}
+          >
+            {step.label}
+          </span>
+        </div>
+      );
+    })}
+  </div>
+</div>
 
           {/* Map */}
           <div style={{ height: "460px", width: "100%" }}>

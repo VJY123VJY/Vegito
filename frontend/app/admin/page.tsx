@@ -16,7 +16,12 @@ import {
   ShieldCheck,
   ChevronRight,
 } from "lucide-react";
-import { getAdminDashboard, getAdminAnalyticsRevenue, getAdminAnalyticsOrders } from "@/lib/api/admin";
+import {
+  getAdminDashboard,
+  getAdminAnalyticsRevenue,
+  getAdminAnalyticsOrders,
+  listAdminOrders,
+} from "@/lib/api/admin";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { StatusBadge } from "@/components/dashboard/status-badge";
@@ -32,6 +37,16 @@ import { getErrorMessage } from "@/lib/api/client";
 
 export default function AdminDashboardPage() {
   const [revenueRange, setRevenueRange] = useState("30d");
+  const ordersQuery = useQuery({
+  queryKey: ["admin-orders-status-counts"],
+  queryFn: () => listAdminOrders({ page: 1, page_size: 100 }),
+  refetchInterval: 20000,
+});
+
+const adminOrders = ordersQuery.data?.items || [];
+
+const getStatusCount = (status: string) =>
+  adminOrders.filter((order) => order.status === status).length;
 
   const dashboardQuery = useQuery({
     queryKey: ["admin-dashboard-full"],
@@ -135,10 +150,12 @@ export default function AdminDashboardPage() {
               gap: "8px",
             }}
           >
-            {[
+            
+          
+             {[
               { label: "New Orders", status: "NEW", count: summary.pending_orders ?? 0, bg: "#fef3c7", color: "#92400e" },
               { label: "Accepted", status: "ACCEPTED", count: "-", bg: "#dbeafe", color: "#1e40af" },
-              { label: "Packing", status: "PACKING", count: "-", bg: "#ede9fe", color: "#6d28d9" },
+              { label:"Packing", status: "PACKING", count: "-", bg: "#ede9fe", color: "#6d28d9" },
               { label: "Ready", status: "READY", count: "-", bg: "#d1fae5", color: "#065f46" },
               { label: "Out for Delivery", status: "OUT_FOR_DELIVERY", count: summary.delivery_partners ?? 0, bg: "#cffafe", color: "#0e7490" },
               { label: "Delivered", status: "DELIVERED", count: summary.orders ?? 0, bg: "#dcfce7", color: "#15803d" },

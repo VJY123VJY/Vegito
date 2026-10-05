@@ -14,7 +14,6 @@ class DashboardSummary(BaseModel):
     low_stock: int = 0
     failed_deliveries: int = 0
 
-
 class TimeSeriesPoint(BaseModel):
     date: str
     value: Decimal = Decimal("0.00")

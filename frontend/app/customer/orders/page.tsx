@@ -49,6 +49,7 @@ export default function OrdersPage() {
                   )}
                 </div>
                 <b>₹{Number(order.total_amount).toFixed(2)}</b>
+                <small style={{ color: "#16835b", fontWeight: 700 }}>Track Order →</small>
               </Link>
             );
           })}

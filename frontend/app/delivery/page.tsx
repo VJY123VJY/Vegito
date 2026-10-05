@@ -279,12 +279,11 @@ export default function DeliveryDashboardPage() {
 
   const displayTask = (selectedTaskId ? taskList.find((t) => t.id === selectedTaskId) : null) || activeTask || taskList[0] || null;
 
-  const earnings = completed * 35; // Vegito standard rate ₹35/delivery
-  const todayDeliveriesCount = taskList.length > 0 ? taskList.length : 8;
-  const earningsDisplay = earnings > 0 ? `₹${earnings.toLocaleString("en-IN")}` : "₹3,240";
+  const earnings = completed * 35;
+  const todayDeliveriesCount = taskList.length;
+  const earningsDisplay = `₹${earnings.toLocaleString("en-IN")}`;
   const activeDeliveryCount = activeTask ? 1 : 0;
-  const deliveredCount = completed > 0 ? completed : 0;
-
+  const deliveredCount = completed;
   // Real-time GPS Tracking via browser Geolocation + WebSocket
   useEffect(() => {
     if (!displayTask) return;

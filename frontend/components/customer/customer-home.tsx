@@ -806,7 +806,7 @@ export function CustomerHome() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 360px",
+                gridTemplateColumns: "minmax(0, 1fr) 320px",
                 gap: "24px",
                 alignItems: "start",
               }}
@@ -832,11 +832,36 @@ export function CustomerHome() {
                     </p>
                   </div>
 
-                  {searchQuery && (
-                    <span style={{ fontSize: "12.5px", color: "#16835b", fontWeight: 700 }}>
-                      Showing results for &ldquo;{searchQuery}&rdquo;
-                    </span>
-                  )}
+                  <div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap",
+  }}
+>
+  <span
+    style={{
+      fontSize: "12px",
+      color: "var(--vegito-text-muted, #62746a)",
+      fontWeight: 600,
+    }}
+  >
+    {(products.data?.items ?? []).length} vegetables available
+  </span>
+
+  {searchQuery && (
+    <span
+      style={{
+        fontSize: "12.5px",
+        color: "#16835b",
+        fontWeight: 700,
+      }}
+    >
+      Showing results for &ldquo;{searchQuery}&rdquo;
+    </span>
+  )}
+</div>
                 </div>
 
                 {/* Product Grid */}
@@ -844,7 +869,7 @@ export function CustomerHome() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                     gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
                       gap: "16px",
                     }}
                   >
@@ -903,7 +928,7 @@ export function CustomerHome() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
                       gap: "16px",
                     }}
                   >
@@ -978,7 +1003,7 @@ export function CustomerHome() {
                           {/* Vegetable Image */}
                           <div
                             style={{
-                              height: "120px",
+                              height: "155px",
                               backgroundColor: "var(--vegito-bg, #f4f7f3)",
                               borderRadius: "12px",
                               display: "flex",
