@@ -53,7 +53,22 @@ export async function listPromotions(options?: { promo_type?: string } | string 
   return data.data ?? [];
 }
 
+export async function listSellerPromotions() {
+  const { data } = await api.get<ApiEnvelope<Promotion[]>>("/promotions/seller");
+  return data.data ?? [];
+}
+
 export async function createPromotion(payload: any) {
   const { data } = await api.post<ApiEnvelope<Promotion>>("/promotions", payload);
+  return data.data;
+}
+
+export async function updatePromotionStatus(promoId: number, status: string) {
+  const { data } = await api.patch<ApiEnvelope<Promotion>>(`/promotions/${promoId}/status`, { status });
+  return data.data;
+}
+
+export async function deletePromotion(promoId: number) {
+  const { data } = await api.delete<ApiEnvelope<boolean>>(`/promotions/${promoId}`);
   return data.data;
 }

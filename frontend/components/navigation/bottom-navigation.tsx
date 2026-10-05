@@ -13,7 +13,8 @@ import {
   ClipboardList,
   Truck,
   Menu,
-  Settings
+  Settings,
+  Tag
 } from "lucide-react";
 import { getStoredRole, AuthRole } from "@/lib/api/auth";
 
@@ -26,7 +27,7 @@ interface NavItem {
 const ROLE_NAV: Record<string, NavItem[]> = {
   CUSTOMER: [
     { icon: House, label: "Home", href: "/customer" },
-    { icon: Search, label: "Explore", href: "/search" },
+    { icon: Tag, label: "Offers", href: "/customer/offers" },
     { icon: ShoppingBasket, label: "Basket", href: "/customer/cart" },
     { icon: Package, label: "Orders", href: "/customer/orders" },
     { icon: UserRound, label: "Profile", href: "/customer/profile" },

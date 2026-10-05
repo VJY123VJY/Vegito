@@ -8,16 +8,31 @@ import { addFavorite, listFavorites, removeFavorite, type Favorite } from "@/lib
 import { getStoredRole } from "@/lib/api/auth";
 import { ProductDetailSheet } from "./product-detail-sheet";
 
-const VEGGIE_IMAGES: Record<string, string> = {
+const PRODUCE_IMAGES: Record<string, string> = {
   tomato: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=600&auto=format&fit=crop&q=80",
   potato: "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&auto=format&fit=crop&q=80",
   onion: "https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?w=600&auto=format&fit=crop&q=80",
   spinach: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=600&auto=format&fit=crop&q=80",
   carrot: "https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=600&auto=format&fit=crop&q=80",
   cabbage: "https://images.unsplash.com/photo-1550950158-d0d960dff51b?w=600&auto=format&fit=crop&q=80",
-  brussels: "https://images.unsplash.com/photo-1568584711075-3d021a7c3ca3?w=600&auto=format&fit=crop&q=80",
-  gourd: "https://images.unsplash.com/photo-1511688878353-3a2f5be94cd7?w=600&auto=format&fit=crop&q=80",
+  cauliflower: "https://images.unsplash.com/photo-1568584711075-3d021a7c3ca3?w=600&auto=format&fit=crop&q=80",
+  gourd: "https://images.unsplash.com/photo-1582515073490-39981397c445?w=600&auto=format&fit=crop&q=80",
   chilli: "https://images.unsplash.com/photo-1588252303782-cb80119abd6d?w=600&auto=format&fit=crop&q=80",
+  cucumber: "https://images.unsplash.com/photo-1604977042946-1eecc30f269e?w=600&auto=format&fit=crop&q=80",
+  coriander: "https://images.unsplash.com/photo-1588879462615-5c1cf78dc3b9?w=600&auto=format&fit=crop&q=80",
+  ginger: "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=600&auto=format&fit=crop&q=80",
+  garlic: "https://images.unsplash.com/photo-1540148426945-6cf22a6b2383?w=600&auto=format&fit=crop&q=80",
+  lemon: "https://images.unsplash.com/photo-1534939561126-855b8675edd7?w=600&auto=format&fit=crop&q=80",
+  apple: "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=600&auto=format&fit=crop&q=80",
+  banana: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=600&auto=format&fit=crop&q=80",
+  orange: "https://images.unsplash.com/photo-1547514701-42782101795e?w=600&auto=format&fit=crop&q=80",
+  grape: "https://images.unsplash.com/photo-1537640538966-79f369143f8f?w=600&auto=format&fit=crop&q=80",
+  mango: "https://images.unsplash.com/photo-1553279768-865429fa0078?w=600&auto=format&fit=crop&q=80",
+  pomegranate: "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=600&auto=format&fit=crop&q=80",
+  watermelon: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&auto=format&fit=crop&q=80",
+  papaya: "https://images.unsplash.com/photo-1617112848923-cc2234396a8d?w=600&auto=format&fit=crop&q=80",
+  strawberry: "https://images.unsplash.com/photo-1464965911861-746a04b4bca6?w=600&auto=format&fit=crop&q=80",
+  kiwi: "https://images.unsplash.com/photo-1585059895524-72359e06133a?w=600&auto=format&fit=crop&q=80",
 };
 
 function getProductPhoto(product: ApiProduct): string {
@@ -25,7 +40,7 @@ function getProductPhoto(product: ApiProduct): string {
     return product.images[0].image_url;
   }
   const lower = product.name.toLowerCase();
-  for (const [key, url] of Object.entries(VEGGIE_IMAGES)) {
+  for (const [key, url] of Object.entries(PRODUCE_IMAGES)) {
     if (lower.includes(key)) return url;
   }
   return "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&auto=format&fit=crop&q=80";
@@ -148,6 +163,13 @@ export function ProductCard({
               objectFit: "cover",
               transition: "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
               transform: isPressing ? "scale(1.04)" : "scale(1)",
+            }}
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (!target.dataset.failed) {
+                target.dataset.failed = "true";
+                target.src = "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&auto=format&fit=crop&q=80";
+              }
             }}
           />
 
@@ -380,8 +402,14 @@ export function ProductCard({
                     transition: "all 0.15s ease",
                   }}
                 >
-                  <Plus size={14} strokeWidth={3} />
-                  <span>Add</span>
+                  {available ? (
+                    <>
+                      <Plus size={14} strokeWidth={3} />
+                      <span>Add</span>
+                    </>
+                  ) : (
+                    <span>Out of Stock</span>
+                  )}
                 </button>
               )}
             </div>

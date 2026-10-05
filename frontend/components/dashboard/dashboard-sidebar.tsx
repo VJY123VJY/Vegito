@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { VegitoLogo } from "@/components/brand/vegito-logo";
 import {
   LayoutDashboard,
   ShoppingBasket,
@@ -48,6 +49,7 @@ interface NavItem {
 
 const CUSTOMER_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/customer", icon: <LayoutDashboard size={18} /> },
+  { label: "Offers & Deals", href: "/customer/offers", icon: <Tag size={18} />, badge: "Deals" },
   { label: "B2B Bulk Orders", href: "/customer/b2b", icon: <Building2 size={18} />, badge: "Mandi" },
   { label: "Browse Vegetables", href: "/products", icon: <ShoppingBasket size={18} /> },
   { label: "My Orders", href: "/customer/orders", icon: <ClipboardList size={18} /> },
@@ -61,9 +63,9 @@ const CUSTOMER_ITEMS: NavItem[] = [
 
 const SELLER_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/seller", icon: <LayoutDashboard size={18} /> },
-  { label: "B2B Bulk Orders", href: "/seller/bulk-orders", icon: <Building2 size={18} /> },
   { label: "Products", href: "/seller/products", icon: <Package size={18} /> },
   { label: "Orders", href: "/seller/orders", icon: <ClipboardList size={18} /> },
+  { label: "Delivery Route", href: "/seller/deliveries", icon: <Truck size={18} /> },
   { label: "Inventory", href: "/seller/inventory", icon: <Layers size={18} /> },
   { label: "Market Intelligence", href: "/seller/market-intelligence", icon: <TrendingUp size={18} /> },
   { label: "Offers & Promotions", href: "/seller/promotions", icon: <Tag size={18} /> },
@@ -92,6 +94,8 @@ const ADMIN_ITEMS: NavItem[] = [
   { label: "Sellers", href: "/admin/sellers", icon: <Store size={18} /> },
   { label: "Delivery Partners", href: "/admin/delivery", icon: <Truck size={18} /> },
   { label: "Products", href: "/admin/products", icon: <Package size={18} /> },
+  { label: "Market Prices", href: "/admin/market-prices", icon: <TrendingUp size={18} /> },
+  { label: "Offers & Deals", href: "/admin/promotions", icon: <Tag size={18} /> },
   { label: "Categories", href: "/admin/categories", icon: <Layers size={18} /> },
   { label: "Inventory", href: "/admin/inventory", icon: <ShoppingBasket size={18} /> },
   { label: "Reviews", href: "/admin/reviews", icon: <MessageSquare size={18} /> },
@@ -181,53 +185,12 @@ export function DashboardSidebar({
           className="sidebar-logo-row"
           onClick={onClose}
         >
-          {/* Icon — always visible */}
-          <div
-            style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "10px",
-              backgroundColor: "#16835b",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "18px",
-              flexShrink: 0,
-              boxShadow: "0 2px 8px rgba(22, 131, 91, 0.4)",
-            }}
-          >
-            🥬
-          </div>
-
-          {/* Brand name + subtitle — hidden when collapsed */}
-          <div className="sidebar-label">
-            <span
-              style={{
-                fontSize: "19px",
-                fontWeight: 800,
-                letterSpacing: "-0.5px",
-                color: "#ffffff",
-                display: "block",
-                lineHeight: 1.1,
-              }}
-            >
-              Vegito
-            </span>
-            <span
-              className="sidebar-brand-subtitle"
-              style={{
-                display: "block",
-                fontSize: "10px",
-                color: "rgba(255, 255, 255, 0.55)",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.07em",
-                lineHeight: 1.2,
-              }}
-            >
-              {config.title}
-            </span>
-          </div>
+          {/* Brand Logo */}
+          {collapsed ? (
+            <VegitoLogo variant="icon" size={36} animated={false} />
+          ) : (
+            <VegitoLogo variant="full" colorMode="dark" size={36} animated={true} />
+          )}
         </Link>
       </div>
 
@@ -242,6 +205,58 @@ export function DashboardSidebar({
           transition: "padding 250ms ease",
         }}
       >
+        {/* V1 Unified Operator Workspace Switcher */}
+        {!collapsed && (role === "seller" || role === "delivery") && (
+          <div style={{ marginBottom: "12px", padding: "0 2px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "4px",
+                background: "rgba(255, 255, 255, 0.08)",
+                padding: "3px",
+                borderRadius: "10px",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+              }}
+            >
+              <Link
+                href="/seller"
+                onClick={onClose}
+                style={{
+                  padding: "7px 4px",
+                  textAlign: "center",
+                  borderRadius: "7px",
+                  fontSize: "12px",
+                  fontWeight: 800,
+                  textDecoration: "none",
+                  background: role === "seller" && !pathname?.includes("/seller/deliveries") ? "#16835b" : "transparent",
+                  color: role === "seller" && !pathname?.includes("/seller/deliveries") ? "#ffffff" : "rgba(255, 255, 255, 0.7)",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                🏪 Seller
+              </Link>
+              <Link
+                href="/seller/deliveries"
+                onClick={onClose}
+                style={{
+                  padding: "7px 4px",
+                  textAlign: "center",
+                  borderRadius: "7px",
+                  fontSize: "12px",
+                  fontWeight: 800,
+                  textDecoration: "none",
+                  background: role === "delivery" || pathname?.includes("/seller/deliveries") ? "#16835b" : "transparent",
+                  color: role === "delivery" || pathname?.includes("/seller/deliveries") ? "#ffffff" : "rgba(255, 255, 255, 0.7)",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                🚴 Delivery
+              </Link>
+            </div>
+          </div>
+        )}
+
         {config.items.map((item) => {
           const isActive =
             pathname === item.href ||

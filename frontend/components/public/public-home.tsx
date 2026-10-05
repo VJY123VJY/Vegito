@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { VegitoLogo } from "@/components/brand/vegito-logo";
 import {
   Search,
   ShoppingCart,
@@ -27,7 +28,6 @@ import {
   Languages,
   LogOut,
   ChevronDown,
-  ExternalLink,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCategories, ApiCategory } from "@/lib/api/categories";
@@ -454,37 +454,13 @@ export function PublicHome() {
             <Link
               href="/"
               style={{
-                display: "flex",
+                display: "inline-flex",
                 alignItems: "center",
-                gap: "8px",
                 textDecoration: "none",
               }}
+              aria-label="Vegito home"
             >
-              <div
-                style={{
-                  width: "38px",
-                  height: "38px",
-                  borderRadius: "12px",
-                  backgroundColor: "#063c32",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#ffffff",
-                  boxShadow: "0 4px 12px rgba(6, 60, 50, 0.2)",
-                }}
-              >
-                <Leaf size={20} fill="#34d399" color="#34d399" />
-              </div>
-              <span
-                style={{
-                  fontSize: "21px",
-                  fontWeight: 900,
-                  color: "#063c32",
-                  letterSpacing: "-0.03em",
-                }}
-              >
-                Vegito
-              </span>
+              <VegitoLogo variant="full" animated={true} size={40} className="responsive-hide-mobile-text" />
             </Link>
 
             {/* Location selector pill */}
@@ -952,17 +928,7 @@ export function PublicHome() {
           onOpenVoiceModal={() => setVoiceModalOpen(true)}
         />
 
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "-16px" }}>
-          <a
-            href="https://wa.me/c/918855969612"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#0a4d3c", fontSize: "13px", fontWeight: 800 }}
-          >
-            {t("customer.whatsappCatalogue", "View WhatsApp catalogue")}
-            <ExternalLink size={14} aria-hidden="true" />
-          </a>
-        </div>
+
 
         {/* ── 2. MULTIPLE OFFERS SLIDING CAROUSEL ──────────────── */}
         <div id="offers">
@@ -1001,21 +967,38 @@ export function PublicHome() {
                 Browse current products by category
               </p>
             </div>
-            {selectedCategoryId !== null && (
-              <button
-                onClick={() => setSelectedCategoryId(null)}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              {selectedCategoryId !== null && (
+                <button
+                  onClick={() => setSelectedCategoryId(null)}
+                  style={{
+                    border: "none",
+                    backgroundColor: "transparent",
+                    color: "#16835b",
+                    fontSize: "12.5px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Clear filter
+                </button>
+              )}
+              <Link
+                href="/categories"
                 style={{
-                  border: "none",
-                  backgroundColor: "transparent",
-                  color: "#16835b",
-                  fontSize: "12.5px",
+                  fontSize: "13px",
                   fontWeight: 700,
-                  cursor: "pointer",
+                  color: "#16835b",
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
                 }}
               >
-                Clear filter
-              </button>
-            )}
+                <span>View All</span>
+                <ArrowRight size={14} />
+              </Link>
+            </div>
           </div>
 
           <CategoryCarousel
@@ -1251,29 +1234,27 @@ export function PublicHome() {
                     title="Fresh Near You — Vegetables"
                     subtitle="Harvested daily with live freshness scores from Solapur mandis"
                   />
-                  {vegetableProducts.length > 24 && (
-                    <div style={{ textAlign: "center", marginTop: "16px" }}>
-                      <Link
-                        href="/products?categoryId=1"
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          padding: "10px 24px",
-                          backgroundColor: "#f0fdf4",
-                          color: "#16a34a",
-                          borderRadius: "14px",
-                          fontWeight: 800,
-                          fontSize: "13px",
-                          border: "1px solid #bbf7d0",
-                          textDecoration: "none",
-                        }}
-                      >
-                        <span>View All {vegetableProducts.length} Vegetables</span>
-                        <ArrowRight size={14} />
-                      </Link>
-                    </div>
-                  )}
+                  <div style={{ textAlign: "center", marginTop: "16px" }}>
+                    <Link
+                      href="/vegetables"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px 24px",
+                        backgroundColor: "#f0fdf4",
+                        color: "#16a34a",
+                        borderRadius: "14px",
+                        fontWeight: 800,
+                        fontSize: "13px",
+                        border: "1px solid #bbf7d0",
+                        textDecoration: "none",
+                      }}
+                    >
+                      <span>View All {vegetableProducts.length} Vegetables</span>
+                      <ArrowRight size={14} />
+                    </Link>
+                  </div>
                 </>
               )}
             </section>
@@ -1369,15 +1350,38 @@ export function PublicHome() {
                   </p>
                 </div>
               ) : (
-                <ZigZagProductSection
-                  products={fruitProducts}
-                  cartQuantityByProduct={cartQuantityByProduct}
-                  onProductQtyChange={handleProductQtyChange}
-                  onAddToCart={handleAddToCartDirect}
-                  onLoginRequired={() => router.push("/auth/login?role=customer")}
-                  title="Fresh Fruits &amp; Seasonal Picks"
-                  subtitle="Naturally ripened fruits from Solapur orchards"
-                />
+                <>
+                  <ZigZagProductSection
+                    products={fruitProducts}
+                    cartQuantityByProduct={cartQuantityByProduct}
+                    onProductQtyChange={handleProductQtyChange}
+                    onAddToCart={handleAddToCartDirect}
+                    onLoginRequired={() => router.push("/auth/login?role=customer")}
+                    title="Fresh Fruits &amp; Seasonal Picks"
+                    subtitle="Naturally ripened fruits from Solapur orchards"
+                  />
+                  <div style={{ textAlign: "center", marginTop: "16px" }}>
+                    <Link
+                      href="/fruits"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px 24px",
+                        backgroundColor: "#fff1f2",
+                        color: "#e11d48",
+                        borderRadius: "14px",
+                        fontWeight: 800,
+                        fontSize: "13px",
+                        border: "1px solid #fecdd3",
+                        textDecoration: "none",
+                      }}
+                    >
+                      <span>View All {fruitProducts.length} Fruits</span>
+                      <ArrowRight size={14} />
+                    </Link>
+                  </div>
+                </>
               )}
             </section>
           </>

@@ -81,6 +81,14 @@ class DeliveryTaskRead(BaseSchema):
     failure_reason: Optional[str] = None
     pickup_verified: bool = False
     pickup_at: Optional[datetime.datetime] = None
+    items: List[dict] = []
+    total_amount: Optional[Decimal] = None
+    payment_method: Optional[str] = None
+    payment_status: Optional[str] = None
+    item_count: Optional[int] = None
+    delivery_area: Optional[str] = None
+    display_number: Optional[str] = None
+    distance_km: Optional[float] = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 
@@ -89,6 +97,10 @@ class DeliveryBatchCreate(BaseModel):
     zone_id: Optional[int] = None
     delivery_partner_id: Optional[int] = None
     task_ids: List[int] = []
+    order_ids: Optional[List[int]] = None
+    notes: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class DeliveryBatchRead(BaseSchema):

@@ -78,6 +78,7 @@ export type SellerProductItem = {
 export type AddProductInput = {
   product_id?: number;
   product_name?: string;
+  product_type?: "VEGETABLE" | "FRUIT" | string;
   category_id?: number;
   unit?: string;
   price: number;
@@ -244,6 +245,31 @@ export interface SellerDashboardSummary {
   active_products: number;
   avg_prep_time_min: number | null;
   is_available: boolean;
+  // V1 Single-Operator Command Center Fields
+  orders_today?: number;
+  sales_today?: number;
+  delivered_today?: number;
+  pending_today?: number;
+  ready_today?: number;
+  out_for_delivery_today?: number;
+  cancelled_today?: number;
+  avg_order_value?: number;
+  items_sold_today?: number;
+  area_orders?: Record<string, number>;
+  top_products_today?: Array<{ name: string; quantity: number; revenue: number }>;
+  profit_status?: "AVAILABLE" | "DATA_UNAVAILABLE";
+  profit_message?: string;
+  suggested_route?: {
+    batch_count: number;
+    total_orders: number;
+    batches: Array<{
+      group_number: number;
+      order_count: number;
+      areas: string[];
+      estimated_km?: number;
+      task_ids?: number[];
+    }>;
+  };
 }
 
 export async function getSellerDashboardSummary(): Promise<SellerDashboardSummary> {

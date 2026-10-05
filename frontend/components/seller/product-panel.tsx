@@ -150,13 +150,24 @@ export function ProductPanel() {
                 <p style={{ fontSize: "40px", marginBottom: "12px" }}>📦</p>
                 <p style={{ fontSize: "14px" }}>No products yet. Click "Add Product" to list your first item.</p>
               </div>
-            : items.map((product) => (
-                <div key={product.id} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto auto auto auto", gap: "12px", alignItems: "center", padding: "14px 20px", borderBottom: "1px solid #f3f4f6" }}>
-                  <div style={{ width: "36px", height: "36px", background: "#f0fdf4", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>🥦</div>
-                  <div>
-                    <p style={{ margin: "0 0 2px", fontSize: "13px", fontWeight: "700", color: "#111827" }}>{product.product?.name ?? `Product #${product.product_id}`}</p>
-                    <p style={{ margin: 0, fontSize: "11px", color: "#9ca3af" }}>{product.product?.unit ?? ""}</p>
-                  </div>
+            : items.map((product) => {
+                const imgUrl =
+                  product.product?.images?.find((i) => i.is_primary)?.image_url ||
+                  product.product?.images?.[0]?.image_url ||
+                  product.product?.image_url;
+                return (
+                  <div key={product.id} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto auto auto auto", gap: "12px", alignItems: "center", padding: "14px 20px", borderBottom: "1px solid #f3f4f6" }}>
+                    <div style={{ width: "42px", height: "42px", background: "#f0fdf4", borderRadius: "10px", overflow: "hidden", border: "1px solid #d1fae5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {imgUrl ? (
+                        <img src={imgUrl} alt={product.product?.name || "Product"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <span style={{ fontSize: "20px" }}>🥦</span>
+                      )}
+                    </div>
+                    <div>
+                      <p style={{ margin: "0 0 2px", fontSize: "13px", fontWeight: "700", color: "#111827" }}>{product.product?.name ?? `Product #${product.product_id}`}</p>
+                      <p style={{ margin: 0, fontSize: "11px", color: "#9ca3af" }}>{product.product?.unit ?? ""}</p>
+                    </div>
                   {editingId === product.id
                     ? <EditRow product={product} onDone={() => setEditingId(null)} />
                     : <>
@@ -172,7 +183,8 @@ export function ProductPanel() {
                       </>
                   }
                 </div>
-              ))
+              );
+            })
         }
       </div>
     </div>

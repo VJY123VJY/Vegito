@@ -8,7 +8,14 @@ export type DeliveryTask = {
   order_status?: string | null;
   customer_name?: string | null;
   customer_phone?: string | null;
-  delivery_address?: { address_line1: string; city: string; pincode: string; latitude?: number | null; longitude?: number | null } | null;
+  delivery_address?: {
+    address_line1: string;
+    city: string;
+    pincode: string;
+    landmark?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  } | null;
   customer_latitude?: number | null;
   customer_longitude?: number | null;
   shop_name?: string | null;
@@ -23,7 +30,60 @@ export type DeliveryTask = {
   notes?: string | null;
   is_urgent?: boolean;
   failure_reason?: string | null;
+  items?: Array<{
+    product_name: string;
+    quantity: number;
+    unit: string;
+    unit_price: number;
+    subtotal: number;
+  }>;
+  total_amount?: number | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
+  item_count?: number | null;
+  delivery_area?: string | null;
+  distance_km?: number | null;
+  display_number?: string | null;
 };
+
+export interface DeliveryBatch {
+  id: number;
+  delivery_partner_id?: number | null;
+  zone_id?: number | null;
+  status: "DRAFT" | "READY" | "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  total_orders: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+  tasks: DeliveryTask[];
+}
+
+export interface SuggestedBatchGroup {
+  group_number: number;
+  order_count: number;
+  areas: string[];
+  estimated_km?: number | null;
+  task_ids: number[];
+  stops: Array<{
+    task_id: number;
+    order_id: number;
+    order_number?: string | null;
+    display_number?: string | null;
+    customer_name?: string | null;
+    delivery_area?: string | null;
+    distance_km?: number | null;
+    item_count?: number | null;
+    items?: Array<{
+      product_name: string;
+      quantity: number;
+      unit: string;
+      unit_price: number;
+      subtotal: number;
+    }>;
+    total_amount?: number;
+    payment_method?: string | null;
+    payment_status?: string | null;
+  }>;
+}
 
 export async function listDeliveryTasks(status?: string) {
   const { data } = await api.get<ApiEnvelope<DeliveryTask[]>>("/delivery/tasks", { params: { status: status || undefined } });
@@ -161,4 +221,46 @@ export async function failDeliveryTask(taskId: number, reason: string, notes?: s
   });
   return data.data;
 }
+
+export async function createDeliveryBatch(payload: {
+  task_ids?: number[];
+  order_ids?: number[];
+  zone_id?: number;
+  notes?: string;
+  latitude?: number;
+  longitude?: number;
+}): Promise<DeliveryBatch> {
+  const { data } = await api.post<ApiEnvelope<DeliveryBatch>>("/delivery-batches", payload);
+  return data.data!;
+}
+
+export async function listDeliveryBatches(status?: string): Promise<DeliveryBatch[]> {
+  const { data } = await api.get<ApiEnvelope<DeliveryBatch[]>>("/delivery-batches", {
+    params: { status: status || undefined },
+  });
+  return data.data ?? [];
+}
+
+export async function getDeliveryBatch(batchId: number): Promise<DeliveryBatch> {
+  const { data } = await api.get<ApiEnvelope<DeliveryBatch>>(`/delivery-batches/${batchId}`);
+  return data.data!;
+}
+
+export async function startDeliveryBatch(batchId: number): Promise<DeliveryBatch> {
+  const { data } = await api.post<ApiEnvelope<DeliveryBatch>>(`/delivery-batches/${batchId}/start`);
+  return data.data!;
+}
+
+export async function completeDeliveryBatch(batchId: number): Promise<DeliveryBatch> {
+  const { data } = await api.post<ApiEnvelope<DeliveryBatch>>(`/delivery-batches/${batchId}/complete`);
+  return data.data!;
+}
+
+export async function suggestBatchGrouping(lat?: number, lng?: number): Promise<SuggestedBatchGroup[]> {
+  const { data } = await api.get<ApiEnvelope<SuggestedBatchGroup[]>>("/delivery-batches/suggest-grouping", {
+    params: { lat: lat ?? undefined, lng: lng ?? undefined },
+  });
+  return data.data ?? [];
+}
+
 

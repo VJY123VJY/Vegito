@@ -38,6 +38,8 @@ export type Order = {
   sla_status?: string | null;
   sla_minutes_remaining?: number | null;
   customer_name?: string | null;
+  delivery_area?: string | null;
+  items?: OrderItem[];
 };
 
 export type OrderDetail = Order & {

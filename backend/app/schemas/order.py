@@ -80,6 +80,9 @@ class OrderRead(BaseSchema):
     delivery_task_id: Optional[int] = None
     assignment_status: Optional[str] = None
     is_urgent: bool = False
+    delivery_area: Optional[str] = None
+    display_number: Optional[str] = None
+    items: Optional[List[OrderItemRead]] = None
 
 
 class OrderDetailRead(OrderRead):

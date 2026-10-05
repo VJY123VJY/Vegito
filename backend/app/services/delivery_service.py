@@ -1,7 +1,7 @@
 import math
 import datetime
 from decimal import Decimal
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Any
 from sqlalchemy.orm import Session, joinedload
 from app.models.delivery_task import DeliveryTask
 from app.models.delivery_task_status_history import DeliveryTaskStatusHistory
@@ -104,13 +104,14 @@ class DeliveryService:
         return task, raw_otp
 
     @staticmethod
-    def get_delivery_partner(db: Session, user: User) -> DeliveryPartner:
+    def get_delivery_partner(db: Session, user: Any) -> DeliveryPartner:
+        if isinstance(user, DeliveryPartner):
+            return user
         partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == user.id).first()
         if not partner:
             partner = DeliveryPartner(user_id=user.id, is_available=True)
             db.add(partner)
-            db.commit()
-            db.refresh(partner)
+            db.flush()
         return partner
 
     @staticmethod
@@ -300,10 +301,12 @@ class DeliveryService:
                 joinedload(DeliveryTask.order).joinedload(Order.address),
                 joinedload(DeliveryTask.order).joinedload(Order.customer),
                 joinedload(DeliveryTask.order).joinedload(Order.shop),
+                joinedload(DeliveryTask.order).joinedload(Order.items),
             )
             .filter(
                 (DeliveryTask.delivery_partner_id == partner.id) |
-                (DeliveryTask.order.has(Order.delivery_partner_id == partner.id))
+                (DeliveryTask.order.has(Order.delivery_partner_id == partner.id)) |
+                (DeliveryTask.order.has(Order.seller_id == partner_user.id))
             )
         )
         if status:
@@ -316,8 +319,10 @@ class DeliveryService:
                 query = query.filter(DeliveryTask.status == status)
 
         tasks = query.order_by(DeliveryTask.created_at.desc()).all()
+        from app.utils.display_number import batch_compute_order_display_numbers
+        display_nums = batch_compute_order_display_numbers(db, [t.order_id for t in tasks if t.order_id])
         results = []
-        for t in tasks:
+        for idx, t in enumerate(tasks, start=1):
             order = t.order
             shop = order.shop if order else None
             if not shop and order and order.seller_id:
@@ -331,15 +336,19 @@ class DeliveryService:
                 ))
             )
 
-            cust_name = (order.customer.name if (order and order.customer) else "Customer") if is_picked_up else None
+            # Customer identity & contact
+            cust_name = order.customer.name if (order and order.customer) else "Customer"
             cust_phone = (order.customer.phone if (order and order.customer) else None) if is_picked_up else None
 
+            # Customer address and coordinates authorized for partner routing only after pickup
             addr_obj = None
-            if order and order.address and is_picked_up:
+            if is_picked_up and order and order.address:
                 addr_obj = AddressRead.model_validate(order.address)
 
-            cust_lat = (order.delivery_latitude if (order and order.delivery_latitude is not None) else (order.address.latitude if (order and order.address) else None)) if is_picked_up else None
-            cust_lng = (order.delivery_longitude if (order and order.delivery_longitude is not None) else (order.address.longitude if (order and order.address) else None)) if is_picked_up else None
+            raw_lat = order.delivery_latitude if (order and order.delivery_latitude is not None) else (order.address.latitude if (order and order.address) else None)
+            raw_lng = order.delivery_longitude if (order and order.delivery_longitude is not None) else (order.address.longitude if (order and order.address) else None)
+            cust_lat = (Decimal(str(raw_lat)) if raw_lat is not None else None) if is_picked_up else None
+            cust_lng = (Decimal(str(raw_lng)) if raw_lng is not None else None) if is_picked_up else None
 
             shop_lat = shop.latitude if (shop and shop.latitude is not None) else None
             shop_lng = shop.longitude if (shop and shop.longitude is not None) else None
@@ -349,6 +358,37 @@ class DeliveryService:
                     shop_lat = Decimal(str(s_lat))
                 if s_lng is not None:
                     shop_lng = Decimal(str(s_lng))
+
+            # Items details for delivery checklist
+            items_list = []
+            if order and order.items:
+                for oi in order.items:
+                    items_list.append({
+                        "product_name": oi.product_name,
+                        "quantity": float(oi.quantity),
+                        "unit": oi.unit,
+                        "unit_price": float(oi.unit_price) if oi.unit_price else 0.0,
+                        "subtotal": float(oi.subtotal) if oi.subtotal else 0.0,
+                    })
+
+            # Distance calculation
+            dist_val = None
+            if shop_lat is not None and shop_lng is not None and raw_lat is not None and raw_lng is not None:
+                dist_val = calculate_haversine_distance_km(float(shop_lat), float(shop_lng), float(raw_lat), float(raw_lng))
+
+            area_val = None
+            if order and order.address:
+                raw_area = order.address.landmark or order.address.address_line1 or order.address.city or "Solapur"
+                area_val = raw_area.split(",")[0].strip()
+
+            shop_addr_str = "Solapur Market Depot"
+            if shop:
+                if isinstance(shop.address, str):
+                    shop_addr_str = shop.address
+                elif hasattr(shop.address, "address_line1"):
+                    shop_addr_str = f"{shop.address.address_line1}, {shop.address.city}" if shop.address.city else shop.address.address_line1
+                elif hasattr(shop, "business_name") and shop.business_name:
+                    shop_addr_str = shop.business_name
 
             results.append(
                 DeliveryTaskRead(
@@ -362,12 +402,12 @@ class DeliveryService:
                     customer_latitude=cust_lat,
                     customer_longitude=cust_lng,
                     shop_name=shop.business_name if shop else "Vegito Fresh Farm",
-                    shop_address=shop.address if shop else "Solapur Market Depot",
+                    shop_address=shop_addr_str,
                     shop_latitude=shop_lat,
                     shop_longitude=shop_lng,
                     delivery_partner_id=t.delivery_partner_id,
                     status=t.status,
-                    pickup_otp=None,  # Delivery partner must obtain pickup code verbally from seller at shop
+                    pickup_otp=None,
                     pickup_otp_verified_at=order.pickup_otp_verified_at if order else None,
                     pickup_verified=is_picked_up,
                     pickup_at=t.pickup_at or (order.pickup_otp_verified_at if order else None),
@@ -378,6 +418,14 @@ class DeliveryService:
                     notes=t.notes,
                     is_urgent=bool(order.is_urgent) if order else False,
                     failure_reason=getattr(t, "failure_reason", None),
+                    items=items_list,
+                    total_amount=order.total_amount if order else None,
+                    payment_method=order.payment_method if order else None,
+                    payment_status=order.payment_status if order else None,
+                    item_count=len(items_list),
+                    delivery_area=area_val,
+                    display_number=display_nums.get(t.order_id, f"{idx:02d}"),
+                    distance_km=dist_val,
                     created_at=t.created_at,
                     updated_at=t.updated_at,
                 )
@@ -579,7 +627,11 @@ class DeliveryService:
             raise NotFoundException(f"Delivery task for order {order_id} not found")
 
         if task.delivery_partner_id and task.delivery_partner_id != partner.id:
-            raise ForbiddenException("This order is assigned to another delivery partner")
+            if order.seller_id == partner_user.id:
+                task.delivery_partner_id = partner.id
+                order.delivery_partner_id = partner.id
+            else:
+                raise ForbiddenException("This order is assigned to another delivery partner")
 
         now = datetime.datetime.now(datetime.timezone.utc)
         task.delivery_partner_id = partner.id
@@ -672,7 +724,11 @@ class DeliveryService:
             raise NotFoundException(f"Delivery task {task_id} not found")
 
         if task.delivery_partner_id != partner.id:
-            raise ForbiddenException("This task is assigned to another delivery partner")
+            order_check = db.query(Order).filter(Order.id == task.order_id).first()
+            if order_check and order_check.seller_id == partner_user.id:
+                task.delivery_partner_id = partner.id
+            else:
+                raise ForbiddenException("This task is assigned to another delivery partner")
 
         order = db.query(Order).filter(Order.id == task.order_id).first()
         # Idempotency check: if task and order are already DELIVERED, return safely
@@ -708,14 +764,16 @@ class DeliveryService:
         is_valid = verify_otp_hash(str(order.customer_id), clean_delivery_otp, task.delivery_otp_hash or "")
         if not is_valid and task.notes and f"doorstep_otp:{clean_delivery_otp}" in task.notes:
             is_valid = True
-        if not is_valid and (settings.OTP_DEV_MODE or settings.OTP_TEST_MODE) and clean_delivery_otp in [settings.OTP_DEV_CODE, "123456", "654321"]:
+        if not is_valid and (settings.OTP_DEV_MODE or settings.OTP_TEST_MODE) and clean_delivery_otp in [settings.OTP_DEV_CODE, "1234", "123456", "654321"]:
             is_valid = True
 
         if not is_valid:
             task.delivery_otp_attempts = (getattr(task, "delivery_otp_attempts", 0) or 0) + 1
             db.commit()
+            max_att = getattr(task, "delivery_otp_max_attempts", 5) or 5
+            rem = max(0, max_att - task.delivery_otp_attempts)
             raise BadRequestException(
-                message="Invalid delivery OTP code provided by customer.",
+                message=f"Incorrect OTP. Please ask the customer to confirm the OTP. Remaining attempts: {rem}",
                 code="INVALID_DELIVERY_OTP",
             )
 

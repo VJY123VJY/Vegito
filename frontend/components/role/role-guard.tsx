@@ -31,7 +31,15 @@ export function RoleGuard({
       router.replace(redirectTo ?? `/auth/login?role=${defaultRole}`);
       return;
     }
-    if (!allow.includes(role)) {
+    // In V1, the sole business operator is both SELLER and DELIVERY_PARTNER
+    const isAllowed =
+      allow.includes(role) ||
+      (role === "SELLER" && allow.includes("DELIVERY_PARTNER")) ||
+      (role === "DELIVERY_PARTNER" && allow.includes("SELLER")) ||
+      role === "ADMIN" ||
+      role === "SUPER_ADMIN";
+
+    if (!isAllowed) {
       router.replace(redirectTo ?? `/unauthorized?required=${allow.join(",")}&current=${role}`);
       return;
     }

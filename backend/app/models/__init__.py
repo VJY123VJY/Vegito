@@ -37,6 +37,9 @@ from app.models.saved_shopping_list import SavedShoppingList, SavedShoppingListI
 from app.models.recurring_bulk_order import RecurringBulkOrder, RecurringBulkOrderItem
 from app.models.b2b_invoice import B2BInvoice
 from app.models.kyc import SellerKyc, DeliveryPartnerKyc, KycAudit
+from app.models.market_intelligence import MarketIntelligence
+from app.models.price_history import PriceHistory
+from app.models.promotion import Promotion, PromotionItem
 
 __all__ = [
 

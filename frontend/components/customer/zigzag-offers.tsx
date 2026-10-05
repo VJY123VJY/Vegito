@@ -2,7 +2,7 @@
 
 import React from "react";
 import { type Promotion } from "@/lib/api/promotions";
-import { DynamicFruitOffers } from "@/components/offers/dynamic-fruit-offers";
+import { ZigZagOffersView } from "@/components/offers/zigzag-offers-view";
 
 interface ZigZagOffersProps {
   promotions: Promotion[];
@@ -17,9 +17,8 @@ export function ZigZagOffers({
   onAddToCart,
 }: ZigZagOffersProps) {
   return (
-    <DynamicFruitOffers
+    <ZigZagOffersView
       promotions={promotions}
-      autoSlideIntervalMs={4500}
       onAddToCart={onAddToCart}
     />
   );

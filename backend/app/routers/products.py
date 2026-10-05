@@ -22,6 +22,7 @@ def list_products(
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term in product name or description"),
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
+    product_type: Optional[str] = Query(None, description="Filter by product type (VEGETABLE or FRUIT)"),
     db: Session = Depends(get_db),
 ):
     pagination = PaginationParams(page=page, page_size=page_size)
@@ -30,6 +31,7 @@ def list_products(
         pagination=pagination,
         search=search,
         category_id=category_id,
+        product_type=product_type,
         active_only=True,
     )
     paginated = PaginatedResponse.create(products, total_count, pagination)

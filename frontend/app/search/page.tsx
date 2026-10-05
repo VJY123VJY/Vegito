@@ -7,18 +7,18 @@ import { getProducts } from "@/lib/api/products";
 import { ProductCard } from "@/components/product/product-card";
 
 const POPULAR_SEARCHES = [
-  "Tomato",
-  "Potato",
-  "Onion",
-  "Spinach",
-  "Apple",
-  "Banana",
-  "Mango",
-  "Orange",
-  "Gourds",
-  "Methi",
-  "Ginger",
-  "Garlic",
+  { label: "Tomato (टोमॅटो)", query: "tomato" },
+  { label: "Potato (बटाटा / आलू)", query: "potato" },
+  { label: "Onion (कांदा / प्याज)", query: "onion" },
+  { label: "Spinach (पालक)", query: "spinach" },
+  { label: "Apple (सफरचंद / सेब)", query: "apple" },
+  { label: "Banana (केळी)", query: "banana" },
+  { label: "Mango (आंबा)", query: "mango" },
+  { label: "Orange (संत्री)", query: "orange" },
+  { label: "🥦 All Vegetables", query: "vegetables" },
+  { label: "🍎 All Fruits", query: "fruits" },
+  { label: "Leafy Greens (पालेभाज्या)", query: "leafy" },
+  { label: "Citrus Fruits", query: "citrus" },
 ];
 
 export default function SearchPage() {
@@ -143,22 +143,22 @@ export default function SearchPage() {
         <span style={{ fontSize: "12px", fontWeight: 700, color: "#6b7280" }}>Trending:</span>
         {POPULAR_SEARCHES.map((item) => (
           <button
-            key={item}
+            key={item.label}
             type="button"
-            onClick={() => setTerm(item)}
+            onClick={() => setTerm(item.query)}
             style={{
               padding: "5px 12px",
               fontSize: "12px",
               fontWeight: 600,
               borderRadius: "20px",
               border: "1px solid #e5e7eb",
-              backgroundColor: term.toLowerCase() === item.toLowerCase() ? "#dcfce7" : "#ffffff",
-              color: term.toLowerCase() === item.toLowerCase() ? "#15803d" : "#374151",
+              backgroundColor: term.toLowerCase() === item.query.toLowerCase() ? "#dcfce7" : "#ffffff",
+              color: term.toLowerCase() === item.query.toLowerCase() ? "#15803d" : "#374151",
               cursor: "pointer",
               transition: "all 0.15s ease",
             }}
           >
-            {item}
+            {item.label}
           </button>
         ))}
       </div>

@@ -68,6 +68,7 @@ class SellerService:
 
     @staticmethod
     def add_product(db: Session, user: User, product_in: SellerProductCreate) -> SellerProduct:
+        from app.services.taxonomy_service import TaxonomyService
         # One transaction owns the canonical product (when needed), seller offer,
         # and authoritative inventory row. Nothing is published on a partial write.
         target_product_id = product_in.product_id
@@ -75,12 +76,19 @@ class SellerService:
             product = db.query(Product).filter(Product.id == target_product_id, Product.is_active == True).first()
             if not product:
                 raise NotFoundException("Product not found or inactive")
+            # Validate against taxonomy if product_type is supplied
+            if product_in.product_type and product.category_id:
+                TaxonomyService.validate_category_and_type(product_in.product_type, product.category_id)
 
         try:
-            # If product_id not provided, look up by name or create master product.
+            # If product_id not provided, look up by name or create master product with auto-classification.
             if not target_product_id:
                 if not product_in.product_name:
                     raise BadRequestException("Either product_id or product_name must be provided")
+
+                # Validate provided category against product_type if present
+                if product_in.category_id and product_in.product_type:
+                    TaxonomyService.validate_category_and_type(product_in.product_type, product_in.category_id)
 
                 existing_product = db.query(Product).filter(
                     Product.name.ilike(product_in.product_name.strip())
@@ -89,13 +97,22 @@ class SellerService:
                 if existing_product:
                     target_product_id = existing_product.id
                 else:
-                    if not product_in.category_id:
-                        raise BadRequestException("A valid category is required when creating a product")
+                    target_cat_id = product_in.category_id
+                    if not target_cat_id:
+                        # Auto-route category from name and product_type
+                        _, auto_cat_id = TaxonomyService.auto_classify_produce(
+                            product_in.product_name, product_in.product_type
+                        )
+                        target_cat_id = auto_cat_id
+
                     category = db.query(Category).filter(
-                        Category.id == product_in.category_id, Category.is_active == True
+                        Category.id == target_cat_id, Category.is_active == True
                     ).first()
                     if not category:
                         raise BadRequestException("Selected category is invalid or inactive")
+
+                    # Final validation
+                    TaxonomyService.validate_category_and_type(product_in.product_type, category.id)
 
                     new_product = Product(
                         category_id=category.id,

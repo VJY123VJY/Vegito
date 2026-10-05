@@ -1,9 +1,9 @@
-"use client";
-
 import React, { useState } from "react";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
-import { Heart, Plus, Minus, Star, ShieldCheck, Truck, Sparkles, Clock, MapPin, Package, CheckCircle2 } from "lucide-react";
+import { Heart, Plus, Minus, Star, ShieldCheck, Truck, Sparkles, Clock, MapPin, Package, CheckCircle2, TrendingUp, BarChart2, Info } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import type { ApiProduct } from "@/lib/api/products";
+import { getProductMarketPrice } from "@/lib/api/market-intelligence";
 import { useTranslation } from "@/context/i18n-context";
 
 const VEGGIE_IMAGES: Record<string, string> = {
@@ -52,6 +52,14 @@ export function ProductDetailSheet({
   const [selectedQty, setSelectedQty] = useState(cartQuantity > 0 ? cartQuantity : 1);
   const [selectedSellerIndex, setSelectedSellerIndex] = useState(0);
 
+  const marketPriceQuery = useQuery({
+    queryKey: ["product-market-price", product?.id],
+    queryFn: () => (product?.id ? getProductMarketPrice(product.id) : null),
+    enabled: Boolean(product?.id && isOpen),
+    staleTime: 5 * 60 * 1000,
+  });
+  const marketPrice = marketPriceQuery.data;
+
   if (!product) return null;
 
   const sellerOffers = product.seller_products || [];
@@ -89,6 +97,13 @@ export function ProductDetailSheet({
           <img
             src={imageUrl}
             alt={product.name}
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (!target.dataset.failed) {
+                target.dataset.failed = "true";
+                target.src = "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&auto=format&fit=crop&q=80";
+              }
+            }}
             style={{
               width: "100%",
               height: "100%",
@@ -466,6 +481,115 @@ export function ProductDetailSheet({
                   </button>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Live Mandi Benchmark Market Reference */}
+        {marketPrice && (
+          <div
+            style={{
+              borderTop: "1px solid var(--vegito-border, #f0f4f1)",
+              paddingTop: "14px",
+            }}
+          >
+            <div
+              style={{
+                borderRadius: "16px",
+                border: "1px solid rgba(22, 131, 91, 0.2)",
+                backgroundColor: "rgba(236, 253, 245, 0.6)",
+                padding: "14px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "8px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <TrendingUp size={15} style={{ color: "#16835b" }} />
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 800,
+                      color: "#063c32",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    {t("marketPrice.title", "Live Solapur Mandi Reference")}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: "#16835b",
+                    backgroundColor: "#ffffff",
+                    padding: "2px 8px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(22, 131, 91, 0.15)",
+                  }}
+                >
+                  {marketPrice.trend}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "10px",
+                  marginBottom: "10px",
+                }}
+              >
+                <div
+                  style={{
+                    backgroundColor: "#ffffff",
+                    padding: "10px",
+                    borderRadius: "12px",
+                    border: "1px solid #eef2ed",
+                  }}
+                >
+                  <div style={{ fontSize: "11px", color: "#62746a", fontWeight: 500 }}>
+                    {t("marketPrice.modalPrice", "Mandi Modal Rate")}
+                  </div>
+                  <div style={{ fontSize: "16px", fontWeight: 900, color: "#063c32", marginTop: "2px" }}>
+                    ₹{Number(marketPrice.reference_price).toFixed(0)} <span style={{ fontSize: "11px", fontWeight: 500 }}>/ {marketPrice.unit}</span>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    backgroundColor: "#ffffff",
+                    padding: "10px",
+                    borderRadius: "12px",
+                    border: "1px solid #eef2ed",
+                  }}
+                >
+                  <div style={{ fontSize: "11px", color: "#62746a", fontWeight: 500 }}>
+                    {t("marketPrice.range", "APMC Daily Range")}
+                  </div>
+                  <div style={{ fontSize: "14px", fontWeight: 800, color: "#063c32", marginTop: "2px" }}>
+                    ₹{Number(marketPrice.suggested_range_min).toFixed(0)} - ₹{Number(marketPrice.suggested_range_max).toFixed(0)}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                <Info size={13} style={{ color: "#62746a", flexShrink: 0, marginTop: "2px" }} />
+                <p style={{ margin: 0, fontSize: "10.5px", lineHeight: 1.45, color: "#62746a" }}>
+                  {t(
+                    "marketPrice.disclaimer",
+                    "Mandi rates are wholesale auction benchmarks reported by APMC. Vegito prices include farm sorting, quality grading, and doorstep delivery."
+                  )}
+                  {" · "}
+                  <strong>{marketPrice.source}</strong>
+                </p>
+              </div>
             </div>
           </div>
         )}

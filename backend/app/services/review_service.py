@@ -90,13 +90,15 @@ class ReviewService:
                 delivery_partner_id = task.delivery_partner_id
 
         # Map purchased products in this order: product_id -> order_item
-        purchased_items = {it.product_id: it for it in order.items if it.product_id}
-        # Fallback to seller_product lookup if order_item.product_id is unset
+        purchased_items = {}
         for it in order.items:
-            if not it.product_id and it.seller_product_id:
-                sp = db.query(SellerProduct).filter(SellerProduct.id == it.seller_product_id).first()
+            pid = getattr(it, "product_id", None)
+            if not pid and it.seller_product_id:
+                sp = getattr(it, "seller_product", None) or db.query(SellerProduct).filter(SellerProduct.id == it.seller_product_id).first()
                 if sp and sp.product_id:
-                    purchased_items[sp.product_id] = it
+                    pid = sp.product_id
+            if pid:
+                purchased_items[pid] = it
 
         existing_reviews = db.query(Review).filter(
             Review.order_id == order.id,

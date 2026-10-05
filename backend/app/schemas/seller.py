@@ -61,6 +61,7 @@ class SellerProductBase(BaseModel):
 
 class SellerProductCreate(SellerProductBase):
     product_name: Optional[str] = None
+    product_type: Optional[str] = None
     category_id: Optional[int] = None
     unit: Optional[str] = "1 KG"
     description: Optional[str] = None

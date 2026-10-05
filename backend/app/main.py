@@ -49,6 +49,7 @@ from app.routers.catalogue import router as catalogue_router
 from app.routers.b2b import router as b2b_router
 from app.routers.seller_bulk_orders import router as seller_bulk_orders_router
 from app.routers.kyc import router as kyc_router
+from app.routers.market_intelligence import router as market_intelligence_router
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +318,11 @@ app.include_router(
 
 app.include_router(
     kyc_router,
+    prefix=API_PREFIX,
+)
+
+app.include_router(
+    market_intelligence_router,
     prefix=API_PREFIX,
 )
 

@@ -77,7 +77,7 @@ import { getSellerKyc, type SellerKycData } from "@/lib/api/kyc";
 import { SellerKycWizard } from "./seller-kyc-wizard";
 
 export function SellerDashboard() {
-  const { t } = useTranslation();
+  const { t, language, setLanguage } = useTranslation();
   const queryClient = useQueryClient();
 
   // State
@@ -504,6 +504,36 @@ export function SellerDashboard() {
               <RefreshCw size={14} /> Refresh
             </button>
 
+            {/* Language Selector */}
+            <div
+              style={{
+                display: "inline-flex",
+                borderRadius: "10px",
+                border: "1px solid var(--vegito-border, #e8eee9)",
+                overflow: "hidden",
+                background: "#f3f4f6",
+              }}
+            >
+              {(["en", "mr", "hi"] as const).map((l) => (
+                <button
+                  key={l}
+                  onClick={() => setLanguage(l)}
+                  style={{
+                    padding: "6px 11px",
+                    fontSize: "12px",
+                    fontWeight: 800,
+                    border: "none",
+                    cursor: "pointer",
+                    background: language === l ? "#1a3d2b" : "transparent",
+                    color: language === l ? "#ffffff" : "#4b5563",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  {l === "en" ? "EN" : l === "mr" ? "मराठी" : "हिंदी"}
+                </button>
+              ))}
+            </div>
+
             {/* Quick Add Product Button */}
             <button
               onClick={() => setIsAddModalOpen(true)}
@@ -914,32 +944,34 @@ export function SellerDashboard() {
                     color: "#15803d",
                   }}
                 >
-                  NEXT ACTION · READY FOR PICKUP
+                  NEXT ACTION · READY FOR DELIVERY
                 </span>
                 <h3 style={{ margin: "2px 0 0", fontSize: "16px", fontWeight: 800, color: "#166534" }}>
-                  {readyCount} {readyCount === 1 ? "order ready" : "orders ready"} for delivery partner handoff
+                  {readyCount} {readyCount === 1 ? "order ready" : "orders ready"} for customer delivery
                 </h3>
                 <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#15803d" }}>
-                  Delivery partner will provide pickup OTP upon arrival at your shop.
+                  Group up to 10 nearby orders into a delivery route, check your bag, and dispatch.
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setPipelineFilter("READY")}
+            <Link
+              href="/seller/deliveries"
               style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
                 padding: "10px 20px",
                 borderRadius: "10px",
                 backgroundColor: "#16a34a",
                 color: "#ffffff",
                 fontSize: "13px",
                 fontWeight: 800,
-                border: "none",
-                cursor: "pointer",
+                textDecoration: "none",
                 boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)",
               }}
             >
-              View Pickup Status ({readyCount}) →
-            </button>
+              Start Delivery Route ({readyCount}) 🚴 →
+            </Link>
           </div>
         ) : null}
 
@@ -1664,6 +1696,261 @@ export function SellerDashboard() {
               </div>
               <span>Store Settings</span>
             </Link>
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════
+            SECTION 5.5: TODAY'S DELIVERY ROUTE (5-10 ORDERS ROUTE)
+            ═══════════════════════════════════════════════════════ */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #1a3d2b 0%, #29573e 100%)",
+            borderRadius: "16px",
+            padding: "20px 24px",
+            color: "#ffffff",
+            boxShadow: "0 4px 16px rgba(26,61,43,0.14)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "16px",
+          }}
+        >
+          <div style={{ maxWidth: "600px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+              <span
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: "999px",
+                  background: "#6fcf3a",
+                  color: "#1a3d2b",
+                  fontSize: "11px",
+                  fontWeight: 800,
+                  letterSpacing: "0.5px",
+                }}
+              >
+                1 SELLER = 1 DELIVERY PARTNER
+              </span>
+              <span style={{ fontSize: "12px", opacity: 0.85 }}>
+                {t("seller.maxBatchNotice", "Max 10 orders per delivery round")}
+              </span>
+            </div>
+            <h2 style={{ margin: "0 0 4px", fontSize: "18px", fontWeight: 800 }}>
+              🚴 {t("seller.suggestedRoute", "Today's Delivery Route & Dispatch")}
+            </h2>
+            <p style={{ margin: 0, fontSize: "13px", opacity: 0.9, lineHeight: 1.4 }}>
+              {readyCount > 0
+                ? `${readyCount} packed orders are ready for delivery across Solapur. Create a batch of up to 10 nearby orders, load your bag, and start the round.`
+                : "No packed orders ready yet. As soon as you pack orders, Vegito groups nearby customers into an optimal 5–10 order delivery route."}
+            </p>
+
+            {dashboardSummary.data?.suggested_route && dashboardSummary.data.suggested_route.batches.length > 0 && (
+              <div style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {dashboardSummary.data.suggested_route.batches.map((b) => (
+                  <span
+                    key={b.group_number}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: "8px",
+                      background: "rgba(255,255,255,0.15)",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    📍 Round #{b.group_number}: {b.order_count} orders ({b.areas.join(", ")})
+                    {b.estimated_km ? ` · ~${b.estimated_km} km` : ""}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Link
+            href="/seller/deliveries"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "12px 22px",
+              borderRadius: "12px",
+              background: "#6fcf3a",
+              color: "#1a3d2b",
+              fontWeight: 800,
+              fontSize: "14px",
+              textDecoration: "none",
+              boxShadow: "0 4px 14px rgba(111,207,58,0.35)",
+            }}
+          >
+            <Truck size={18} />
+            {readyCount > 0 ? `Open Delivery Route (${readyCount}) →` : "Manage Deliveries →"}
+          </Link>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════
+            SECTION 5.6: TODAY'S REAL BUSINESS ANALYTICS & PROFIT NOTE
+            ═══════════════════════════════════════════════════════ */}
+        <div
+          style={{
+            backgroundColor: "var(--vegito-card, #ffffff)",
+            border: "1px solid var(--vegito-border, #e8eee9)",
+            borderRadius: "16px",
+            padding: "20px 22px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "12px",
+              marginBottom: "16px",
+              borderBottom: "1px solid #f3f4f6",
+              paddingBottom: "12px",
+            }}
+          >
+            <div>
+              <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "var(--vegito-text-main, #12221e)" }}>
+                📊 {t("seller.salesToday", "Today's Business Analytics")}
+              </h2>
+              <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "var(--vegito-text-muted, #62746a)" }}>
+                Real-time daily sales, items dispatched, customer locality distribution, and top-selling produce
+              </p>
+            </div>
+
+            {/* Profit availability badge */}
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "4px 12px",
+                borderRadius: "999px",
+                background: "#fef3c7",
+                border: "1px solid #fde68a",
+                color: "#92400e",
+                fontSize: "12px",
+                fontWeight: 700,
+              }}
+            >
+              <AlertCircle size={14} />
+              <span>{t("seller.profitNotice", "Profit data unavailable (Gross sales shown)")}</span>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: "14px",
+              marginBottom: "18px",
+            }}
+          >
+            {/* Real Gross Sales Today */}
+            <div style={{ padding: "14px", borderRadius: "12px", background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#166534", textTransform: "uppercase" }}>
+                {t("seller.salesToday", "Today's Gross Sales")}
+              </span>
+              <div style={{ fontSize: "22px", fontWeight: 900, color: "#15803d", marginTop: "4px" }}>
+                ₹{Number(dashboardSummary.data?.sales_today ?? todayRevenue).toLocaleString("en-IN")}
+              </div>
+              <span style={{ fontSize: "11px", color: "#166534" }}>Confirmed revenue today</span>
+            </div>
+
+            {/* Items Sold Today */}
+            <div style={{ padding: "14px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase" }}>
+                {t("seller.itemsSoldToday", "Items Sold Today")}
+              </span>
+              <div style={{ fontSize: "22px", fontWeight: 900, color: "#1e293b", marginTop: "4px" }}>
+                {dashboardSummary.data?.items_sold_today ?? 0}
+              </div>
+              <span style={{ fontSize: "11px", color: "#64748b" }}>Vegetable & fruit units</span>
+            </div>
+
+            {/* Average Order Value */}
+            <div style={{ padding: "14px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase" }}>
+                {t("seller.avgOrderValue", "Avg Order Value")}
+              </span>
+              <div style={{ fontSize: "22px", fontWeight: 900, color: "#1e293b", marginTop: "4px" }}>
+                ₹{Number(dashboardSummary.data?.avg_order_value ?? 0).toFixed(0)}
+              </div>
+              <span style={{ fontSize: "11px", color: "#64748b" }}>Per customer order</span>
+            </div>
+          </div>
+
+          {/* Area Breakdown & Top Products Grid */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "16px",
+            }}
+          >
+            {/* Orders by Area Breakdown */}
+            <div style={{ padding: "14px", borderRadius: "12px", background: "#f9fafb", border: "1px solid #e5e7eb" }}>
+              <h4 style={{ margin: "0 0 10px", fontSize: "13px", fontWeight: 800, color: "#374151" }}>
+                📍 {t("seller.areaBreakdown", "Orders by Solapur Area")}
+              </h4>
+              {dashboardSummary.data?.area_orders && Object.keys(dashboardSummary.data.area_orders).length > 0 ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {Object.entries(dashboardSummary.data.area_orders).map(([area, count]) => (
+                    <span
+                      key={area}
+                      style={{
+                        padding: "5px 12px",
+                        borderRadius: "8px",
+                        background: "#ffffff",
+                        border: "1px solid #d1d5db",
+                        fontSize: "12.5px",
+                        fontWeight: 700,
+                        color: "#1f2937",
+                      }}
+                    >
+                      {area}: <b style={{ color: "#15803d" }}>{count}</b>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: "12.5px", color: "#9ca3af" }}>
+                  No customer orders logged today yet.
+                </p>
+              )}
+            </div>
+
+            {/* Top Products Today */}
+            <div style={{ padding: "14px", borderRadius: "12px", background: "#f9fafb", border: "1px solid #e5e7eb" }}>
+              <h4 style={{ margin: "0 0 10px", fontSize: "13px", fontWeight: 800, color: "#374151" }}>
+                🥬 {t("seller.topSellingToday", "Top Selling Products Today")}
+              </h4>
+              {dashboardSummary.data?.top_products_today && dashboardSummary.data.top_products_today.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {dashboardSummary.data.top_products_today.map((prod, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        fontSize: "12.5px",
+                        padding: "4px 0",
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, color: "#1f2937" }}>
+                        {idx + 1}. {prod.name} ({prod.quantity} sold)
+                      </span>
+                      <strong style={{ color: "#15803d" }}>₹{Number(prod.revenue).toFixed(0)}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: "12.5px", color: "#9ca3af" }}>
+                  Product volume data will populate as orders are placed.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

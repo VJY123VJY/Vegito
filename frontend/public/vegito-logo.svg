@@ -1,62 +1,88 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 160" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 120" width="100%" height="100%" fill="none">
   <defs>
-    <linearGradient id="vegitoEmerald" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0A4D3C"/>
-      <stop offset="50%" stop-color="#1B5E20"/>
-      <stop offset="100%" stop-color="#2E7D32"/>
+    <linearGradient id="vJacketGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#16835B" />
+      <stop offset="100%" stop-color="#0A4D3C" />
     </linearGradient>
-    <linearGradient id="leafGradLeft" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4CAF50"/>
-      <stop offset="100%" stop-color="#2E7D32"/>
+    <linearGradient id="vBikeGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#15803D" />
     </linearGradient>
-    <linearGradient id="leafGradRight" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#81C784"/>
-      <stop offset="100%" stop-color="#388E3C"/>
+    <linearGradient id="vCrateGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0F766E" />
+      <stop offset="100%" stop-color="#064E3B" />
     </linearGradient>
-    <linearGradient id="harvestSun" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FF9800"/>
-      <stop offset="100%" stop-color="#F57C00"/>
-    </linearGradient>
+    <filter id="vSoftGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
   </defs>
 
-  <!-- ICON SYMBOL: Stylized Living 'V' (Size: 140x140) -->
-  <g transform="translate(10, 10)">
-    <!-- App Squircle Tile (Soft Glass Shadow Base) -->
-    <rect x="0" y="0" width="140" height="140" rx="36" fill="url(#vegitoEmerald)" />
-    
-    <!-- Left Organic Leaf Wing of V -->
-    <path d="M70,105 C58,95 35,72 30,46 C52,41 68,58 70,105 Z" fill="url(#leafGradLeft)" />
-    
-    <!-- Right Organic Leaf Wing / Harvest Shoot of V -->
-    <path d="M70,105 C82,95 105,72 110,46 C88,41 72,58 70,105 Z" fill="url(#leafGradRight)" />
-    
-    <!-- Central Tech Speed Notch / Dynamic Motion Flow -->
-    <path d="M70,105 C65,92 52,68 50,54 C61,56 68,72 70,105 C72,72 79,56 90,54 C88,68 75,92 70,105 Z" fill="#FFFFFF" opacity="0.95" />
-    
-    <!-- Golden Harvest Dewdrop Seed -->
-    <circle cx="70" cy="62" r="5" fill="url(#harvestSun)" />
+  <!-- ── 1. RIDER & DELIVERY BIKE ICON (Left) ── -->
+  <g transform="translate(10, 8)">
+    <!-- Speed Dash Lines -->
+    <line x1="6" y1="92" x2="22" y2="92" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" opacity="0.6" />
+    <line x1="2" y1="78" x2="16" y2="78" stroke="#34D399" stroke-width="2" stroke-linecap="round" opacity="0.5" />
+    <line x1="10" y1="64" x2="20" y2="64" stroke="#6EE7B7" stroke-width="1.8" stroke-linecap="round" opacity="0.4" />
+
+    <!-- Ground Shadow -->
+    <ellipse cx="72" cy="103" rx="48" ry="4" fill="rgba(6, 60, 50, 0.16)" />
+
+    <!-- Wheels -->
+    <g>
+      <circle cx="36" cy="88" r="16" fill="#1E293B" />
+      <circle cx="36" cy="88" r="11" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2" />
+      <circle cx="36" cy="88" r="5" fill="#16835B" />
+    </g>
+    <g>
+      <circle cx="106" cy="88" r="16" fill="#1E293B" />
+      <circle cx="106" cy="88" r="11" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2" />
+      <circle cx="106" cy="88" r="5" fill="#16835B" />
+    </g>
+
+    <!-- Chassis Body -->
+    <path d="M 38 88 L 52 74 L 82 74 L 102 88 L 94 62 L 76 68 L 54 68 Z" fill="url(#vBikeGrad)" />
+    <path d="M 50 82 L 84 82 L 80 88 L 48 88 Z" fill="#0F172A" />
+
+    <!-- Fork & Handlebars -->
+    <path d="M 106 88 L 95 52 L 88 48" stroke="#1E293B" stroke-width="4" stroke-linecap="round" />
+    <circle cx="87" cy="48" r="3.5" fill="#0F172A" />
+
+    <!-- Headlight -->
+    <path d="M 98 56 L 107 58 L 98 63 Z" fill="#F59E0B" filter="url(#vSoftGlow)" />
+    <ellipse cx="106" cy="59" rx="1.5" ry="3" fill="#FFFFFF" />
+
+    <!-- Delivery Crate -->
+    <rect x="22" y="54" width="26" height="20" rx="4" fill="url(#vCrateGrad)" stroke="#042F2E" stroke-width="1.2" />
+    <line x1="25" y1="60" x2="45" y2="60" stroke="#14B8A6" stroke-width="1.2" stroke-linecap="round" opacity="0.6" />
+    <line x1="25" y1="66" x2="45" y2="66" stroke="#14B8A6" stroke-width="1.2" stroke-linecap="round" opacity="0.6" />
+
+    <!-- Fresh Vegetables -->
+    <path d="M 23 54 C 20 46, 26 40, 31 46 C 36 40, 43 44, 40 54 Z" fill="#22C55E" />
+    <path d="M 28 54 C 27 46, 33 42, 36 48 Z" fill="#4ADE80" />
+    <path d="M 31 52 Q 32 45 34 43" stroke="#15803D" stroke-width="1" stroke-linecap="round" />
+
+    <circle cx="43" cy="52" r="6" fill="#EF4444" />
+    <circle cx="41.5" cy="49.5" r="1.5" fill="#FCA5A5" />
+    <path d="M 43 46 L 42 44 M 43 46 L 45 45 M 43 46 L 43 43" stroke="#15803D" stroke-width="1.2" stroke-linecap="round" />
+
+    <path d="M 36 50 L 48 38 C 49 37, 51 39, 49 41 L 38 53 Z" fill="#F97316" />
+    <path d="M 49 38 L 54 34 M 49 38 L 52 32 M 50 39 L 55 38" stroke="#22C55E" stroke-width="1.2" stroke-linecap="round" />
+
+    <!-- Delivery Rider -->
+    <path d="M 52 68 L 65 74 L 74 84" stroke="#0F172A" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 48 66 L 56 46 L 75 48 L 70 70 Z" fill="url(#vJacketGrad)" stroke="#064E3B" stroke-width="1" />
+    <path d="M 68 50 L 80 56 L 87 49" stroke="#16835B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="87" cy="49" r="3" fill="#0F172A" />
+    <circle cx="66" cy="34" r="11" fill="#0F172A" />
+    <path d="M 66 25 C 72 25, 77 29, 77 35 L 68 35 Z" fill="#10B981" />
+    <path d="M 72 32 L 77 33 L 73 35 Z" fill="#67E8F9" />
   </g>
 
-  <!-- WORDMARK: 'Vegito' in Modern Rounded Sans-Serif Typography -->
-  <g transform="translate(175, 96)">
-    <!-- 'V' -->
-    <text x="0" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="76" font-weight="900" fill="#0A4D3C" letter-spacing="-1.5">V</text>
-    <!-- 'e' -->
-    <text x="56" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="76" font-weight="800" fill="#0A4D3C" letter-spacing="-1">e</text>
-    <!-- 'g' -->
-    <text x="104" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="76" font-weight="800" fill="#0A4D3C" letter-spacing="-1">g</text>
-    <!-- 'i' stem -->
-    <rect x="156" y="-55" width="16" height="55" rx="8" fill="#0A4D3C" />
-    <!-- Leaf dotting the 'i' -->
-    <path d="M164,-63 C158,-72 154,-82 170,-80 C172,-68 168,-63 164,-63 Z" fill="#4CAF50" />
-    <!-- 't' -->
-    <text x="180" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="76" font-weight="800" fill="#0A4D3C" letter-spacing="-1">t</text>
-    <!-- 'o' -->
-    <text x="216" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="76" font-weight="800" fill="#0A4D3C" letter-spacing="-1">o</text>
-  </g>
-
-  <!-- TAGLINE: 'Fresh • Smart • Fast' -->
-  <g transform="translate(180, 134)">
-    <text x="0" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="20" font-weight="700" fill="#2E7D32" letter-spacing="3.5">FRESH • SMART • FAST</text>
+  <!-- ── 2. VEGITO WORDMARK & TAGLINE (Right) ── -->
+  <g transform="translate(160, 68)">
+    <text x="0" y="0" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="54" font-weight="900" fill="#063C32" letter-spacing="-2">Vegito</text>
+    <circle cx="162" cy="-6" r="6" fill="#22C55E" />
+    <text x="3" y="32" font-family="system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif" font-size="16" font-weight="800" fill="#16835B" letter-spacing="3.5">FRESH • SMART • FAST</text>
   </g>
 </svg>

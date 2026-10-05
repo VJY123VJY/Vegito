@@ -140,6 +140,7 @@ class ProductService:
         pagination: PaginationParams,
         search: Optional[str] = None,
         category_id: Optional[int] = None,
+        product_type: Optional[str] = None,
         active_only: bool = True,
         marketplace_only: bool = True,
     ) -> Tuple[List[ProductRead], int]:
@@ -149,6 +150,7 @@ class ProductService:
         If marketplace_only is True, only returns products
         with at least one active offer.
         """
+        from app.services.taxonomy_service import TaxonomyService, VEGETABLE_CATEGORY_IDS, FRUIT_CATEGORY_IDS
 
         query = db.query(Product).options(
             joinedload(Product.category),
@@ -165,6 +167,13 @@ class ProductService:
                 Product.is_active == True
             )
 
+        if product_type:
+            p_type = product_type.strip().upper()
+            if p_type == "VEGETABLE":
+                query = query.filter(Product.category_id.in_(list(VEGETABLE_CATEGORY_IDS)))
+            elif p_type == "FRUIT":
+                query = query.filter(Product.category_id.in_(list(FRUIT_CATEGORY_IDS)))
+
         if category_id:
             target_cat = db.query(Category).filter(Category.id == category_id).first()
             if target_cat and target_cat.name.lower() in ["vegetables", "all vegetables"]:
@@ -176,13 +185,20 @@ class ProductService:
             else:
                 query = query.filter(Product.category_id == category_id)
 
-        if search:
-            query = query.filter(
-                or_(
-                    Product.name.ilike(f"%{search}%"),
-                    Product.description.ilike(f"%{search}%"),
-                )
-            )
+        clean_search = search.strip() if search else None
+        if clean_search:
+            # Check if search is a category intent (e.g. "vegetables", "fruits", "citrus", "leafy")
+            cat_intent = TaxonomyService.get_category_intent(clean_search)
+            if cat_intent:
+                _, cat_ids = cat_intent
+                query = query.filter(Product.category_id.in_(cat_ids))
+            else:
+                expanded_terms = TaxonomyService.expand_search_terms(clean_search)
+                clauses = []
+                for term in expanded_terms:
+                    clauses.append(Product.name.ilike(f"%{term}%"))
+                    clauses.append(Product.description.ilike(f"%{term}%"))
+                query = query.filter(or_(*clauses))
 
         # Filter for products that have at least one seller offering it
         if marketplace_only:
@@ -196,19 +212,47 @@ class ProductService:
 
         total_count = query.distinct(Product.id).count()
 
-        # PostgreSQL DISTINCT ON requires the DISTINCT ON
-        # expression to be the first ORDER BY expression.
-        products = (
+        # Fetch products matching query
+        raw_products = (
             query
             .distinct(Product.id)
-            .order_by(
-                Product.id.asc(),
-                Product.name.asc(),
-            )
-            .offset(pagination.offset)
-            .limit(pagination.limit)
             .all()
         )
+
+        # Relevance scoring for search queries
+        if clean_search and not TaxonomyService.get_category_intent(clean_search):
+            import re
+            s_lower = clean_search.lower()
+            pattern = re.compile(rf"\b{re.escape(s_lower)}\b", re.IGNORECASE)
+
+            def calc_relevance(p: Product) -> int:
+                p_name = p.name.lower()
+                # 1. Exact match on product name
+                if p_name == s_lower:
+                    return 100
+                # 2. Whole word exact match on product name (e.g. "Apple" in "Royal Delicious Apple")
+                if pattern.search(p_name):
+                    return 90
+                # 3. Prefix match on product name
+                if p_name.startswith(s_lower):
+                    return 80
+                # 4. Prefix of any word in product name (e.g. "tom" in "Fresh Tomatoes")
+                words = p_name.split()
+                if any(w.startswith(s_lower) for w in words):
+                    return 75
+                # 5. Multilingual synonym match on product name
+                for term in TaxonomyService.expand_search_terms(clean_search):
+                    if term in p_name:
+                        return 60
+                # 6. Substring match on product name
+                if s_lower in p_name:
+                    return 40
+                # 7. Description match
+                return 20
+
+            raw_products.sort(key=calc_relevance, reverse=True)
+
+        products = raw_products[pagination.offset : pagination.offset + pagination.limit]
 
         # Build enriched ProductRead responses
         result: List[ProductRead] = []

@@ -212,6 +212,56 @@ export function DashboardHeader({
 
         {/* Right Actions */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          {(role === "seller" || role === "delivery") && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                background: "var(--vegito-surface-tint, #f0fdf4)",
+                padding: "3px",
+                borderRadius: "10px",
+                border: "1.5px solid #86efac",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => router.push("/seller")}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "7px",
+                  border: "none",
+                  fontSize: "12px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  background: role === "seller" ? "#166534" : "transparent",
+                  color: role === "seller" ? "#ffffff" : "#166534",
+                  boxShadow: role === "seller" ? "0 2px 6px rgba(22,101,52,0.25)" : "none",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                🏪 Seller
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/seller/deliveries")}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "7px",
+                  border: "none",
+                  fontSize: "12px",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  background: role === "delivery" ? "#166534" : "transparent",
+                  color: role === "delivery" ? "#ffffff" : "#166534",
+                  boxShadow: role === "delivery" ? "0 2px 6px rgba(22,101,52,0.25)" : "none",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                🚴 Delivery
+              </button>
+            </div>
+          )}
+
           <select
             aria-label="Language"
             value={language}

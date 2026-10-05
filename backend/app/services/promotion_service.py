@@ -132,6 +132,77 @@ class PromotionService:
         return results
 
     @staticmethod
+    def get_seller_promotions(db: Session, user: User) -> List[PromotionRead]:
+        promos = (
+            db.query(Promotion)
+            .options(
+                joinedload(Promotion.items)
+                .joinedload(PromotionItem.seller_product)
+                .joinedload(SellerProduct.product)
+                .joinedload(Product.images)
+            )
+            .filter(Promotion.seller_id == user.id)
+            .order_by(Promotion.created_at.desc())
+            .all()
+        )
+        results = []
+        for p in promos:
+            read_obj = PromotionRead.model_validate(p)
+            if p.items:
+                primary = p.items[0]
+                sp = primary.seller_product
+                prod = sp.product if sp else None
+                if prod:
+                    read_obj.product_id = prod.id
+                    read_obj.product_name = prod.name
+                    read_obj.unit = prod.unit
+                    if prod.images:
+                        read_obj.image_url = prod.images[0].image_url
+                orig_total = sum((item.seller_product.price * item.quantity for item in p.items if item.seller_product), Decimal("0.00"))
+                read_obj.original_price = orig_total
+                if orig_total > p.price:
+                    pct = int(round(float((orig_total - p.price) / orig_total * 100)))
+                    read_obj.discount_percent = pct
+                    read_obj.badge_text = f"{pct}% OFF"
+                else:
+                    read_obj.badge_text = "SPECIAL OFFER"
+            for ri, mi in zip(read_obj.items, p.items):
+                if mi.seller_product and mi.seller_product.product:
+                    ri.product_name = mi.seller_product.product.name
+                    ri.unit = mi.seller_product.product.unit
+            results.append(read_obj)
+        return results
+
+    @staticmethod
+    def update_status(db: Session, user: User, promo_id: int, new_status: str) -> PromotionRead:
+        p = db.query(Promotion).filter(Promotion.id == promo_id).first()
+        if not p:
+            raise NotFoundException(f"Promotion {promo_id} not found")
+        is_admin = getattr(user, "role_id", None) in [4, 5]
+        if p.seller_id != user.id and not is_admin:
+            raise ForbiddenException("Unauthorized to modify this promotion")
+        valid_statuses = {"ACTIVE", "PAUSED", "EXPIRED", "DRAFT"}
+        if new_status.upper() not in valid_statuses:
+            raise BadRequestException(f"Invalid status: {new_status}. Allowed: {valid_statuses}")
+        p.status = new_status.upper()
+        p.updated_at = datetime.datetime.now(datetime.timezone.utc)
+        db.commit()
+        db.refresh(p)
+        return PromotionRead.model_validate(p)
+
+    @staticmethod
+    def delete_promotion(db: Session, user: User, promo_id: int) -> bool:
+        p = db.query(Promotion).filter(Promotion.id == promo_id).first()
+        if not p:
+            raise NotFoundException(f"Promotion {promo_id} not found")
+        is_admin = getattr(user, "role_id", None) in [4, 5]
+        if p.seller_id != user.id and not is_admin:
+            raise ForbiddenException("Unauthorized to delete this promotion")
+        db.delete(p)
+        db.commit()
+        return True
+
+    @staticmethod
     def check_eligibility(db: Session, user: User, promotion: Promotion) -> bool:
         if not promotion.is_repeat_only:
             return True

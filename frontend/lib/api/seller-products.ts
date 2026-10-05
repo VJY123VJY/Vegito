@@ -15,6 +15,8 @@ export type SellerProduct = {
     name: string;
     unit: string;
     description?: string | null;
+    images?: Array<{ id: number; image_url: string; is_primary?: boolean }>;
+    image_url?: string | null;
   } | null;
 };
 

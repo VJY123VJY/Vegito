@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Building2, ExternalLink, Heart, MapPin, Package, ShoppingBasket, Sparkles, Truck, UserRound } from "lucide-react";
+import { ArrowRight, Building2, Heart, MapPin, Package, ShoppingBasket, Sparkles, Truck, UserRound } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCategories } from "@/lib/api/categories";
 import { addCartItem, getCart, removeCartItem, updateCartItem } from "@/lib/api/cart";
@@ -289,14 +289,6 @@ export function CustomerHome() {
                   <p>{t("customer.realStock", "Real availability and freshness indicators from Vegito sellers.")}</p>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 14 }}>
-                  <a
-                    className={styles.textAction}
-                    href="https://wa.me/c/918855969612"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {t("customer.whatsappCatalogue", "WhatsApp catalogue")} <ExternalLink size={14} aria-hidden="true" />
-                  </a>
                   <Link className={styles.textAction} href="/search">
                     {t("common.all", "Explore all")} <ArrowRight size={14} />
                   </Link>

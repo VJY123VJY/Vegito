@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { clearSession } from "@/lib/api/auth";
+import { VegitoLogo } from "@/components/brand/vegito-logo";
 import {
   LayoutDashboard,
   Package,
@@ -77,14 +78,9 @@ export function SellerSidebar() {
       overflowY: "auto",
     }}>
       {/* Logo */}
-      <div style={{ padding: "22px 18px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-          <div style={{
-            width: "32px", height: "32px", background: "#6fcf3a",
-            borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "17px",
-          }}>🌿</div>
-          <span style={{ color: "#fff", fontSize: "19px", fontWeight: "800", letterSpacing: "-0.5px" }}>Vegito</span>
+      <div style={{ padding: "20px 18px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ marginBottom: "10px" }}>
+          <VegitoLogo variant="full" colorMode="dark" size={34} animated={true} />
         </div>
         <div style={{
           display: "inline-flex", alignItems: "center", gap: "5px",

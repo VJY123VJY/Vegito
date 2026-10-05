@@ -57,6 +57,18 @@ export type ApiProduct = {
 };
 export type Product = ApiProduct;
 export type ProductPage = { items: ApiProduct[]; meta: { total_items: number; page: number; total_pages: number; has_next: boolean } };
-export async function getProducts(params: { search?: string; categoryId?: number; pageSize?: number } = {}) { const { data } = await api.get<ApiEnvelope<ProductPage>>("/products", { params: { page_size: params.pageSize ?? 20, search: params.search || undefined, category_id: params.categoryId } }); return data.data; }
-export async function fetchProducts(params: { search?: string; categoryId?: number; pageSize?: number } = {}) { return getProducts(params); }
+export async function getProducts(params: { search?: string; categoryId?: number; productType?: string; pageSize?: number } = {}) {
+  const { data } = await api.get<ApiEnvelope<ProductPage>>("/products", {
+    params: {
+      page_size: params.pageSize ?? 20,
+      search: params.search || undefined,
+      category_id: params.categoryId,
+      product_type: params.productType,
+    },
+  });
+  return data.data;
+}
+export async function fetchProducts(params: { search?: string; categoryId?: number; productType?: string; pageSize?: number } = {}) {
+  return getProducts(params);
+}
 export async function getProduct(id: string) { const { data } = await api.get<ApiEnvelope<ApiProduct>>(`/products/${id}`); return data.data; }

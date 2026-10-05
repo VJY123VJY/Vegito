@@ -244,11 +244,48 @@ export default function OrderDetailPage() {
         </section>
       ) : null}
 
-      {data.delivery_otp ? (
-        <section className="otp-card">
-          <b>Delivery OTP</b>
-          <span>Share this code with your delivery partner when the order arrives.</span>
-          <strong>{data.delivery_otp}</strong>
+      {data.delivery_otp && data.status !== "DELIVERED" ? (
+        <section
+          style={{
+            margin: "18px 0",
+            padding: "20px",
+            backgroundColor: "#f0fdf4",
+            border: "2px dashed #16a34a",
+            borderRadius: "16px",
+            textAlign: "center",
+          }}
+        >
+          <p style={{ margin: 0, fontSize: "12px", textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 800, color: "#166534" }}>
+            YOUR DELIVERY OTP
+          </p>
+          <div style={{ fontSize: "38px", fontWeight: 900, letterSpacing: "10px", color: "#14532d", margin: "10px 0" }}>
+            {data.delivery_otp}
+          </div>
+          <span style={{ fontSize: "13px", color: "#15803d", display: "block" }}>
+            Share this 4-digit OTP with your delivery partner at your doorstep to complete delivery.
+          </span>
+        </section>
+      ) : null}
+
+      {data.status === "DELIVERED" ? (
+        <section
+          style={{
+            margin: "18px 0",
+            padding: "16px 20px",
+            backgroundColor: "#f0fdf4",
+            border: "1.5px solid #86efac",
+            borderRadius: "16px",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "#166534", fontWeight: 800, fontSize: "16px" }}>
+            <CheckCircle2 size={22} color="#16a34a" /> Order Delivered Successfully
+          </div>
+          <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#15803d" }}>
+            {data.delivered_at
+              ? `Delivered at ${new Date(data.delivered_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+              : "Delivered to your doorstep"}
+          </p>
         </section>
       ) : null}
 

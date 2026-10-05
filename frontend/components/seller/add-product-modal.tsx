@@ -31,9 +31,22 @@ const PRESET_VEGETABLE_IMAGES = [
   { label: "Cauliflower", url: "https://images.unsplash.com/photo-1568584711075-3d021a7c3ca3?w=600&auto=format&fit=crop&q=80" },
 ];
 
+const PRESET_FRUIT_IMAGES = [
+  { label: "Apples", url: "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=600&auto=format&fit=crop&q=80" },
+  { label: "Bananas", url: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=600&auto=format&fit=crop&q=80" },
+  { label: "Oranges", url: "https://images.unsplash.com/photo-1547514701-42782101795e?w=600&auto=format&fit=crop&q=80" },
+  { label: "Grapes", url: "https://images.unsplash.com/photo-1537640538966-79f369143f8f?w=600&auto=format&fit=crop&q=80" },
+  { label: "Pomegranates", url: "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=600&auto=format&fit=crop&q=80" },
+  { label: "Watermelon", url: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&auto=format&fit=crop&q=80" },
+];
+
+const VEGETABLE_CATEGORY_IDS = [1, 3, 4, 50, 51, 52, 53, 54, 55];
+const FRUIT_CATEGORY_IDS = [2, 56, 57, 58, 59, 60];
+
 export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalProps) {
   const queryClient = useQueryClient();
 
+  const [productType, setProductType] = useState<"VEGETABLE" | "FRUIT">("VEGETABLE");
   const [productName, setProductName] = useState("");
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [unit, setUnit] = useState("1 KG");
@@ -100,6 +113,38 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
     reader.readAsDataURL(file);
   };
 
+  const handleProductNameChange = (newName: string) => {
+    setProductName(newName);
+    const lower = newName.toLowerCase().trim();
+    if (!lower) return;
+
+    const fruitKeywords = ["apple", "banana", "orange", "grape", "mango", "pomegranate", "watermelon", "melon", "papaya", "guava", "chikoo", "pineapple", "strawberry", "kiwi", "dragon fruit", "pear", "plum", "citrus", "berry", "seb", "kela", "santra", "anar", "angoor"];
+    const vegKeywords = ["tomato", "potato", "onion", "spinach", "palak", "methi", "coriander", "cabbage", "cauliflower", "gourd", "karela", "dudhi", "chilli", "mirchi", "cucumber", "ginger", "garlic", "peas", "matar", "beans", "corn", "carrot", "radish", "beetroot", "mushroom", "batata", "aloo", "kanda", "pyaz"];
+
+    const isF = fruitKeywords.some((k) => lower.includes(k));
+    const isV = vegKeywords.some((k) => lower.includes(k));
+
+    if (isF && !isV) {
+      setProductType("FRUIT");
+      if (lower.includes("orange") || lower.includes("santra") || lower.includes("citrus")) setCategoryId(56);
+      else if (lower.includes("banana") || lower.includes("mango") || lower.includes("pomegranate") || lower.includes("papaya")) setCategoryId(57);
+      else if (lower.includes("watermelon") || lower.includes("melon")) setCategoryId(58);
+      else if (lower.includes("grape") || lower.includes("strawberr") || lower.includes("berr")) setCategoryId(59);
+      else if (lower.includes("apple") || lower.includes("kiwi") || lower.includes("dragon")) setCategoryId(60);
+      else setCategoryId(2);
+    } else if (isV && !isF) {
+      setProductType("VEGETABLE");
+      if (lower.includes("spinach") || lower.includes("palak") || lower.includes("methi") || lower.includes("coriander")) setCategoryId(3);
+      else if (lower.includes("potato") || lower.includes("onion") || lower.includes("carrot") || lower.includes("radish") || lower.includes("beetroot")) setCategoryId(4);
+      else if (lower.includes("tomato") || lower.includes("cucumber") || lower.includes("chilli") || lower.includes("pepper")) setCategoryId(50);
+      else if (lower.includes("gourd") || lower.includes("karela") || lower.includes("dudhi")) setCategoryId(51);
+      else if (lower.includes("pea") || lower.includes("matar") || lower.includes("bean")) setCategoryId(52);
+      else if (lower.includes("cabbage") || lower.includes("cauliflower") || lower.includes("broccoli")) setCategoryId(53);
+      else if (lower.includes("ginger") || lower.includes("garlic") || lower.includes("lemon")) setCategoryId(54);
+      else setCategoryId(1);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -119,9 +164,22 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
       return;
     }
 
+    const effectiveCatId = categoryId || (productType === "FRUIT" ? 2 : 1);
+
+    // Validate category does not conflict with productType
+    if (productType === "VEGETABLE" && FRUIT_CATEGORY_IDS.includes(effectiveCatId)) {
+      setError("Invalid classification: A vegetable cannot belong to a fruit category.");
+      return;
+    }
+    if (productType === "FRUIT" && VEGETABLE_CATEGORY_IDS.includes(effectiveCatId)) {
+      setError("Invalid classification: A fruit cannot belong to a vegetable category.");
+      return;
+    }
+
     addMutation.mutate({
       product_name: productName.trim(),
-      category_id: categoryId || (categoriesQuery.data?.[0]?.id ?? 1),
+      product_type: productType,
+      category_id: effectiveCatId,
       unit: unit,
       price: numPrice,
       stock_quantity: numStock,
@@ -319,13 +377,13 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
                         padding: 0,
                       }}
                     >
-                      {showPresets ? "Hide preset vegetable images" : "Select from preset farm images"}
+                      {showPresets ? `Hide preset ${productType.toLowerCase()} images` : `Select from preset ${productType.toLowerCase()} images`}
                     </button>
                   </div>
 
                   {showPresets && (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
-                      {PRESET_VEGETABLE_IMAGES.map((preset) => (
+                      {(productType === "VEGETABLE" ? PRESET_VEGETABLE_IMAGES : PRESET_FRUIT_IMAGES).map((preset) => (
                         <div
                           key={preset.label}
                           onClick={() => setImageUrl(preset.url)}
@@ -354,6 +412,65 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
               )}
             </div>
 
+            {/* Product Type Selector */}
+            <div>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#063c32", marginBottom: "6px" }}>
+                Product Type *
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductType("VEGETABLE");
+                    if (categoryId && FRUIT_CATEGORY_IDS.includes(categoryId)) {
+                      setCategoryId(undefined);
+                    }
+                  }}
+                  style={{
+                    padding: "10px",
+                    borderRadius: "10px",
+                    border: productType === "VEGETABLE" ? "2px solid #16835b" : "1px solid #cbd5e1",
+                    backgroundColor: productType === "VEGETABLE" ? "#f0fdf4" : "#ffffff",
+                    color: productType === "VEGETABLE" ? "#166534" : "#64748b",
+                    fontWeight: 700,
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                  }}
+                >
+                  🥦 VEGETABLE
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductType("FRUIT");
+                    if (categoryId && VEGETABLE_CATEGORY_IDS.includes(categoryId)) {
+                      setCategoryId(undefined);
+                    }
+                  }}
+                  style={{
+                    padding: "10px",
+                    borderRadius: "10px",
+                    border: productType === "FRUIT" ? "2px solid #ea580c" : "1px solid #cbd5e1",
+                    backgroundColor: productType === "FRUIT" ? "#fff7ed" : "#ffffff",
+                    color: productType === "FRUIT" ? "#c2410c" : "#64748b",
+                    fontWeight: 700,
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                  }}
+                >
+                  🍎 FRUIT
+                </button>
+              </div>
+            </div>
+
             {/* Product Name & Category */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
               <div>
@@ -364,8 +481,8 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
                   type="text"
                   required
                   value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                  placeholder="e.g. Fresh Red Tomatoes"
+                  onChange={(e) => handleProductNameChange(e.target.value)}
+                  placeholder={productType === "VEGETABLE" ? "e.g. Fresh Red Tomatoes" : "e.g. Royal Kashmiri Apples"}
                   style={{
                     width: "100%",
                     padding: "8px 12px",
@@ -379,7 +496,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
 
               <div>
                 <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
-                  Category *
+                  Category ({productType === "VEGETABLE" ? "Vegetable Categories" : "Fruit Categories"}) *
                 </label>
                 <select
                   value={categoryId || ""}
@@ -394,11 +511,17 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
                   }}
                 >
                   <option value="">Select Category...</option>
-                  {(categoriesQuery.data ?? []).map((cat: any) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
+                  {(categoriesQuery.data ?? [])
+                    .filter((cat: any) =>
+                      productType === "VEGETABLE"
+                        ? VEGETABLE_CATEGORY_IDS.includes(cat.id)
+                        : FRUIT_CATEGORY_IDS.includes(cat.id)
+                    )
+                    .map((cat: any) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
                 </select>
               </div>
             </div>

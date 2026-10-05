@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     API_V1_STR: str = "/api/v1"
     SERVICE_CITY: str = "Solapur"
+    MAX_DELIVERY_BATCH_SIZE: int = 10
 
     # =========================
     # Database

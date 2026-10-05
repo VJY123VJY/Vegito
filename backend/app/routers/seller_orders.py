@@ -24,11 +24,17 @@ def list_seller_orders(
 ):
     pagination = PaginationParams(page=page, page_size=page_size)
     orders, total_count = SellerService.list_orders(db, current_user, pagination, status=status)
+    from app.utils.display_number import batch_compute_order_display_numbers
+    display_nums = batch_compute_order_display_numbers(db, [o.id for o in orders])
     sanitized_orders = []
-    for o in orders:
+    for idx, o in enumerate(orders, start=1):
         read_obj = OrderRead.model_validate(o)
         read_obj.delivery_latitude = None
         read_obj.delivery_longitude = None
+        read_obj.display_number = display_nums.get(o.id, f"{idx:02d}")
+        if o.address:
+            raw_area = o.address.landmark or o.address.address_line1 or o.address.city or "Solapur"
+            read_obj.delivery_area = raw_area.split(",")[0].strip()
         if o.status not in ["READY", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"]:
             read_obj.pickup_otp = None
         sanitized_orders.append(read_obj)

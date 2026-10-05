@@ -268,11 +268,15 @@ def get_dashboard_summary(current_user: User = Depends(require_seller), db: Sess
     from app.models.order import Order
     from app.models.seller_product import SellerProduct
     from app.models.seller_profile import SellerProfile
+    from app.models.order_item import OrderItem
+    from app.models.delivery_batch import DeliveryBatch
     from datetime import datetime, timedelta, timezone
+    from collections import Counter
 
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = now - timedelta(days=7)
+    month_start = now - timedelta(days=30)
     profile = db.query(SellerProfile).filter(SellerProfile.user_id == current_user.id).first()
     seller_ids = [current_user.id]
     if profile and profile.id not in seller_ids:
@@ -282,39 +286,125 @@ def get_dashboard_summary(current_user: User = Depends(require_seller), db: Sess
     orders = db.query(Order).filter(or_(Order.seller_id.in_(seller_ids), Order.shop_id.in_(seller_ids))).all()
     
     live_orders = pending_orders = ready_orders = today_orders = 0
+    delivered_today = cancelled_today = out_for_delivery_today = 0
     today_revenue = weekly_revenue = monthly_revenue = 0.0
+    today_gross_sales = 0.0
+    items_sold_today = 0.0
     prep_times = []
+    today_order_ids = []
     
     for o in orders:
+        is_today = bool((o.placed_at and o.placed_at >= today_start) or (o.created_at and o.created_at >= today_start))
+        if is_today:
+            today_orders += 1
+            today_order_ids.append(o.id)
+            today_gross_sales += float(o.total_amount or 0)
+
         if o.status in ["ACCEPTED", "PACKING", "PREPARING", "SELLER_ACCEPTED"]:
             live_orders += 1
         elif o.status in ["NEW", "ORDER_PLACED"]:
             pending_orders += 1
         elif o.status in ["READY", "READY_FOR_PICKUP"]:
             ready_orders += 1
-            
-        if o.placed_at and o.placed_at >= today_start:
-            today_orders += 1
-            
+        elif o.status in ["PICKED_UP", "OUT_FOR_DELIVERY"]:
+            out_for_delivery_today += 1
+        elif o.status in ["CANCELLED", "REJECTED"]:
+            if is_today:
+                cancelled_today += 1
+
         if o.status in ["DELIVERED", "COMPLETED"]:
-            amt = float(o.total_amount)
+            amt = float(o.total_amount or 0)
             dt = o.delivered_at or o.updated_at
             if dt:
-                if dt >= today_start: today_revenue += amt
-                if dt >= week_start: weekly_revenue += amt
-                if dt >= month_start: monthly_revenue += amt
+                if dt >= today_start:
+                    today_revenue += amt
+                    delivered_today += 1
+                if dt >= week_start:
+                    weekly_revenue += amt
+                if dt >= month_start:
+                    monthly_revenue += amt
                     
         if o.accepted_at and o.ready_at:
             delta = (o.ready_at - o.accepted_at).total_seconds() / 60.0
-            if delta > 0: prep_times.append(delta)
+            if delta > 0:
+                prep_times.append(delta)
+
+    # Compute items sold today and top products
+    top_products_today = []
+    if today_order_ids:
+        today_items = db.query(OrderItem).filter(OrderItem.order_id.in_(today_order_ids)).all()
+        prod_counter = {}
+        for it in today_items:
+            qty = float(it.quantity or 0)
+            items_sold_today += qty
+            p_name = it.product_name or "Produce"
+            p_unit = it.unit or "kg"
+            if p_name not in prod_counter:
+                prod_counter[p_name] = {"quantity": 0.0, "unit": p_unit}
+            prod_counter[p_name]["quantity"] += qty
+
+        sorted_prods = sorted(prod_counter.items(), key=lambda x: x[1]["quantity"], reverse=True)
+        top_products_today = [
+            {"name": name, "quantity": round(info["quantity"], 2), "unit": info["unit"]}
+            for name, info in sorted_prods[:5]
+        ]
+
+    # Compute area distribution
+    area_counter = Counter()
+    for o in orders:
+        if o.id in today_order_ids and o.address:
+            area = o.address.landmark or o.address.address_line1 or o.address.city or "Solapur"
+            # Keep first 2-3 words of locality for clean display
+            short_area = area.split(",")[0].strip()
+            area_counter[short_area] += 1
+
+    area_orders = [{"area": area, "count": count} for area, count in area_counter.most_common(5)]
+
+    # Batches count
+    from app.models.delivery_partner import DeliveryPartner
+    dp = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == current_user.id).first()
+    active_batches_count = 0
+    if dp:
+        active_batches_count = db.query(DeliveryBatch).filter(
+            DeliveryBatch.delivery_partner_id == dp.id,
+            DeliveryBatch.status.in_(["CREATED", "IN_PROGRESS"])
+        ).count()
 
     avg_prep = sum(prep_times) / len(prep_times) if prep_times else None
+    avg_order_val = (
+        round(today_revenue / delivered_today, 2)
+        if delivered_today > 0
+        else (round(today_gross_sales / today_orders, 2) if today_orders > 0 else 0.0)
+    )
 
     sps = db.query(SellerProduct).filter(SellerProduct.seller_id.in_(seller_ids)).all()
     low_stock_count = sum(1 for sp in sps if sp.stock_quantity <= (sp.low_stock_threshold or 10))
     profile = db.query(SellerProfile).filter(SellerProfile.user_id == current_user.id).first()
     
     return APIResponse(data={
+        # V1 operational dashboard fields
+        "store_name": profile.business_name if profile else "Vegito Fresh Store",
+        "is_online": profile.is_available if profile else True,
+        "orders_today": today_orders,
+        "sales_today": round(today_revenue if today_revenue > 0 else today_gross_sales, 2),
+        "delivered_today": delivered_today,
+        "pending_today": pending_orders,
+        "ready_today": ready_orders,
+        "out_for_delivery_today": out_for_delivery_today,
+        "cancelled_today": cancelled_today,
+        "avg_order_value": avg_order_val,
+        "items_sold_today": round(items_sold_today, 2),
+        "active_batches_count": active_batches_count,
+        "profit_status": "DATA_UNAVAILABLE",
+        "profit_message": "Cost data not configured — showing gross sales",
+        "profit_amount": None,
+        "area_orders": area_orders,
+        "top_products_today": top_products_today,
+        "suggested_route": {
+            "order_count": ready_orders,
+            "can_batch": ready_orders > 0,
+        },
+        # Backwards compatible fields
         "live_orders": live_orders,
         "pending_orders": pending_orders,
         "ready_orders": ready_orders,

@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.dependencies import require_delivery_partner, get_current_user
+from app.dependencies import require_delivery_partner, require_seller_or_delivery, get_current_user
 from app.models.user import User
 from app.models.delivery_task import DeliveryTask
 from app.models.seller_profile import SellerProfile
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/delivery", tags=["Delivery Partner"])
 @router.get("/tasks", response_model=APIResponse[List[DeliveryTaskRead]], summary="List assigned delivery tasks")
 def list_tasks(
     status: Optional[str] = None,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     tasks = DeliveryService.list_partner_tasks(db, current_user, status=status)
@@ -39,7 +39,7 @@ def list_tasks(
 @router.get("/orders", response_model=APIResponse[List[DeliveryTaskRead]], summary="List assigned delivery tasks (alias)")
 def list_delivery_orders(
     status: Optional[str] = None,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     tasks = DeliveryService.list_partner_tasks(db, current_user, status=status)
@@ -49,7 +49,7 @@ def list_delivery_orders(
 @router.get("/tasks/{task_id}", response_model=APIResponse[DeliveryTaskRead], summary="Get specific delivery task with IDOR protection")
 def get_task(
     task_id: int,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     partner = DeliveryService.get_delivery_partner(db, current_user)
@@ -57,7 +57,8 @@ def get_task(
     if not task:
         raise NotFoundException(f"Delivery task {task_id} not found")
     if task.delivery_partner_id is not None and task.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
-        raise ForbiddenException("This task is assigned to another delivery partner")
+        if not (task.order and task.order.seller_id == current_user.id):
+            raise ForbiddenException("This task is assigned to another delivery partner")
 
 
     order = task.order
@@ -130,7 +131,7 @@ def get_task(
 def verify_task_pickup_otp(
     task_id: int,
     payload: VerifyPickupOtpRequest,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     partner = DeliveryService.get_delivery_partner(db, current_user)
@@ -143,7 +144,8 @@ def verify_task_pickup_otp(
             task.order.delivery_partner_id = partner.id
         db.commit()
     elif task.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
-        raise ForbiddenException("This task is assigned to another delivery partner")
+        if not (task.order and task.order.seller_id == current_user.id):
+            raise ForbiddenException("This task is assigned to another delivery partner")
 
     result = DeliveryService.verify_pickup_otp(db, current_user, task.order_id, payload.otp)
     return APIResponse(message="Pickup OTP Verified", data=result)
@@ -156,7 +158,7 @@ def verify_task_pickup_otp(
 )
 def get_task_customer_location(
     task_id: int,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     partner = DeliveryService.get_delivery_partner(db, current_user)
@@ -164,7 +166,8 @@ def get_task_customer_location(
     if not task:
         raise NotFoundException(f"Delivery task {task_id} not found")
     if task.delivery_partner_id is not None and task.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
-        raise ForbiddenException("This task is assigned to another delivery partner")
+        if not (task.order and task.order.seller_id == current_user.id):
+            raise ForbiddenException("This task is assigned to another delivery partner")
 
     order = task.order
     if not order:
@@ -211,7 +214,7 @@ def get_task_customer_location(
 )
 def get_order_customer_location(
     order_id: int,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     partner = DeliveryService.get_delivery_partner(db, current_user)
@@ -219,7 +222,8 @@ def get_order_customer_location(
     if not order:
         raise NotFoundException(f"Order {order_id} not found")
     if order.delivery_partner_id is not None and order.delivery_partner_id != partner.id and current_user.role_id not in [4, 5]:
-        raise ForbiddenException("This order is assigned to another delivery partner")
+        if order.seller_id != current_user.id:
+            raise ForbiddenException("This order is assigned to another delivery partner")
 
     task = db.query(DeliveryTask).filter(DeliveryTask.order_id == order.id).first()
 
@@ -261,7 +265,7 @@ def get_order_customer_location(
 def update_task_status(
     task_id: int,
     payload: DeliveryTaskStatusUpdate,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     DeliveryService.update_task_status(db, current_user, task_id, payload.status, payload.note)
@@ -272,7 +276,7 @@ def update_task_status(
 def verify_delivery_otp(
     task_id: int,
     payload: DeliveryOtpVerifyRequest,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     DeliveryService.verify_delivery_otp_and_complete(
@@ -290,7 +294,7 @@ def list_zones(db: Session = Depends(get_db)):
 @router.post("/orders/{order_id}/accept", response_model=APIResponse[bool], summary="Delivery partner accepts order")
 def accept_order(
     order_id: int,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     DeliveryService.accept_delivery(db, current_user, order_id)
@@ -301,7 +305,7 @@ def accept_order(
 def verify_pickup_otp(
     order_id: int,
     payload: VerifyPickupOtpRequest,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     result = DeliveryService.verify_pickup_otp(db, current_user, order_id, payload.otp)
@@ -311,7 +315,7 @@ def verify_pickup_otp(
 @router.post("/orders/{order_id}/pickup", response_model=APIResponse[bool], summary="Delivery partner marks order picked up from shop")
 def pickup_order(
     order_id: int,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     DeliveryService.accept_delivery(db, current_user, order_id)
@@ -321,7 +325,7 @@ def pickup_order(
 @router.post("/orders/{order_id}/start", response_model=APIResponse[bool], summary="Delivery partner starts delivery to customer")
 def start_order(
     order_id: int,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     DeliveryService.start_delivery(db, current_user, order_id)
@@ -330,7 +334,7 @@ def start_order(
 
 @router.get("/profile", response_model=APIResponse[DeliveryPartnerProfileRead], summary="Get delivery partner profile")
 def get_delivery_profile(
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == current_user.id).first()
@@ -367,7 +371,7 @@ def get_delivery_profile(
 @router.patch("/profile", response_model=APIResponse[DeliveryPartnerProfileRead], summary="Update delivery partner profile")
 def update_delivery_profile(
     payload: DeliveryPartnerProfileUpdate,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == current_user.id).first()
@@ -417,7 +421,7 @@ def update_delivery_profile(
 @router.patch("/availability", response_model=APIResponse[DeliveryPartnerProfileRead], summary="Toggle delivery partner availability (online/offline)")
 def set_delivery_availability(
     payload: DeliveryPartnerAvailabilityUpdate,
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     partner = db.query(DeliveryPartner).filter(DeliveryPartner.user_id == current_user.id).first()
@@ -455,7 +459,7 @@ def set_delivery_availability(
 
 @router.get("/reviews", summary="Customer reviews for logged-in delivery partner")
 def get_partner_reviews(
-    current_user: User = Depends(require_delivery_partner),
+    current_user: User = Depends(require_seller_or_delivery),
     db: Session = Depends(get_db),
 ):
     from app.services.review_service import ReviewService
@@ -468,7 +472,7 @@ def get_partner_reviews(
 
 
 @router.get("/earnings", summary="Delivery earnings dashboard")
-def get_delivery_earnings(current_user: User = Depends(require_delivery_partner), db: Session = Depends(get_db)):
+def get_delivery_earnings(current_user: User = Depends(require_seller_or_delivery), db: Session = Depends(get_db)):
     from app.models.delivery_task import DeliveryTask
     from app.models.delivery_partner import DeliveryPartner
     from datetime import datetime, timedelta, timezone
@@ -506,7 +510,7 @@ def get_delivery_earnings(current_user: User = Depends(require_delivery_partner)
 
 
 @router.get("/performance", summary="Delivery performance metrics")
-def get_delivery_performance(current_user: User = Depends(require_delivery_partner), db: Session = Depends(get_db)):
+def get_delivery_performance(current_user: User = Depends(require_seller_or_delivery), db: Session = Depends(get_db)):
     from app.models.delivery_task import DeliveryTask
     from app.models.delivery_partner import DeliveryPartner
     from app.models.review import Review
@@ -560,7 +564,7 @@ def get_delivery_performance(current_user: User = Depends(require_delivery_partn
 
 
 @router.post("/tasks/{task_id}/fail", summary="Mark task as failed")
-def fail_delivery_task(task_id: int, payload: dict, current_user: User = Depends(require_delivery_partner), db: Session = Depends(get_db)):
+def fail_delivery_task(task_id: int, payload: dict, current_user: User = Depends(require_seller_or_delivery), db: Session = Depends(get_db)):
     from app.models.delivery_task import DeliveryTask
     from app.models.delivery_partner import DeliveryPartner
     from app.models.delivery_task_status_history import DeliveryTaskStatusHistory
