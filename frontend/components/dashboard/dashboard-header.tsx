@@ -243,7 +243,7 @@ export function DashboardHeader({
               </button>
               <button
                 type="button"
-                onClick={() => router.push("/seller/deliveries")}
+                onClick={() => router.push("/delivery")}
                 style={{
                   padding: "6px 12px",
                   borderRadius: "7px",

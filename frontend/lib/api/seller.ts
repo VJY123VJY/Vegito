@@ -123,6 +123,10 @@ export async function updateSellerProfile(payload: {
   description?: string;
   gst_number?: string;
   business_type?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  is_available?: boolean;
 }) {
   const { data } = await api.patch<ApiEnvelope<any>>("/seller/profile", payload);
   return data.data;

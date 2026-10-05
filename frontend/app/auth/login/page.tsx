@@ -42,6 +42,15 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryPhone = searchParams?.get("phone") || "";
+  const rawRole = (searchParams?.get("role") || "").toUpperCase();
+  const queryRole: AuthRole | null =
+    rawRole === "CUSTOMER"
+      ? "CUSTOMER"
+      : rawRole === "SELLER"
+      ? "SELLER"
+      : rawRole === "DELIVERY" || rawRole === "DELIVERY_PARTNER"
+      ? "DELIVERY_PARTNER"
+      : null;
 
   // Stages: "phone" -> "otp" -> "workspace_select" (if multi-role)
   const [stage, setStage] = useState<"phone" | "otp" | "workspace_select">("phone");
@@ -130,12 +139,18 @@ function LoginContent() {
 
     setLoading(true);
     try {
-      const tokenRes = await verifyLoginOtp(phone.replace(/\D/g, ""), cleanOtp);
+      const tokenRes = await verifyLoginOtp(phone.replace(/\D/g, ""), cleanOtp, queryRole || undefined);
       saveSession(tokenRes);
 
       const roles = tokenRes.authorized_roles || [tokenRes.role];
 
-      // Multi-role discovery: If user has multiple roles, allow choosing workspace
+      // If user came via a specific portal and is authorized for that role, go directly
+      if (queryRole && roles.includes(queryRole)) {
+        router.push(getRoleRedirectPath(queryRole));
+        return;
+      }
+
+      // Multi-role discovery: If user has multiple roles and didn't specify portal, allow choosing workspace
       if (roles.length > 1) {
         setMultiRoleSession(tokenRes);
         setStage("workspace_select");
@@ -168,10 +183,16 @@ function LoginContent() {
 
     setLoading(true);
     try {
-      const tokenRes = await loginWithPassword(cleanPhone, password);
+      const tokenRes = await loginWithPassword(cleanPhone, password, queryRole || undefined);
       saveSession(tokenRes);
 
       const roles = tokenRes.authorized_roles || [tokenRes.role];
+
+      if (queryRole && roles.includes(queryRole)) {
+        router.push(getRoleRedirectPath(queryRole));
+        return;
+      }
+
       if (roles.length > 1) {
         setMultiRoleSession(tokenRes);
         setStage("workspace_select");

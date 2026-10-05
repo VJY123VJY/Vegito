@@ -6,6 +6,9 @@ import { I18nProvider } from "@/context/i18n-context";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { useRouter } from "next/navigation";
+import { SessionExpiredModal } from "@/components/common/session-expired-modal";
+import { LocationProvider } from "@/context/location-context";
+import { LocationBar } from "@/components/common/location-bar";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -74,7 +77,13 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <I18nProvider>
-        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        <QueryClientProvider client={client}>
+          <LocationProvider>
+            <LocationBar />
+            {children}
+            <SessionExpiredModal />
+          </LocationProvider>
+        </QueryClientProvider>
       </I18nProvider>
     </ThemeProvider>
   );

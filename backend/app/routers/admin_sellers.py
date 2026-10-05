@@ -1,4 +1,4 @@
-﻿from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session, joinedload
@@ -76,7 +76,7 @@ def list_sellers(
     query = (
         db.query(SellerProfile)
         .join(User, User.id == SellerProfile.user_id)
-        .options(joinedload(SellerProfile.user), joinedload(SellerProfile.address))
+        .options(joinedload(SellerProfile.user), joinedload(SellerProfile.saved_address))
     )
 
     if q:
@@ -121,7 +121,7 @@ def list_sellers(
             contact_name=sp.user.name if sp.user else None,
             phone=sp.user.phone if sp.user else "",
             email=sp.user.email if sp.user else None,
-            city=sp.address.city if sp.address else None,
+            city=sp.saved_address.city if sp.saved_address else (sp.address or None),
             is_verified=sp.is_verified,
             is_active=sp.user.is_active if sp.user else True,
             rating=sp.rating,
@@ -150,7 +150,7 @@ def get_seller_detail(
 ):
     sp = (
         db.query(SellerProfile)
-        .options(joinedload(SellerProfile.user), joinedload(SellerProfile.address))
+        .options(joinedload(SellerProfile.user), joinedload(SellerProfile.saved_address))
         .filter(SellerProfile.user_id == seller_id)
         .first()
     )
@@ -158,7 +158,7 @@ def get_seller_detail(
         raise NotFoundException(f"Seller with ID {seller_id} not found")
 
     user = sp.user
-    addr = sp.address
+    addr = sp.saved_address
     addr_dict = None
     if addr:
         addr_dict = {
@@ -168,6 +168,15 @@ def get_seller_detail(
             "pincode": addr.pincode,
             "latitude": float(addr.latitude) if addr.latitude else None,
             "longitude": float(addr.longitude) if addr.longitude else None,
+        }
+    elif sp.address or sp.latitude:
+        addr_dict = {
+            "address_line1": sp.address or "Shop Location",
+            "city": "Solapur",
+            "state": "Maharashtra",
+            "pincode": "413001",
+            "latitude": float(sp.latitude) if sp.latitude else None,
+            "longitude": float(sp.longitude) if sp.longitude else None,
         }
 
     # Products

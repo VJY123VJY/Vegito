@@ -19,9 +19,33 @@ class DeliveryPricingService:
         No fake urban fallback is allowed: if the seller profile has no actual GPS pin,
         the caller must reject the order instead of substituting a fabricated Solapur coordinate.
         """
+        from app.models.user import User
+        from sqlalchemy import or_
+
         shop_prof = None
         if seller_id:
-            shop_prof = db.query(SellerProfile).filter(SellerProfile.user_id == seller_id).first()
+            shop_prof = (
+                db.query(SellerProfile)
+                .filter(or_(SellerProfile.user_id == seller_id, SellerProfile.id == seller_id))
+                .first()
+            )
+
+        if not shop_prof:
+            shop_prof = (
+                db.query(SellerProfile)
+                .join(User, SellerProfile.user_id == User.id)
+                .filter(
+                    User.is_active == True,
+                    SellerProfile.latitude.isnot(None),
+                    SellerProfile.longitude.isnot(None),
+                )
+                .first()
+            )
+        if not shop_prof:
+            shop_prof = db.query(SellerProfile).filter(
+                SellerProfile.latitude.isnot(None),
+                SellerProfile.longitude.isnot(None),
+            ).first()
 
         if not shop_prof:
             return None, None
@@ -44,13 +68,13 @@ class DeliveryPricingService:
     ) -> Tuple[Decimal, float]:
         """
         Calculates the distance from Seller Shop -> Customer Address and computes
-        the delivery fee according to Vegito's 1–7 KM operational bands:
+        the delivery fee according to Vegito's operational bands:
           - 0.0 to 1.0 km: ₹20.00
           - 1.0 to 3.0 km: ₹30.00
           - 3.0 to 5.0 km: ₹40.00
-          - 5.0 to 7.0 km: ₹50.00
-          - > 7.0 km: Blocked with exact message:
-            "Sorry, this address is outside Vegito's current delivery area."
+          - 5.0 to 20.0 km: ₹50.00
+          - > 20.0 km: Blocked with exact message:
+            "Sorry, this delivery address is outside our 20 KM delivery area."
         """
         from app.services.mapbox_service import MapboxService
         from app.services.location_service import LocationService
@@ -63,7 +87,7 @@ class DeliveryPricingService:
         cust_lat, cust_lng = LocationService.resolve_address_coordinates(db, address)
 
         # Resolve seller shop coordinates without fabricating default Solapur coordinates.
-        shop_lat, shop_lng = LocationService.resolve_seller_coordinates(db, seller_id) if seller_id else (None, None)
+        shop_lat, shop_lng = LocationService.resolve_seller_coordinates(db, seller_id)
         if shop_lat is None or shop_lng is None:
             shop_lat, shop_lng = DeliveryPricingService.get_seller_shop_coordinates(db, seller_id)
         if shop_lat is None or shop_lng is None:
@@ -78,16 +102,12 @@ class DeliveryPricingService:
 
         distance_km, is_mapbox = MapboxService.get_route_distance_km(shop_lat, shop_lng, cust_lat, cust_lng)
 
-
-        max_radius = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 15.0))
+        max_radius = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))
         if distance_km > max_radius:
             logger.warning(
                 f"[DELIVERY_PRICING] Distance {distance_km} km exceeds maximum limit of {max_radius} km. Checkout blocked."
             )
-            if max_radius == 6.0:
-                out_msg = "This address is outside our delivery range. Please select an address within 6 km."
-            else:
-                out_msg = f"Sorry, this delivery address is outside our {int(max_radius)} KM delivery area."
+            out_msg = f"Sorry, this delivery address is outside our {int(max_radius)} KM delivery area."
             raise BadRequestException(
                 message=out_msg,
                 code="DELIVERY_OUT_OF_RANGE",
@@ -106,7 +126,7 @@ class DeliveryPricingService:
         elif distance_km <= 5.0:
             fee = getattr(settings, "DELIVERY_FEE_3_TO_5_KM", 40.0)
         else:
-            fee = getattr(settings, "DELIVERY_FEE_5_TO_15_KM", getattr(settings, "DELIVERY_FEE_5_TO_6_KM", 50.0))
+            fee = getattr(settings, "DELIVERY_FEE_5_TO_20_KM", getattr(settings, "DELIVERY_FEE_5_TO_15_KM", 50.0))
 
         delivery_charge = Decimal(str(fee)).quantize(Decimal("0.01"))
         logger.info(

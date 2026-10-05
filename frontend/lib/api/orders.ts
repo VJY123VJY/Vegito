@@ -39,6 +39,9 @@ export type Order = {
   sla_minutes_remaining?: number | null;
   customer_name?: string | null;
   delivery_area?: string | null;
+  delivered_at?: string | null;
+  packed_at?: string | null;
+  ready_at?: string | null;
   items?: OrderItem[];
 };
 

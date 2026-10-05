@@ -6,6 +6,7 @@ import { Settings, LogOut, Volume2, Bell, MapPin, Check, Shield } from "lucide-r
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { clearSession, getStoredUserName } from "@/lib/api/auth";
 import { playNotificationSound } from "@/lib/audio/chime";
+import { AppPreferencesCard } from "@/components/settings/app-preferences-card";
 
 export default function DeliverySettingsPage() {
   const router = useRouter();
@@ -57,6 +58,9 @@ export default function DeliverySettingsPage() {
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          {/* App Preferences (Language & Theme) */}
+          <AppPreferencesCard />
+
           {/* Audio Chime Settings */}
           <div
             style={{

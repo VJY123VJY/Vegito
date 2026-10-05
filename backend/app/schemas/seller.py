@@ -11,6 +11,9 @@ class SellerProfileBase(BaseModel):
     business_type: Optional[str] = Field(None, max_length=50)
     description: Optional[str] = None
     address_id: Optional[int] = None
+    address: Optional[str] = None
+    latitude: Optional[Decimal] = None
+    longitude: Optional[Decimal] = None
     gst_number: Optional[str] = Field(None, max_length=30)
 
 
@@ -23,6 +26,9 @@ class SellerProfileUpdate(BaseModel):
     business_type: Optional[str] = Field(None, max_length=50)
     description: Optional[str] = None
     address_id: Optional[int] = None
+    address: Optional[str] = None
+    latitude: Optional[Decimal] = None
+    longitude: Optional[Decimal] = None
     gst_number: Optional[str] = Field(None, max_length=30)
     is_available: Optional[bool] = None
 

@@ -21,3 +21,15 @@ class CustomerProfileRead(BaseSchema):
     created_at: datetime.datetime
     updated_at: datetime.datetime
     user: Optional[UserRead] = None
+
+
+class DeliveryEligibilityRead(BaseSchema):
+    is_eligible: bool
+    distance_km: Optional[float] = None
+    max_radius_km: float = 20.0
+    seller_name: Optional[str] = None
+    seller_address: Optional[str] = None
+    seller_lat: Optional[float] = None
+    seller_lng: Optional[float] = None
+    seller_is_online: bool = True
+    message: str

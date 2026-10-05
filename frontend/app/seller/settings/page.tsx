@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { RoleGuard } from "@/components/role/role-guard";
 import { Settings, Bell, Shield, Smartphone, Check } from "lucide-react";
+import { AppPreferencesCard } from "@/components/settings/app-preferences-card";
 
 export default function SellerSettingsPage() {
   const [notifications, setNotifications] = useState(true);
@@ -26,7 +27,11 @@ export default function SellerSettingsPage() {
         subtitle="Configure order notifications, store dispatch preferences, and security"
         searchPlaceholder="Search settings..."
       >
-        <div style={{ maxWidth: "700px" }}>
+        <div style={{ maxWidth: "700px", display: "flex", flexDirection: "column", gap: "20px" }}>
+          {/* App Preferences (Language & Theme) */}
+          <AppPreferencesCard />
+
+          <div>
           <h2 style={{ margin: "0 0 18px", fontSize: "20px", fontWeight: 800, color: "#063c32" }}>
             Store Notifications & Dispatch Preferences
           </h2>
@@ -139,6 +144,7 @@ export default function SellerSettingsPage() {
                 Save Preferences
               </button>
             </div>
+          </div>
           </div>
         </div>
       </DashboardShell>

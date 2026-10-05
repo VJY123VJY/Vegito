@@ -63,7 +63,7 @@ def send_otp(payload: SendOtpRequest, db: Session = Depends(get_db)):
     summary="Verify OTP and obtain JWT token (Backend resolves user role)",
 )
 def verify_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
-    token_res = AuthService.verify_otp_for_phone(db, payload.phone, payload.otp)
+    token_res = AuthService.verify_otp_for_phone(db, payload.phone, payload.otp, payload.role)
     return APIResponse(message="Authentication successful", data=token_res)
 
 
@@ -201,8 +201,13 @@ def admin_verify_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
 )
 def get_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     user_read = UserRead.model_validate(current_user)
-    user_read.role_name = ROLE_NAME_MAP.get(current_user.role_id)
-    user_read.authorized_roles = AuthService.get_user_authorized_roles(db, current_user)
+    authorized = AuthService.get_user_authorized_roles(db, current_user)
+    active_role = getattr(current_user, "_active_token_role", None)
+    if active_role and active_role in authorized:
+        user_read.role_name = active_role
+    else:
+        user_read.role_name = ROLE_NAME_MAP.get(current_user.role_id)
+    user_read.authorized_roles = authorized
     return APIResponse(message="User profile retrieved", data=user_read)
 
 

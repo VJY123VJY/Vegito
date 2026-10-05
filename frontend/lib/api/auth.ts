@@ -89,10 +89,10 @@ export async function sendLoginOtp(phone: string) {
   }
 }
 
-export async function verifyLoginOtp(phone: string, otp: string) {
+export async function verifyLoginOtp(phone: string, otp: string, role?: string) {
   const { data } = await api.post<ApiEnvelope<TokenResponse>>(
     "/auth/verify-otp",
-    { phone, otp }
+    { phone, otp, role: role || undefined }
   );
   return data.data;
 }
@@ -320,6 +320,9 @@ export function clearSession() {
     "vegito.user-phone",
     "vegito.authorized-roles",
     "vegito_read_notifications",
+    "vegito.customer.location",
+    "vegito.selected_location",
+    "vegito.saved_address",
   ];
   keys.forEach((k) => {
     localStorage.removeItem(k);

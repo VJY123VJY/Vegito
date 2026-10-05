@@ -27,6 +27,7 @@ from app.services.payment_service import PaymentService
 from app.services.coupon_service import CouponService
 from app.services.delivery_service import DeliveryService
 from app.services.notification_service import NotificationService
+from app.services.location_service import LocationService
 from app.utils.otp import generate_pickup_otp, generate_pickup_code
 from app.core.security import hash_otp
 from app.config import settings
@@ -146,16 +147,16 @@ class OrderService:
             )
 
         seller_dist = LocationService.calculate_distance(cust_lat, cust_lon, s_lat, s_lon)
-        is_in_bounds, bounds_msg = LocationService.is_within_delivery_bounds(seller_dist, max_km=15.0)
+        is_in_bounds, bounds_msg = LocationService.is_within_delivery_bounds(seller_dist, max_km=20.0)
         if not is_in_bounds:
-            out_msg = f"Sorry, this delivery address is outside our 15 KM delivery area. (Distance: {seller_dist:.1f} km)"
+            out_msg = f"Sorry, this delivery address is outside our 20 KM delivery area. (Distance: {seller_dist:.1f} km)"
             raise BadRequestException(
                 message=out_msg,
                 code="DELIVERY_OUT_OF_RANGE",
-                details={"distance": seller_dist, "max_distance": 15.0, "message": out_msg}
+                details={"distance": seller_dist, "max_distance": 20.0, "message": out_msg}
             )
 
-        # Centralized Server-Side Distance-Based Delivery Fee (1–15 KM, >15 KM blocked)
+        # Centralized Server-Side Distance-Based Delivery Fee (1–20 KM, >20 KM blocked)
         from app.services.delivery_pricing_service import DeliveryPricingService
         delivery_charge, delivery_distance_km = DeliveryPricingService.calculate_delivery_distance_and_fee(
             db=db,
@@ -606,11 +607,11 @@ class OrderService:
             from app.services.delivery_service import DeliveryService
             from app.models.delivery_task_status_history import DeliveryTaskStatusHistory
             if not order.delivery_partner_id:
-                assigned_partner, dist_km = DeliveryService.find_and_assign_nearest_partner(db, order, max_radius_km=15.0)
+                assigned_partner, dist_km = DeliveryService.find_and_assign_nearest_partner(db, order, max_radius_km=20.0)
                 if assigned_partner:
                     logger.info(f"Assigned partner {assigned_partner.id} to order {order.id} (distance {dist_km} km)")
                 else:
-                    logger.info(f"No available delivery partner within 1-15 km radius for order {order.id}. Order remains READY awaiting partner.")
+                    logger.info(f"No available delivery partner within 1-20 km radius for order {order.id}. Order remains READY awaiting partner.")
 
             # Store pickup code hash into task notes for verification while preserving any doorstep OTP
             task = db.query(DeliveryTask).filter(DeliveryTask.order_id == order.id).first()

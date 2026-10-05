@@ -17,6 +17,7 @@ import { getSellerProfile, updateSellerProfile } from "@/lib/api/seller";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { RoleGuard } from "@/components/role/role-guard";
 import { getErrorMessage } from "@/lib/api/client";
+import { SellerShopLocationModal } from "@/components/seller/seller-shop-location-modal";
 
 export default function SellerProfilePage() {
   const queryClient = useQueryClient();
@@ -25,6 +26,7 @@ export default function SellerProfilePage() {
   const [businessType, setBusinessType] = useState("FARMER");
   const [gstNumber, setGstNumber] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   const profileQuery = useQuery({
     queryKey: ["seller-profile"],
@@ -171,6 +173,94 @@ export default function SellerProfilePage() {
             </div>
           </div>
 
+          {/* Shop Pickup Location Card */}
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              border: "1px solid #e1e8e2",
+              borderRadius: "16px",
+              padding: "20px 24px",
+              marginBottom: "24px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "16px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "14px", flex: 1, minWidth: "260px" }}>
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  backgroundColor: seller?.latitude && seller?.longitude ? "#f0fdf4" : "#fef2f2",
+                  color: seller?.latitude && seller?.longitude ? "#15803d" : "#b91c1c",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <MapPin size={22} />
+              </div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <h4 style={{ margin: 0, fontSize: "15px", fontWeight: 800, color: "#063c32" }}>
+                    Shop Pickup Location & 20 KM Delivery Radius
+                  </h4>
+                  <span
+                    style={{
+                      padding: "2px 8px",
+                      borderRadius: "6px",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      backgroundColor: seller?.latitude && seller?.longitude ? "#f0fdf4" : "#fef2f2",
+                      color: seller?.latitude && seller?.longitude ? "#15803d" : "#b91c1c",
+                      border: seller?.latitude && seller?.longitude ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                    }}
+                  >
+                    {seller?.latitude && seller?.longitude ? "🟢 Shop Location Active" : "🔴 Shop Location Missing"}
+                  </span>
+                </div>
+                <p style={{ margin: "4px 0 2px", fontSize: "13px", color: "#374151" }}>
+                  {seller?.address || "No shop pickup address registered yet."}
+                </p>
+                {seller?.latitude && seller?.longitude ? (
+                  <p style={{ margin: 0, fontSize: "11.5px", color: "#6b7280", fontFamily: "monospace" }}>
+                    GPS: {Number(seller.latitude).toFixed(5)}, {Number(seller.longitude).toFixed(5)} · Delivery radius: 20 KM
+                  </p>
+                ) : (
+                  <p style={{ margin: 0, fontSize: "12px", color: "#b91c1c", fontWeight: 600 }}>
+                    ⚠️ Shop location is required to receive customer orders within 20 KM.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowLocationModal(true)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "9px 16px",
+                backgroundColor: "#f0fdf4",
+                color: "#166534",
+                borderRadius: "10px",
+                border: "1.5px solid #bbf7d0",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <MapPin size={15} />
+              {seller?.latitude && seller?.longitude ? "Update Shop Location" : "Set Shop Location"}
+            </button>
+          </div>
+
           {/* Form Card */}
           <div
             style={{
@@ -296,6 +386,16 @@ export default function SellerProfilePage() {
             </form>
           </div>
         </div>
+
+        {/* Shop Location Modal */}
+        <SellerShopLocationModal
+          isOpen={showLocationModal}
+          onClose={() => setShowLocationModal(false)}
+          seller={seller || null}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
+          }}
+        />
       </DashboardShell>
     </RoleGuard>
   );

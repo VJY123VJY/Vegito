@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getStoredRole, getAuthToken, getMe, clearSession } from "@/lib/api/auth";
+import { getStoredRole, getAuthToken, getMe, clearSession, type AuthRole } from "@/lib/api/auth";
 
 export function RoleGuard({
   allow,
@@ -53,6 +53,23 @@ export function RoleGuard({
           router.replace(redirectTo ?? "/auth/login");
           return;
         }
+
+        const realRole = (user.role_name as AuthRole) || role;
+        const authRoles: AuthRole[] = (user.authorized_roles && user.authorized_roles.length > 0)
+          ? user.authorized_roles
+          : [realRole];
+
+        const isUserAllowed =
+          allow.includes(realRole) ||
+          authRoles.some((r) => allow.includes(r)) ||
+          realRole === "ADMIN" ||
+          realRole === "SUPER_ADMIN";
+
+        if (!isUserAllowed) {
+          router.replace(redirectTo ?? `/unauthorized?required=${allow.join(",")}&current=${realRole}`);
+          return;
+        }
+
         setReady(true);
       })
       .catch(() => {

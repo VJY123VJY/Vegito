@@ -22,7 +22,12 @@ export const DEFAULT_SOLAPUR_COORDS: [number, number] = [75.9064, 17.6805];
 
 export interface GeocodingResult {
   place_name: string;
+  address_line1?: string;
+  house_number?: string;
+  street?: string;
+  area?: string;
   city?: string;
+  state?: string;
   pincode?: string;
   latitude: number;
   longitude: number;
@@ -115,28 +120,78 @@ export async function reverseGeocode(
 ): Promise<GeocodingResult | null> {
   if (MAPBOX_TOKEN) {
     try {
-      const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&limit=1`;
+      // Note: Mapbox requires no limit parameter when multiple or no types are specified
+      const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}`;
 
       const res = await fetch(endpoint);
 
       if (res.ok) {
         const data = await res.json();
+        const features = data.features || [];
 
-        if (data.features && data.features.length > 0) {
-          const f = data.features[0];
+        if (features.length > 0) {
+          const primary = features[0];
 
-          const pincodeContext = (f.context || []).find((c: any) =>
-            c.id.startsWith("postcode")
-          );
+          const addressFeature = features.find((f: any) => f.place_type?.includes("address"));
+          const poiFeature = features.find((f: any) => f.place_type?.includes("poi"));
+          const neighborhoodFeature = features.find((f: any) => f.place_type?.includes("neighborhood"));
+          const localityFeature = features.find((f: any) => f.place_type?.includes("locality"));
+          const postcodeFeature = features.find((f: any) => f.place_type?.includes("postcode"));
+          const placeFeature = features.find((f: any) => f.place_type?.includes("place"));
+          const regionFeature = features.find((f: any) => f.place_type?.includes("region"));
 
-          const cityContext = (f.context || []).find((c: any) =>
-            c.id.startsWith("place")
-          );
+          // Context search across all features
+          let contextPostcode: string | undefined;
+          let contextPlace: string | undefined;
+          let contextRegion: string | undefined;
+          let contextLocality: string | undefined;
+
+          for (const feat of features) {
+            for (const ctx of feat.context || []) {
+              if (!contextPostcode && ctx.id?.startsWith("postcode")) contextPostcode = ctx.text;
+              if (!contextPlace && ctx.id?.startsWith("place")) contextPlace = ctx.text;
+              if (!contextRegion && ctx.id?.startsWith("region")) contextRegion = ctx.text;
+              if (!contextLocality && (ctx.id?.startsWith("neighborhood") || ctx.id?.startsWith("locality") || ctx.id?.startsWith("district"))) {
+                contextLocality = ctx.text;
+              }
+            }
+          }
+
+          const houseNum = addressFeature?.address || primary.address || undefined;
+          const streetName = addressFeature?.text || (primary.place_type?.includes("address") ? primary.text : undefined);
+          const poiName = poiFeature?.text || (primary.place_type?.includes("poi") ? primary.text : undefined);
+          const areaName = neighborhoodFeature?.text || localityFeature?.text || contextLocality || undefined;
+          const cityName = placeFeature?.text || contextPlace || "Solapur";
+          const stateName = regionFeature?.text || contextRegion || "Maharashtra";
+
+          // Postal code extraction: postcode feature -> context -> regex from place_name
+          let pin = postcodeFeature?.text || contextPostcode;
+          if (!pin) {
+            const match = (primary.place_name || "").match(/\b([1-9]\d{5})\b/);
+            if (match) pin = match[1];
+          }
+
+          // Build a clean, readable address line
+          const lineParts = [houseNum, poiName, streetName, areaName].filter(Boolean);
+          const uniqueParts = Array.from(new Set(lineParts));
+          let addressLine1 = uniqueParts.join(", ");
+          if (!addressLine1) {
+            const rawParts = (primary.place_name || "").split(",").map((s: string) => s.trim());
+            addressLine1 = rawParts.slice(0, 2).filter(Boolean).join(", ");
+          }
+          if (!addressLine1) {
+            addressLine1 = primary.place_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          }
 
           return {
-            place_name: f.place_name,
-            city: cityContext?.text,
-            pincode: pincodeContext?.text,
+            place_name: primary.place_name || addressLine1,
+            address_line1: addressLine1,
+            house_number: houseNum,
+            street: streetName,
+            area: areaName,
+            city: cityName,
+            state: stateName,
+            pincode: pin,
             longitude: lng,
             latitude: lat,
           };
@@ -147,24 +202,48 @@ export async function reverseGeocode(
     }
   }
 
-  // Fallback: Nominatim
+  // Fallback: Nominatim (OpenStreetMap)
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      { headers: { Accept: "application/json" } }
     );
 
     if (res.ok) {
       const data = await res.json();
+      const addr = data.address || {};
+      const houseNum = addr.house_number || addr.house_name || addr.building || undefined;
+      const streetName = addr.road || addr.street || addr.pedestrian || addr.suburb || undefined;
+      const areaName = addr.neighbourhood || addr.suburb || addr.residential || addr.subdistrict || addr.quarter || undefined;
+      const cityName = addr.city || addr.town || addr.village || addr.city_district || "Solapur";
+      const stateName = addr.state || "Maharashtra";
+      let pin = addr.postcode || undefined;
+      if (!pin) {
+        const match = (data.display_name || "").match(/\b([1-9]\d{5})\b/);
+        if (match) pin = match[1];
+      }
+
+      const lineParts = [houseNum, streetName, areaName].filter(Boolean);
+      const uniqueParts = Array.from(new Set(lineParts));
+      let addressLine1 = uniqueParts.join(", ");
+      if (!addressLine1) {
+        const rawParts = (data.display_name || "").split(",").map((s: string) => s.trim());
+        addressLine1 = rawParts.slice(0, 2).filter(Boolean).join(", ");
+      }
+      if (!addressLine1) {
+        addressLine1 = data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      }
 
       return {
         place_name:
           data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-        city:
-          data.address?.city ||
-          data.address?.town ||
-          data.address?.state_district ||
-          undefined,
-        pincode: data.address?.postcode || undefined,
+        address_line1: addressLine1,
+        house_number: houseNum,
+        street: streetName,
+        area: areaName,
+        city: cityName,
+        state: stateName,
+        pincode: pin,
         latitude: lat,
         longitude: lng,
       };

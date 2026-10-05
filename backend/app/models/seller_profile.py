@@ -33,5 +33,5 @@ class SellerProfile(Base):
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="seller_profile", foreign_keys=[user_id])
-    address: Mapped[Optional["Address"]] = relationship("Address")
+    saved_address: Mapped[Optional["Address"]] = relationship("Address", foreign_keys=[address_id])
     kyc: Mapped[Optional["SellerKyc"]] = relationship("SellerKyc", back_populates="seller_profile", uselist=False)

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Settings, LogOut, Shield, Bell, MapPin, Check, User } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { clearSession, getStoredUserName } from "@/lib/api/auth";
+import { AppPreferencesCard } from "@/components/settings/app-preferences-card";
 
 export default function CustomerSettingsPage() {
   const router = useRouter();
@@ -55,6 +56,9 @@ export default function CustomerSettingsPage() {
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          {/* App Preferences (Language & Theme) */}
+          <AppPreferencesCard />
+
           {/* Service Area */}
           <div
             style={{

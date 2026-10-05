@@ -42,6 +42,7 @@ def get_current_user(
     if not user.is_active:
         raise ForbiddenException("Your account is deactivated. Please contact support.")
 
+    user._active_token_role = payload.get("role")
     return user
 
 
@@ -62,7 +63,13 @@ def require_role(*allowed_roles: str):
     """Factory dependency that restricts access to users with specified role(s)."""
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
         user_role = ROLE_NAME_MAP.get(current_user.role_id)
-        if not user_role or user_role not in allowed_roles:
+        token_role = getattr(current_user, "_active_token_role", None)
+        effective_roles = set()
+        if user_role:
+            effective_roles.add(user_role)
+        if token_role:
+            effective_roles.add(token_role)
+        if not effective_roles.intersection(allowed_roles):
             raise ForbiddenException(
                 f"Access forbidden: requires one of [{', '.join(allowed_roles)}] permissions"
             )

@@ -336,16 +336,23 @@ def get_dashboard_summary(current_user: User = Depends(require_seller), db: Sess
         prod_counter = {}
         for it in today_items:
             qty = float(it.quantity or 0)
+            rev = float(getattr(it, "total_price", None) or (float(getattr(it, "unit_price", 0) or 0) * qty))
             items_sold_today += qty
             p_name = it.product_name or "Produce"
             p_unit = it.unit or "kg"
             if p_name not in prod_counter:
-                prod_counter[p_name] = {"quantity": 0.0, "unit": p_unit}
+                prod_counter[p_name] = {"quantity": 0.0, "revenue": 0.0, "unit": p_unit}
             prod_counter[p_name]["quantity"] += qty
+            prod_counter[p_name]["revenue"] += rev
 
         sorted_prods = sorted(prod_counter.items(), key=lambda x: x[1]["quantity"], reverse=True)
         top_products_today = [
-            {"name": name, "quantity": round(info["quantity"], 2), "unit": info["unit"]}
+            {
+                "name": name,
+                "quantity": round(info["quantity"], 2),
+                "revenue": round(info["revenue"], 2),
+                "unit": info["unit"],
+            }
             for name, info in sorted_prods[:5]
         ]
 
@@ -403,6 +410,9 @@ def get_dashboard_summary(current_user: User = Depends(require_seller), db: Sess
         "suggested_route": {
             "order_count": ready_orders,
             "can_batch": ready_orders > 0,
+            "batch_count": 0,
+            "total_orders": ready_orders,
+            "batches": [],
         },
         # Backwards compatible fields
         "live_orders": live_orders,

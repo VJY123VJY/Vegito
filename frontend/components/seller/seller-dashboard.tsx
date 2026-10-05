@@ -49,6 +49,7 @@ import {
 } from "recharts";
 import { AddProductModal } from "./add-product-modal";
 import { OrderPreparationSheet } from "./order-preparation-sheet";
+import { SellerShopLocationModal } from "./seller-shop-location-modal";
 import { getSellerProfile, setSellerAvailability } from "@/lib/api/seller-products";
 import {
   listSellerOrders,
@@ -126,6 +127,15 @@ export function SellerDashboard() {
       queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
     },
   });
+
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [locationRequiredForOnline, setLocationRequiredForOnline] = useState(false);
+
+  useEffect(() => {
+    if (profile.data && (!profile.data.latitude || !profile.data.longitude)) {
+      setShowLocationModal(true);
+    }
+  }, [profile.data]);
 
   // Orders Query
   const orders = useQuery({
@@ -260,9 +270,13 @@ export function SellerDashboard() {
 
   // Data Calculations
   const businessName = profile.data?.business_name || "Farm Fresh Solapur";
-  const orderItems = orders.data?.items ?? [];
+  const orderItems = Array.isArray(orders.data)
+    ? orders.data
+    : (orders.data?.items ?? []);
 
-  const inventoryItems = inventory.data?.items ?? [];
+  const inventoryItems = Array.isArray(inventory.data)
+    ? inventory.data
+    : (inventory.data?.items ?? []);
   const lowStockAlerts = inventoryItems.filter(
     (inv) => Number(inv.quantity) <= Number(inv.low_stock_threshold)
   );
@@ -335,7 +349,9 @@ export function SellerDashboard() {
   const todayOrdersCount = dashboardSummary.data?.today_orders ?? orderItems.length;
 
   // Chart data format
-  const chartData = (revenueAnalytics.data ?? []).map((item) => ({
+  const chartData = (
+    Array.isArray(revenueAnalytics.data) ? revenueAnalytics.data : []
+  ).map((item) => ({
     date: item.date?.slice(5) || item.date,
     revenue: Number(item.value || 0),
     orders: item.orders_count || 0,
@@ -443,6 +459,25 @@ export function SellerDashboard() {
                 >
                   {isOnline ? "🟢 LIVE IN MANDI" : "🔴 SHOP CLOSED"}
                 </span>
+                <span
+                  onClick={() => setShowLocationModal(true)}
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    padding: "2px 8px",
+                    borderRadius: "999px",
+                    backgroundColor: profile.data?.latitude && profile.data?.longitude ? "#f0fdf4" : "#fef2f2",
+                    color: profile.data?.latitude && profile.data?.longitude ? "#15803d" : "#b91c1c",
+                    border: profile.data?.latitude && profile.data?.longitude ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                  title="Click to view or update shop pickup location"
+                >
+                  {profile.data?.latitude && profile.data?.longitude ? "🟢 Shop Location Active" : "🔴 Shop Location Missing"}
+                </span>
               </div>
               <p
                 style={{
@@ -451,7 +486,7 @@ export function SellerDashboard() {
                   color: "var(--vegito-text-muted, #62746a)",
                 }}
               >
-                Solapur Mandi Zone · 15 KM Delivery Telemetry Active
+                Solapur Mandi Zone · 20 KM Delivery Telemetry Active
               </p>
             </div>
           </div>
@@ -610,7 +645,14 @@ export function SellerDashboard() {
           <button
             type="button"
             disabled={toggleAvailabilityMutation.isPending}
-            onClick={() => toggleAvailabilityMutation.mutate(!isOnline)}
+            onClick={() => {
+              if (!isOnline && (!profile.data?.latitude || !profile.data?.longitude)) {
+                setLocationRequiredForOnline(true);
+                setShowLocationModal(true);
+                return;
+              }
+              toggleAvailabilityMutation.mutate(!isOnline);
+            }}
             style={{
               padding: "10px 20px",
               borderRadius: "12px",
@@ -1744,7 +1786,8 @@ export function SellerDashboard() {
                 : "No packed orders ready yet. As soon as you pack orders, Vegito groups nearby customers into an optimal 5–10 order delivery route."}
             </p>
 
-            {dashboardSummary.data?.suggested_route && dashboardSummary.data.suggested_route.batches.length > 0 && (
+            {Array.isArray(dashboardSummary.data?.suggested_route?.batches) &&
+              dashboardSummary.data.suggested_route.batches.length > 0 && (
               <div style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 {dashboardSummary.data.suggested_route.batches.map((b) => (
                   <span
@@ -1757,7 +1800,7 @@ export function SellerDashboard() {
                       fontWeight: 600,
                     }}
                   >
-                    📍 Round #{b.group_number}: {b.order_count} orders ({b.areas.join(", ")})
+                    📍 Round #{b.group_number}: {b.order_count} orders ({Array.isArray(b.areas) ? b.areas.join(", ") : ""})
                     {b.estimated_km ? ` · ~${b.estimated_km} km` : ""}
                   </span>
                 ))}
@@ -1894,30 +1937,39 @@ export function SellerDashboard() {
               <h4 style={{ margin: "0 0 10px", fontSize: "13px", fontWeight: 800, color: "#374151" }}>
                 📍 {t("seller.areaBreakdown", "Orders by Solapur Area")}
               </h4>
-              {dashboardSummary.data?.area_orders && Object.keys(dashboardSummary.data.area_orders).length > 0 ? (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {Object.entries(dashboardSummary.data.area_orders).map(([area, count]) => (
-                    <span
-                      key={area}
-                      style={{
-                        padding: "5px 12px",
-                        borderRadius: "8px",
-                        background: "#ffffff",
-                        border: "1px solid #d1d5db",
-                        fontSize: "12.5px",
-                        fontWeight: 700,
-                        color: "#1f2937",
-                      }}
-                    >
-                      {area}: <b style={{ color: "#15803d" }}>{count}</b>
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p style={{ margin: 0, fontSize: "12.5px", color: "#9ca3af" }}>
-                  No customer orders logged today yet.
-                </p>
-              )}
+              {(() => {
+                const rawAreas = dashboardSummary.data?.area_orders;
+                const entries: [string, number][] = Array.isArray(rawAreas)
+                  ? rawAreas.map((item: any) => [String(item.area || item.name || "Area"), Number(item.count || item.quantity || 0)])
+                  : rawAreas && typeof rawAreas === "object"
+                  ? Object.entries(rawAreas).map(([k, v]) => [k, Number(v)])
+                  : [];
+
+                return entries.length > 0 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {entries.map(([area, count]) => (
+                      <span
+                        key={area}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: "8px",
+                          background: "#ffffff",
+                          border: "1px solid #d1d5db",
+                          fontSize: "12.5px",
+                          fontWeight: 700,
+                          color: "#1f2937",
+                        }}
+                      >
+                        {area}: <b style={{ color: "#15803d" }}>{count}</b>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, fontSize: "12.5px", color: "#9ca3af" }}>
+                    No customer orders logged today yet.
+                  </p>
+                );
+              })()}
             </div>
 
             {/* Top Products Today */}
@@ -1925,7 +1977,7 @@ export function SellerDashboard() {
               <h4 style={{ margin: "0 0 10px", fontSize: "13px", fontWeight: 800, color: "#374151" }}>
                 🥬 {t("seller.topSellingToday", "Top Selling Products Today")}
               </h4>
-              {dashboardSummary.data?.top_products_today && dashboardSummary.data.top_products_today.length > 0 ? (
+              {Array.isArray(dashboardSummary.data?.top_products_today) && dashboardSummary.data.top_products_today.length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   {dashboardSummary.data.top_products_today.map((prod, idx) => (
                     <div
@@ -1941,7 +1993,11 @@ export function SellerDashboard() {
                       <span style={{ fontWeight: 600, color: "#1f2937" }}>
                         {idx + 1}. {prod.name} ({prod.quantity} sold)
                       </span>
-                      <strong style={{ color: "#15803d" }}>₹{Number(prod.revenue).toFixed(0)}</strong>
+                      <strong style={{ color: "#15803d" }}>
+                        {prod.revenue !== undefined && prod.revenue !== null && !isNaN(Number(prod.revenue)) && Number(prod.revenue) > 0
+                          ? `₹${Number(prod.revenue).toFixed(0)}`
+                          : `${prod.quantity} sold`}
+                      </strong>
                     </div>
                   ))}
                 </div>
@@ -3129,6 +3185,20 @@ export function SellerDashboard() {
           orderId={prepOrderId || 0}
           isOpen={Boolean(prepOrderId)}
           onClose={() => setPrepOrderId(null)}
+        />
+
+        {/* Seller Shop Location Modal */}
+        <SellerShopLocationModal
+          isOpen={showLocationModal}
+          onClose={() => {
+            setShowLocationModal(false);
+            setLocationRequiredForOnline(false);
+          }}
+          seller={profile.data || null}
+          requireSetup={locationRequiredForOnline || (!profile.data?.latitude || !profile.data?.longitude)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
+          }}
         />
       </div>
 

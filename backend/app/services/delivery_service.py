@@ -139,7 +139,7 @@ class DeliveryService:
         from app.services.location_service import LocationService, calculate_haversine_distance_km
 
         min_radius = 1.0
-        max_radius = max_radius_km if max_radius_km is not None else float(getattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 15.0))
+        max_radius = max_radius_km if max_radius_km is not None else float(getattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 20.0))
 
         # 1. Determine Seller Shop coordinates via LocationService
         shop_lat, shop_lng = LocationService.resolve_seller_coordinates(db, order.seller_id, fallback_to_default=False) if order.seller_id else (None, None)
@@ -860,7 +860,7 @@ class DeliveryService:
         assigned_orders = []
         for order in pending_orders:
             assigned_partner, dist_km = DeliveryService.find_and_assign_nearest_partner(
-                db, order, max_radius_km=float(getattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 15.0))
+                db, order, max_radius_km=float(getattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 20.0))
             )
             if assigned_partner:
                 assigned_orders.append(order)

@@ -57,10 +57,17 @@ export type SellerProfile = {
   id: number;
   user_id: number;
   business_name: string;
+  business_type?: string | null;
   description?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  gst_number?: string | null;
   is_verified?: boolean;
   is_available?: boolean;
   is_active?: boolean;
+  created_at?: string;
+  updated_at?: string | null;
 };
 
 export async function getSellerProfile(): Promise<SellerProfile> {
@@ -70,7 +77,12 @@ export async function getSellerProfile(): Promise<SellerProfile> {
 
 export async function updateSellerProfile(payload: {
   business_name?: string;
+  business_type?: string;
   description?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  gst_number?: string;
   is_available?: boolean;
 }): Promise<SellerProfile> {
   const { data } = await api.patch<ApiEnvelope<SellerProfile>>("/seller/profile", payload);

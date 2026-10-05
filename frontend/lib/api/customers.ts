@@ -55,6 +55,32 @@ export async function getNearbySellers(lat?: number, lon?: number): Promise<Near
   return data.data;
 }
 
+export interface DeliveryEligibilityData {
+  is_eligible: boolean;
+  distance_km: number | null;
+  max_radius_km: number;
+  seller_name?: string | null;
+  seller_address?: string | null;
+  seller_lat?: number | null;
+  seller_lng?: number | null;
+  seller_is_online: boolean;
+  message: string;
+}
+
+export async function getDeliveryEligibility(
+  lat: number,
+  lon: number,
+  sellerId?: number
+): Promise<DeliveryEligibilityData> {
+  const params: Record<string, number> = { lat, lon };
+  if (sellerId !== undefined) params.seller_id = sellerId;
+  const { data } = await api.get<ApiEnvelope<DeliveryEligibilityData>>(
+    "/customers/delivery-eligibility",
+    { params }
+  );
+  return data.data;
+}
+
 export type CustomerHomeFeed = {
   fresh_picks: ApiProduct[];
   buy_again: ApiProduct[];

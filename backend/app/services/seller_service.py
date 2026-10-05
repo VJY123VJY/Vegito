@@ -48,6 +48,12 @@ class SellerService:
     @staticmethod
     def set_availability(db: Session, user: User, is_available: bool) -> SellerProfile:
         profile = SellerService.get_profile(db, user)
+        if is_available and (profile.latitude is None or profile.longitude is None):
+            raise BadRequestException(
+                message="Seller pickup location is not configured. Please set the seller shop location before accepting orders.",
+                code="SELLER_LOCATION_MISSING",
+                details={"message": "Please enable location and set your shop pickup location before going online."}
+            )
         profile.is_available = is_available
         db.commit()
         db.refresh(profile)

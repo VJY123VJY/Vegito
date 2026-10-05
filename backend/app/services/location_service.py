@@ -73,7 +73,7 @@ class LocationService:
     ) -> Tuple[bool, str]:
         """
         Validates if distance is within Vegito's operational bounds:
-        - Must be <= MAX_DELIVERY_DISTANCE_KM (15.0 km).
+        - Must be <= MAX_DELIVERY_DISTANCE_KM (20.0 km).
         - If < MIN_DELIVERY_DISTANCE_KM (1.0 km), allowed as local/same-location delivery if allow_same_location is True.
         """
         min_limit = min_km if min_km is not None else MIN_DELIVERY_DISTANCE_KM
@@ -131,20 +131,40 @@ class LocationService:
 
     @staticmethod
     def resolve_seller_coordinates(
-        db: Session, seller_id: int, fallback_to_default: bool = False
+        db: Session, seller_id: Optional[int] = None, fallback_to_default: bool = False
     ) -> Tuple[Optional[float], Optional[float]]:
         """
         Retrieves real coordinates for a seller.
+        If seller_id is not specified (e.g. single-seller V1), resolves the active seller with real coordinates.
 
         Synthetic Solapur defaults are intentionally not used. If a seller profile cannot provide
         a real GPS pin, the system must fail closed and reject the operation rather than inventing
         coordinates for routing or checkout decisions.
         """
-        profile = (
-            db.query(SellerProfile)
-            .filter(or_(SellerProfile.user_id == seller_id, SellerProfile.id == seller_id))
-            .first()
-        )
+        profile = None
+        if seller_id is not None:
+            profile = (
+                db.query(SellerProfile)
+                .filter(or_(SellerProfile.user_id == seller_id, SellerProfile.id == seller_id))
+                .first()
+            )
+        if not profile:
+            profile = (
+                db.query(SellerProfile)
+                .join(User, SellerProfile.user_id == User.id)
+                .filter(
+                    User.is_active == True,
+                    SellerProfile.latitude.isnot(None),
+                    SellerProfile.longitude.isnot(None),
+                )
+                .first()
+            )
+        if not profile:
+            profile = db.query(SellerProfile).filter(
+                SellerProfile.latitude.isnot(None),
+                SellerProfile.longitude.isnot(None)
+            ).first()
+
         if not profile:
             return None, None
 
@@ -164,13 +184,13 @@ class LocationService:
         customer_lat: float,
         customer_lon: float,
         product_ids: Optional[List[int]] = None,
-        max_distance_km: float = 15.0,
+        max_distance_km: float = 20.0,
     ) -> List[Dict[str, Any]]:
         """
-        Finds all active, nearby sellers within max_distance_km (1–15 km) from customer location.
+        Finds all active, nearby sellers within max_distance_km (1–20 km) from customer location.
         Filters out:
           - Sellers that are inactive or offline.
-          - Sellers beyond 15 km.
+          - Sellers beyond 20 km.
           - Sellers lacking stock if product_ids is specified.
         """
         profiles = (

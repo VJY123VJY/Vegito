@@ -237,7 +237,7 @@ export function DashboardSidebar({
                 🏪 Seller
               </Link>
               <Link
-                href="/seller/deliveries"
+                href="/delivery"
                 onClick={onClose}
                 style={{
                   padding: "7px 4px",
@@ -246,8 +246,8 @@ export function DashboardSidebar({
                   fontSize: "12px",
                   fontWeight: 800,
                   textDecoration: "none",
-                  background: role === "delivery" || pathname?.includes("/seller/deliveries") ? "#16835b" : "transparent",
-                  color: role === "delivery" || pathname?.includes("/seller/deliveries") ? "#ffffff" : "rgba(255, 255, 255, 0.7)",
+                  background: role === "delivery" ? "#16835b" : "transparent",
+                  color: role === "delivery" ? "#ffffff" : "rgba(255, 255, 255, 0.7)",
                   transition: "all 0.15s ease",
                 }}
               >

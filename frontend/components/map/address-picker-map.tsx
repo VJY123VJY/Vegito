@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -8,7 +8,9 @@ import {
   reverseGeocode,
   GeocodingResult,
 } from "@/lib/api/map";
-import { Search, MapPin, Check, Loader2, Crosshair, AlertCircle } from "lucide-react";
+import { getDeliveryEligibility, type DeliveryEligibilityData } from "@/lib/api/customers";
+import { getFreshDeviceCoordinates } from "@/lib/api/location-helper";
+import { Search, MapPin, Check, Loader2, Crosshair, AlertCircle, CheckCircle2 } from "lucide-react";
 
 export interface SelectedAddressCoords {
   latitude: number;
@@ -49,6 +51,8 @@ export function AddressPickerMap({
     hasInitialCoordinates ? { lat: initialLat!, lng: initialLng! } : null
   );
   const [resolvedAddress, setResolvedAddress] = useState<SelectedAddressCoords | null>(null);
+  const [eligibility, setEligibility] = useState<DeliveryEligibilityData | null>(null);
+  const [isCheckingEligibility, setIsCheckingEligibility] = useState(false);
 
   // Initialize the map only after a real coordinate is selected.
   useEffect(() => {
@@ -138,25 +142,47 @@ export function AddressPickerMap({
     setCurrentCoords({ lat, lng });
     setLocationError("");
     setIsReverseGeocoding(true);
+    setIsCheckingEligibility(true);
+
+    if (mapRef.current) {
+      try {
+        mapRef.current.flyTo({ center: [lng, lat], zoom: 15 });
+      } catch {}
+    }
+    if (markerRef.current) {
+      try {
+        markerRef.current.setLngLat([lng, lat]);
+      } catch {}
+    }
+
     try {
-      const geo = await reverseGeocode(lat, lng);
-      if (!geo?.place_name) {
-        setResolvedAddress({ latitude: lat, longitude: lng, address_line1: "", city: "", pincode: "" });
-        setLocationError("Address lookup failed. Search for an address or enter the address details below.");
-        return;
+      const [geo, elig] = await Promise.all([
+        reverseGeocode(lat, lng).catch(() => null),
+        getDeliveryEligibility(lat, lng).catch(() => null),
+      ]);
+
+      if (elig) {
+        setEligibility(elig);
       }
+
+      const addressLine = geo?.address_line1 || geo?.place_name || `Lat ${lat.toFixed(4)}, Lng ${lng.toFixed(4)}`;
       setResolvedAddress({
         latitude: lat,
         longitude: lng,
-        address_line1: geo.place_name,
-        city: geo.city || "",
-        pincode: geo.pincode || "",
+        address_line1: addressLine,
+        city: geo?.city || "Solapur",
+        pincode: geo?.pincode || "413001",
       });
+
+      if (!geo?.place_name) {
+        setLocationError("Address lookup was partial. You can edit the address fields below.");
+      }
     } catch {
-      setResolvedAddress({ latitude: lat, longitude: lng, address_line1: "", city: "", pincode: "" });
-      setLocationError("Address lookup failed. Search for an address or enter the address details below.");
+      setResolvedAddress({ latitude: lat, longitude: lng, address_line1: "", city: "Solapur", pincode: "413001" });
+      setLocationError("Address lookup failed. Enter the address details below.");
     } finally {
       setIsReverseGeocoding(false);
+      setIsCheckingEligibility(false);
     }
   }
 
@@ -179,51 +205,29 @@ export function AddressPickerMap({
   function handleSelectResult(r: GeocodingResult) {
     setSearchResults([]);
     setSearchQuery(r.place_name);
-    setCurrentCoords({ lat: r.latitude, lng: r.longitude });
-    setResolvedAddress({
-      latitude: r.latitude,
-      longitude: r.longitude,
-      address_line1: r.place_name,
-      city: r.city || "",
-      pincode: r.pincode || "",
-    });
-    setLocationError("");
-
-    if (mapRef.current) {
-      mapRef.current.flyTo({ center: [r.longitude, r.latitude], zoom: 15 });
-    }
-    if (markerRef.current) {
-      markerRef.current.setLngLat([r.longitude, r.latitude]);
-    }
+    void handleLocationSelected(r.latitude, r.longitude);
   }
 
-  function handleUseCurrentLocation() {
-    if (!navigator.geolocation) {
-      setLocationError("Location isn’t available on this device. Search for an address instead.");
-      return;
-    }
+  async function handleUseCurrentLocation() {
     setIsLocating(true);
     setLocationError("");
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        void handleLocationSelected(position.coords.latitude, position.coords.longitude)
-          .finally(() => setIsLocating(false));
-      },
-      (error) => {
-        setIsLocating(false);
-        setLocationError(error.code === 1
-          ? "Location permission was denied. Search for your address instead."
-          : "Current location is unavailable. Search for your address instead.");
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    try {
+      const coords = await getFreshDeviceCoordinates();
+      await handleLocationSelected(coords.latitude, coords.longitude);
+    } catch (err: any) {
+      setLocationError(err.message || "Unable to detect your location.");
+    } finally {
+      setIsLocating(false);
+    }
   }
 
   const canConfirm = Boolean(
     resolvedAddress?.address_line1.trim() &&
     resolvedAddress.city.trim() &&
     resolvedAddress.pincode.trim() &&
-    !isReverseGeocoding
+    !isReverseGeocoding &&
+    !isCheckingEligibility &&
+    (eligibility ? eligibility.is_eligible : true)
   );
 
   return (
@@ -442,7 +446,60 @@ export function AddressPickerMap({
         </div>
       ) : null}
 
-      {resolvedAddress ? (
+        {eligibility ? (
+          <div
+            style={{
+              width: "100%",
+              padding: "12px 16px",
+              borderRadius: "12px",
+              marginTop: "10px",
+              backgroundColor: eligibility.is_eligible ? "#f0fdf4" : "#fef2f2",
+              border: eligibility.is_eligible ? "1.5px solid #86efac" : "1.5px solid #f87171",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "8px",
+            }}
+          >
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                {eligibility.is_eligible ? (
+                  <CheckCircle2 size={16} color="#16a34a" />
+                ) : (
+                  <AlertCircle size={16} color="#dc2626" />
+                )}
+                <strong style={{ fontSize: "13px", color: eligibility.is_eligible ? "#166534" : "#991b1b" }}>
+                  {eligibility.is_eligible ? "✓ Delivery Available" : "✕ Outside Delivery Area"}
+                </strong>
+              </div>
+              <p style={{ margin: "2px 0 0", fontSize: "12px", color: eligibility.is_eligible ? "#15803d" : "#b91c1c" }}>
+                {eligibility.seller_name ? `Delivering from: ${eligibility.seller_name}` : "Vegito Seller"}
+                {eligibility.distance_km != null ? ` · Distance: ${eligibility.distance_km} KM` : ""}
+              </p>
+              {!eligibility.is_eligible ? (
+                <p style={{ margin: "2px 0 0", fontSize: "11.5px", color: "#991b1b" }}>
+                  We currently deliver within 20 km of our seller. Please choose a location within 20 km.
+                </p>
+              ) : null}
+            </div>
+
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 800,
+                padding: "3px 10px",
+                borderRadius: "999px",
+                backgroundColor: eligibility.is_eligible ? "#dcfce7" : "#fee2e2",
+                color: eligibility.is_eligible ? "#15803d" : "#dc2626",
+              }}
+            >
+              {eligibility.is_eligible ? "Within 20 KM" : "> 20 KM"}
+            </span>
+          </div>
+        ) : null}
+
+        {resolvedAddress ? (
         <button
           type="button"
           onClick={() => { if (canConfirm && resolvedAddress) onConfirmLocation(resolvedAddress); }}
@@ -452,6 +509,7 @@ export function AddressPickerMap({
             alignItems: "center",
             gap: "8px",
             padding: "10px 20px",
+            marginTop: "10px",
             backgroundColor: canConfirm ? "#063c32" : "#94a3b8",
             color: "#ffffff",
             border: "none",
@@ -459,10 +517,10 @@ export function AddressPickerMap({
             fontSize: "13.5px",
             fontWeight: 800,
             cursor: canConfirm ? "pointer" : "not-allowed",
-            boxShadow: "0 2px 8px rgba(6, 60, 50, 0.2)",
+            boxShadow: canConfirm ? "0 2px 8px rgba(6, 60, 50, 0.2)" : "none",
           }}
         >
-          <Check size={16} /> Confirm Location
+          <Check size={16} /> {eligibility && !eligibility.is_eligible ? "Outside Delivery Area" : "Confirm Location"}
         </button>
       ) : null}
       </div>

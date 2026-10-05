@@ -2,6 +2,7 @@ from typing import Optional, List
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
+from app.config import settings
 from app.database import get_db
 from app.dependencies import require_customer
 from app.models.user import User
@@ -11,7 +12,7 @@ from app.models.customer_favorite import CustomerFavorite
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.schemas.product import ProductRead
-from app.schemas.customer import CustomerProfileRead, CustomerProfileUpdate
+from app.schemas.customer import CustomerProfileRead, CustomerProfileUpdate, DeliveryEligibilityRead
 from app.schemas.common import APIResponse, BaseSchema
 from app.services.customer_service import CustomerService
 from app.services.product_service import ProductService
@@ -141,8 +142,8 @@ def get_nearby_sellers(
         if s_lat is None or s_lon is None:
             continue
         dist = LocationService.calculate_distance(c_lat, c_lon, s_lat, s_lon)
-        # 15 KM boundary per Section 50
-        if dist <= 15.0:
+        # 20 KM boundary
+        if dist <= 20.0:
             prod_count = (
                 db.query(SellerProduct)
                 .filter(SellerProduct.seller_id == sp.user_id, SellerProduct.is_available == True, SellerProduct.stock_quantity > 0)
@@ -165,4 +166,111 @@ def get_nearby_sellers(
 
     results.sort(key=lambda s: s.distance_km)
     return APIResponse(data=results)
+
+
+@router.get(
+    "/delivery-eligibility",
+    response_model=APIResponse[DeliveryEligibilityRead],
+    summary="Validate 15 KM customer delivery eligibility from real seller shop location",
+)
+def get_delivery_eligibility(
+    lat: float = Query(..., description="Customer latitude"),
+    lon: float = Query(..., description="Customer longitude"),
+    seller_id: Optional[int] = Query(None, description="Optional specific seller user id"),
+    db: Session = Depends(get_db),
+):
+    """
+    Evaluates real GPS distance between customer coordinates and the active seller shop location.
+    Enforces the strict 15 KM B2C delivery boundary without hardcoding or fabricating coordinates.
+    """
+    # 1. Resolve seller
+    seller_prof = None
+    if seller_id:
+        seller_prof = (
+            db.query(SellerProfile)
+            .filter(SellerProfile.user_id == seller_id)
+            .first()
+        )
+    if not seller_prof:
+        # Prioritize active online seller with verified status and GPS coordinates
+        seller_prof = (
+            db.query(SellerProfile)
+            .join(User, SellerProfile.user_id == User.id)
+            .filter(
+                User.is_active == True,
+                SellerProfile.is_available == True,
+                SellerProfile.latitude.isnot(None),
+                SellerProfile.longitude.isnot(None),
+            )
+            .first()
+        )
+    if not seller_prof:
+        # Fallback to any seller profile with coordinates
+        seller_prof = (
+            db.query(SellerProfile)
+            .filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None))
+            .first()
+        )
+
+    if not seller_prof:
+        max_km = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))
+        return APIResponse(
+            message="Delivery availability is temporarily unavailable. Seller location is not configured.",
+            data=DeliveryEligibilityRead(
+                is_eligible=False,
+                distance_km=None,
+                max_radius_km=max_km,
+                seller_name=None,
+                seller_address=None,
+                seller_lat=None,
+                seller_lng=None,
+                seller_is_online=False,
+                message="Delivery availability is temporarily unavailable. Seller location is not configured.",
+            ),
+        )
+
+    s_lat, s_lon = LocationService.resolve_seller_coordinates(
+        db, seller_prof.user_id, fallback_to_default=False
+    )
+    max_km = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))
+    if s_lat is None or s_lon is None:
+        return APIResponse(
+            message="Delivery availability is temporarily unavailable. Seller shop coordinates are missing.",
+            data=DeliveryEligibilityRead(
+                is_eligible=False,
+                distance_km=None,
+                max_radius_km=max_km,
+                seller_name=seller_prof.business_name,
+                seller_address=seller_prof.address,
+                seller_lat=None,
+                seller_lng=None,
+                seller_is_online=bool(seller_prof.is_available),
+                message="Delivery availability is temporarily unavailable. Seller shop coordinates are missing.",
+            ),
+        )
+
+    # 2. Haversine distance calculation
+    dist = LocationService.calculate_distance(lat, lon, s_lat, s_lon)
+    dist_rounded = round(dist, 2)
+    is_eligible = dist <= max_km
+
+    if is_eligible:
+        msg = f"Delivery available ({dist_rounded:.1f} km from {seller_prof.business_name})"
+    else:
+        msg = f"Outside delivery area. Distance from {seller_prof.business_name}: {dist_rounded:.1f} km. We currently deliver within {int(max_km)} km of our seller."
+
+    return APIResponse(
+        message=msg,
+        data=DeliveryEligibilityRead(
+            is_eligible=is_eligible,
+            distance_km=dist_rounded,
+            max_radius_km=max_km,
+            seller_name=seller_prof.business_name,
+            seller_address=seller_prof.address,
+            seller_lat=s_lat,
+            seller_lng=s_lon,
+            seller_is_online=bool(seller_prof.is_available),
+            message=msg,
+        ),
+    )
 

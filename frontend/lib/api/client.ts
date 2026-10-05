@@ -131,12 +131,16 @@ api.interceptors.response.use(
             "vegito.user-phone",
             "vegito.authorized-roles",
             "vegito_read_notifications",
+            "vegito.customer.location",
+            "vegito.selected_location",
+            "vegito.saved_address",
           ];
           keys.forEach((k) => {
             window.localStorage.removeItem(k);
             window.sessionStorage.removeItem(k);
           });
           window.dispatchEvent(new CustomEvent("vegito:auth_state_changed", { detail: { loggedIn: false } }));
+          window.dispatchEvent(new CustomEvent("vegito:session_expired"));
         }
       }
     }

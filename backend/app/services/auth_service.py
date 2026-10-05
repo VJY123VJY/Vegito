@@ -36,20 +36,27 @@ class AuthService:
         # Admin and Super Admin have elevated access
         if primary_role in ["ADMIN", "SUPER_ADMIN"]:
             roles.update(["CUSTOMER", "SELLER", "DELIVERY_PARTNER"])
+            ordered = []
+            for r in ["SELLER", "DELIVERY_PARTNER", "CUSTOMER", "ADMIN", "SUPER_ADMIN"]:
+                if r in roles:
+                    ordered.append(r)
+            return ordered
 
-        # Check existing profiles
-        if user.customer_profile or user.cart or user.orders:
-            roles.add("CUSTOMER")
-        if user.seller_profile:
+        # Check existing profiles for multi-role accounts (e.g. Seller + Delivery partner in V1)
+        if user.seller_profile or primary_role == "SELLER":
             roles.add("SELLER")
-        if user.delivery_partner:
+        if user.delivery_partner or primary_role == "DELIVERY_PARTNER":
             roles.add("DELIVERY_PARTNER")
 
-        # Any registered user can access CUSTOMER shopping
-        roles.add("CUSTOMER")
+        # For customer accounts, role is strictly CUSTOMER
+        if primary_role == "CUSTOMER":
+            roles = {"CUSTOMER"}
+        else:
+            # Operators (seller / delivery partner) should only have operator workspaces, not customer
+            roles.discard("CUSTOMER")
 
         ordered = []
-        for r in ["SELLER", "DELIVERY_PARTNER", "CUSTOMER", "ADMIN", "SUPER_ADMIN"]:
+        for r in ["SELLER", "DELIVERY_PARTNER", "CUSTOMER"]:
             if r in roles:
                 ordered.append(r)
         return ordered
@@ -64,8 +71,9 @@ class AuthService:
             if not user.is_active:
                 raise ForbiddenException("Account is deactivated. Please contact support.")
             user_role_name = ROLE_NAME_MAP.get(user.role_id)
-            # Allow admins to log in across portals if desired, but disallow role collision between customer/seller/delivery
-            if user_role_name != role_enum.value and user_role_name not in [RoleEnum.ADMIN.value, RoleEnum.SUPER_ADMIN.value]:
+            authorized = AuthService.get_user_authorized_roles(db, user)
+            # Allow login if role_enum is an authorized role for this user account (or admin)
+            if role_enum.value not in authorized and user_role_name not in [RoleEnum.ADMIN.value, RoleEnum.SUPER_ADMIN.value]:
                 raise BadRequestException(
                     f"This phone number is already registered under the {user_role_name} role. Please use the {user_role_name} portal."
                 )
@@ -131,10 +139,11 @@ class AuthService:
 
         user_role_name = ROLE_NAME_MAP.get(user.role_id, role_enum.value)
         authorized_roles = AuthService.get_user_authorized_roles(db, user)
+        active_role = role_enum.value if role_enum.value in authorized_roles else user_role_name
 
         token_payload: Dict[str, Any] = {
             "sub": str(user.id),
-            "role": user_role_name,
+            "role": active_role,
             "phone": user.phone,
         }
         access_token = create_access_token(token_payload)
@@ -144,7 +153,7 @@ class AuthService:
             token_type="bearer",
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user_id=user.id,
-            role=user_role_name,
+            role=active_role,
             phone=user.phone,
             name=user.name,
             is_new_user=is_new_user,
@@ -171,7 +180,7 @@ class AuthService:
         )
 
     @staticmethod
-    def verify_otp_for_phone(db: Session, raw_phone: str, otp_code: str) -> TokenResponse:
+    def verify_otp_for_phone(db: Session, raw_phone: str, otp_code: str, role_context: Optional[str] = None) -> TokenResponse:
         phone = validate_phone_number(raw_phone)
         user = db.query(User).filter(User.phone == phone).first()
         if not user:
@@ -187,10 +196,17 @@ class AuthService:
 
         user_role_name = ROLE_NAME_MAP.get(user.role_id, "CUSTOMER")
         authorized_roles = AuthService.get_user_authorized_roles(db, user)
+        active_role = user_role_name
+        if role_context:
+            norm_ctx = role_context.strip().upper()
+            if norm_ctx == "DELIVERY":
+                norm_ctx = "DELIVERY_PARTNER"
+            if norm_ctx in authorized_roles:
+                active_role = norm_ctx
 
         token_payload: Dict[str, Any] = {
             "sub": str(user.id),
-            "role": user_role_name,
+            "role": active_role,
             "phone": user.phone,
         }
         access_token = create_access_token(token_payload)
@@ -200,7 +216,7 @@ class AuthService:
             token_type="bearer",
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user_id=user.id,
-            role=user_role_name,
+            role=active_role,
             phone=user.phone,
             name=user.name,
             is_new_user=False,
@@ -253,23 +269,26 @@ class AuthService:
         if not user.password_hash or not verify_password(password, user.password_hash):
             raise BadRequestException("Incorrect mobile number or password.")
 
+        authorized_roles = AuthService.get_user_authorized_roles(db, user)
         user_role_name = ROLE_NAME_MAP.get(user.role_id, "CUSTOMER")
+        active_role = user_role_name
 
         if expected_role:
             norm_expected = expected_role.strip().upper()
             if norm_expected == "DELIVERY":
                 norm_expected = "DELIVERY_PARTNER"
-            if norm_expected != user_role_name and user_role_name not in ["ADMIN", "SUPER_ADMIN"]:
+            if norm_expected not in authorized_roles and user_role_name not in ["ADMIN", "SUPER_ADMIN"]:
                 role_display = "Delivery Partner" if user_role_name == "DELIVERY_PARTNER" else user_role_name.capitalize()
                 expected_display = "Delivery Partner" if norm_expected == "DELIVERY_PARTNER" else norm_expected.capitalize()
                 raise ForbiddenException(
                     f"Access denied. This account is registered as {role_display}. Please use the {role_display} login."
                 )
+            if norm_expected in authorized_roles:
+                active_role = norm_expected
 
-        authorized_roles = AuthService.get_user_authorized_roles(db, user)
         token_payload: Dict[str, Any] = {
             "sub": str(user.id),
-            "role": user_role_name,
+            "role": active_role,
             "phone": user.phone,
         }
         access_token = create_access_token(token_payload)
@@ -279,7 +298,7 @@ class AuthService:
             token_type="bearer",
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user_id=user.id,
-            role=user_role_name,
+            role=active_role,
             phone=user.phone,
             name=user.name,
             is_new_user=False,

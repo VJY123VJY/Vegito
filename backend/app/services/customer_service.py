@@ -3,10 +3,11 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.customer_profile import CustomerProfile
 from app.models.address import Address
+from app.models.seller_profile import SellerProfile
 from app.schemas.customer import CustomerProfileUpdate
 from app.schemas.address import AddressCreate, AddressUpdate
-from app.core.exceptions import NotFoundException, ForbiddenException
-from app.core.exceptions import BadRequestException
+from app.core.exceptions import NotFoundException, ForbiddenException, BadRequestException
+from app.services.location_service import LocationService
 from app.config import settings
 
 
@@ -50,6 +51,34 @@ class CustomerService:
                 f"Vegito currently delivers only in {settings.SERVICE_CITY}."
             )
 
+        # Validate 20 KM radius against real seller shop location
+        if address_in.latitude is not None and address_in.longitude is not None:
+            seller = (
+                db.query(SellerProfile)
+                .join(User, SellerProfile.user_id == User.id)
+                .filter(
+                    User.is_active == True,
+                    SellerProfile.latitude.isnot(None),
+                    SellerProfile.longitude.isnot(None),
+                )
+                .first()
+            )
+            if not seller:
+                seller = db.query(SellerProfile).filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None)).first()
+            if seller:
+                s_lat, s_lon = LocationService.resolve_seller_coordinates(db, seller.user_id, fallback_to_default=False)
+                if s_lat is not None and s_lon is not None:
+                    dist = LocationService.calculate_distance(
+                        float(address_in.latitude), float(address_in.longitude), s_lat, s_lon
+                    )
+                    max_km = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))
+                    if dist > max_km:
+                        raise BadRequestException(
+                            message=f"This address is outside our {int(max_km)} km delivery area (Distance: {dist:.1f} km from {seller.business_name}). Vegito currently delivers within {int(max_km)} km of our seller.",
+                            code="DELIVERY_OUT_OF_RANGE",
+                            details={"distance_km": round(dist, 2), "max_distance_km": max_km, "seller_name": seller.business_name}
+                        )
+
         # If this is the user's first address or marked default, ensure single default
         existing_count = db.query(Address).filter(Address.user_id == user.id).count()
         is_default = address_in.is_default or existing_count == 0
@@ -88,6 +117,34 @@ class CustomerService:
                 raise BadRequestException(
                     f"Vegito currently delivers only in {settings.SERVICE_CITY}."
                 )
+
+        new_lat = update_dict.get("latitude", address.latitude)
+        new_lon = update_dict.get("longitude", address.longitude)
+        if new_lat is not None and new_lon is not None and ("latitude" in update_dict or "longitude" in update_dict):
+            seller = (
+                db.query(SellerProfile)
+                .join(User, SellerProfile.user_id == User.id)
+                .filter(
+                    User.is_active == True,
+                    SellerProfile.latitude.isnot(None),
+                    SellerProfile.longitude.isnot(None),
+                )
+                .first()
+            )
+            if not seller:
+                seller = db.query(SellerProfile).filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None)).first()
+            if seller:
+                s_lat, s_lon = LocationService.resolve_seller_coordinates(db, seller.user_id, fallback_to_default=False)
+                if s_lat is not None and s_lon is not None:
+                    dist = LocationService.calculate_distance(float(new_lat), float(new_lon), s_lat, s_lon)
+                    max_km = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))
+                    if dist > max_km:
+                        raise BadRequestException(
+                            message=f"This address is outside our {int(max_km)} km delivery area (Distance: {dist:.1f} km from {seller.business_name}). Vegito currently delivers within {int(max_km)} km of our seller.",
+                            code="DELIVERY_OUT_OF_RANGE",
+                            details={"distance_km": round(dist, 2), "max_distance_km": max_km, "seller_name": seller.business_name}
+                        )
+
         if update_dict.get("is_default") is True:
             db.query(Address).filter(Address.user_id == user.id).update({"is_default": False})
 

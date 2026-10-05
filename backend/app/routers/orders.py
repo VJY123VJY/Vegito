@@ -27,6 +27,28 @@ def get_delivery_fee(
 ):
     from app.services.delivery_pricing_service import DeliveryPricingService
     from app.models.seller_profile import SellerProfile
+    from app.models.cart import Cart
+
+    if not seller_id and current_user:
+        cart = db.query(Cart).filter(Cart.user_id == current_user.id).first()
+        if cart and cart.items:
+            first_item = cart.items[0]
+            if first_item.seller_product and first_item.seller_product.seller_id:
+                seller_id = first_item.seller_product.seller_id
+
+    if not seller_id:
+        active_prof = (
+            db.query(SellerProfile)
+            .join(User, SellerProfile.user_id == User.id)
+            .filter(
+                User.is_active == True,
+                SellerProfile.latitude.isnot(None),
+                SellerProfile.longitude.isnot(None),
+            )
+            .first()
+        )
+        if active_prof:
+            seller_id = active_prof.user_id
 
     fee, distance_km = DeliveryPricingService.calculate_delivery_distance_and_fee(
         db, address_id=address_id, seller_id=seller_id
@@ -36,18 +58,21 @@ def get_delivery_fee(
     if seller_id:
         shop_prof = db.query(SellerProfile).filter(SellerProfile.user_id == seller_id).first()
     if not shop_prof:
+        shop_prof = db.query(SellerProfile).filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None)).first()
+    if not shop_prof:
         shop_prof = db.query(SellerProfile).first()
     seller_online = bool(shop_prof.is_available) if shop_prof else True
 
+    max_dist = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))
     return APIResponse(
         message="Delivery fee calculated",
         data={
             "address_id": address_id,
             "distance_km": distance_km,
             "delivery_fee": float(fee),
-            "max_allowed_km": float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 15.0)),
+            "max_allowed_km": max_dist,
             "seller_online": seller_online,
-            "is_deliverable": distance_km <= float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 15.0)),
+            "is_deliverable": distance_km <= max_dist,
         },
     )
 
@@ -65,6 +90,17 @@ def get_seller_availability(
     shop_prof = None
     if seller_id:
         shop_prof = db.query(SellerProfile).filter(SellerProfile.user_id == seller_id).first()
+    if not shop_prof:
+        shop_prof = (
+            db.query(SellerProfile)
+            .join(User, SellerProfile.user_id == User.id)
+            .filter(
+                User.is_active == True,
+                SellerProfile.latitude.isnot(None),
+                SellerProfile.longitude.isnot(None),
+            )
+            .first()
+        )
     if not shop_prof:
         shop_prof = db.query(SellerProfile).first()
     is_available = bool(shop_prof.is_available) if shop_prof else True
