@@ -92,6 +92,18 @@ class ProductSellerOffer(BaseModel):
 
 
 
+class ProductMarketPriceInfo(BaseModel):
+    reference_price: Decimal
+    suggested_range_min: Decimal
+    suggested_range_max: Decimal
+    unit: str = "kg"
+    market: str = "Solapur APMC Mandi"
+    trend: str = "STABLE"
+    demand_signal: Optional[str] = "NORMAL"
+    source: Optional[str] = "MSAMB / Solapur APMC"
+    updated_date: Optional[datetime.date] = None
+
+
 class ProductRead(BaseSchema, ProductBase):
     id: int
     created_at: datetime.datetime
@@ -103,3 +115,5 @@ class ProductRead(BaseSchema, ProductBase):
     is_in_stock: bool = False
     freshness: Optional[FreshnessInfo] = None
     seller_products: List[ProductSellerOffer] = []
+    # Daily Mandi / Market Reference Price
+    market_price: Optional[ProductMarketPriceInfo] = None

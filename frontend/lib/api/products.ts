@@ -26,6 +26,18 @@ export type FreshnessInfo = {
   disclaimer?: string;
 };
 
+export type ProductMarketPriceInfo = {
+  reference_price: number | string;
+  suggested_range_min: number | string;
+  suggested_range_max: number | string;
+  unit: string;
+  market: string;
+  trend: string;
+  demand_signal?: string;
+  source?: string;
+  updated_date?: string | null;
+};
+
 export type ApiProduct = {
   id: number;
   name: string;
@@ -39,6 +51,7 @@ export type ApiProduct = {
   freshness?: FreshnessInfo | null;
   images: { image_url: string; is_primary: boolean }[];
   category?: { id: number; name: string } | null;
+  market_price?: ProductMarketPriceInfo | null;
   seller_products: {
     seller_business_name?: string | null;
     seller_product_id?: number;

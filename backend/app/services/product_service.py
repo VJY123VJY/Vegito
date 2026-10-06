@@ -20,6 +20,7 @@ from app.schemas.product import (
     ProductRead,
     ProductSellerOffer,
     ProductImageRead,
+    ProductMarketPriceInfo,
 )
 
 from app.core.exceptions import NotFoundException, ConflictException
@@ -278,6 +279,27 @@ class ProductService:
         # Build enriched ProductRead responses
         result: List[ProductRead] = []
 
+        prod_ids = [p.id for p in products]
+        market_intel_map = {}
+        if prod_ids:
+            from app.models.market_intelligence import MarketIntelligence
+            try:
+                intel_rows = db.query(MarketIntelligence).filter(MarketIntelligence.product_id.in_(prod_ids)).all()
+                for row in intel_rows:
+                    market_intel_map[row.product_id] = ProductMarketPriceInfo(
+                        reference_price=row.reference_price,
+                        suggested_range_min=row.suggested_range_min,
+                        suggested_range_max=row.suggested_range_max,
+                        unit=row.unit,
+                        market=row.market,
+                        trend=row.trend,
+                        demand_signal=row.demand_signal,
+                        source=row.source,
+                        updated_date=row.market_date,
+                    )
+            except Exception:
+                pass
+
         for p in products:
             offers: List[ProductSellerOffer] = []
             prices = []
@@ -346,6 +368,7 @@ class ProductService:
             read_obj.min_price = min_price
             read_obj.is_in_stock = is_in_stock
             read_obj.seller_products = offers
+            read_obj.market_price = market_intel_map.get(p.id)
 
             if offers:
                 best_offer = next((o for o in offers if o.is_available and o.stock_quantity > 0), offers[0])
@@ -483,6 +506,24 @@ class ProductService:
 
         read_obj.is_in_stock = total_stock > 0
         read_obj.seller_products = offers
+
+        from app.models.market_intelligence import MarketIntelligence
+        try:
+            intel_row = db.query(MarketIntelligence).filter(MarketIntelligence.product_id == product.id).first()
+            if intel_row:
+                read_obj.market_price = ProductMarketPriceInfo(
+                    reference_price=intel_row.reference_price,
+                    suggested_range_min=intel_row.suggested_range_min,
+                    suggested_range_max=intel_row.suggested_range_max,
+                    unit=intel_row.unit,
+                    market=intel_row.market,
+                    trend=intel_row.trend,
+                    demand_signal=intel_row.demand_signal,
+                    source=intel_row.source,
+                    updated_date=intel_row.market_date,
+                )
+        except Exception:
+            pass
 
         if offers:
             best_offer = next((o for o in offers if o.is_available and o.stock_quantity > 0), offers[0])
