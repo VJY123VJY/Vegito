@@ -48,6 +48,8 @@ def test_registration_and_login_role_assignment(client: TestClient, db):
         "password": "Password123!",
         "business_name": "E2E Organic Store",
         "business_address": "Market Yard Solapur",
+        "latitude": 17.6805,
+        "longitude": 75.9064,
     })
     assert seller_resp.status_code == 201, seller_resp.text
     seller_data = seller_resp.json()["data"]

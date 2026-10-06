@@ -4,42 +4,74 @@
     android:viewportWidth="128"
     android:viewportHeight="128">
 
-    <!-- Squircle App Icon Base Surface -->
+    <!-- Outer High-End Esport Shield / Squircle Badge Base (Dark Charcoal & Deep Emerald) -->
+    <path
+        android:fillColor="#121212"
+        android:pathData="M64,6 C98,6 122,26 122,64 C122,102 98,122 64,122 C26,122 6,102 6,64 C6,26 26,6 64,6 Z" />
+
+    <!-- Metallic Silver / Deep Emerald Outer Rim Bevel -->
     <path
         android:fillColor="#0A4D3C"
-        android:pathData="M64,8 C100,8 120,28 120,64 C120,100 100,120 64,120 C28,120 8,100 8,64 C8,28 28,8 64,8 Z" />
+        android:pathData="M64,10 C94,10 118,30 118,64 C118,94 94,118 64,118 C30,118 10,94 10,64 C10,30 30,10 64,10 Z" />
 
-    <!-- Subtle Inner Soft Gradient Glow -->
+    <!-- Inner Dark Core with Radial Gradient Effect (Charcoal-Green) -->
     <path
-        android:fillColor="#1B5E20"
-        android:pathData="M64,14 C96,14 114,32 114,64 C114,96 96,114 64,114 C32,114 14,96 14,64 C14,32 32,14 64,14 Z" />
+        android:fillColor="#17211B"
+        android:pathData="M64,14 C90,14 114,34 114,64 C114,90 90,114 64,114 C34,114 14,90 14,64 C14,34 34,14 64,14 Z" />
 
-    <!-- Left Leaf Wing of 'V' (Fresh Emerald Leaf with Organic Curve) -->
-    <path
-        android:fillColor="#81C784"
-        android:pathData="M64,88 C54,80 34,60 30,38 C48,34 62,48 64,88 Z" />
-
-    <path
-        android:fillColor="#4CAF50"
-        android:pathData="M64,88 C56,76 38,54 34,42 C48,40 58,54 64,88 Z" />
-
-    <!-- Right Leaf Wing of 'V' (Dewy Foliage & Motion Notch) -->
-    <path
-        android:fillColor="#A5D6A7"
-        android:pathData="M64,88 C74,80 94,60 98,38 C80,34 66,48 64,88 Z" />
-
-    <path
-        android:fillColor="#66BB6A"
-        android:pathData="M64,88 C72,76 90,54 94,42 C80,40 70,54 64,88 Z" />
-
-    <!-- Central Tech/Delivery Motion Notch at Apex -->
+    <!-- Top Glossy Specular Highlight (Esport Badge Lighting) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M64,88 C60,78 48,58 46,46 C56,48 62,62 64,88 C66,62 72,48 82,46 C80,58 68,78 64,88 Z" />
+        android:fillAlpha="0.12"
+        android:pathData="M32,20 C46,15 82,15 96,20 C104,30 110,44 112,56 C90,40 38,40 16,56 C18,44 24,30 32,20 Z" />
 
-    <!-- Harvest Vitality Seed / Dewdrop Dot at Center -->
+    <!-- Left Faceted Leaf Wing / V-Form (Deep Emerald to Vibrant Green) -->
+    <path
+        android:fillColor="#1B5E20"
+        android:pathData="M64,96 C56,84 32,62 26,38 C42,32 58,46 64,96 Z" />
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M64,96 C58,84 38,62 32,42 C46,38 58,52 64,96 Z" />
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M64,96 C60,82 44,60 38,46 C48,44 58,56 64,96 Z" />
+
+    <!-- Right Faceted Leaf Wing / V-Form (Vibrant Green to Fresh Lime) -->
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M64,96 C72,84 96,62 102,38 C86,32 70,46 64,96 Z" />
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M64,96 C70,84 90,62 96,42 C82,38 70,52 64,96 Z" />
+    <path
+        android:fillColor="#66BB6A"
+        android:pathData="M64,96 C68,82 84,60 90,46 C80,44 70,56 64,96 Z" />
+
+    <!-- Central Lightning Speed Vector / Dynamic V-Blade (Electric Lime & White Highlight) -->
+    <path
+        android:fillColor="#A7FFEB"
+        android:pathData="M64,96 C62,82 52,60 48,44 C56,46 62,58 64,96 Z" />
+    <path
+        android:fillColor="#76FF03"
+        android:pathData="M64,96 C65,82 72,60 76,44 C68,46 63,58 64,96 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64,96 C63.5,85 58,64 54,50 C58,51 62,62 64,96 Z" />
+
+    <!-- Grocery / Shopping Cart Speed Node at Apex (Subtle Minimalist Basket Handle / Energy Core) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64,36 C61.8,36 60,37.8 60,40 C60,42.2 61.8,44 64,44 C66.2,44 68,42.2 68,40 C68,37.8 66.2,36 64,36 Z" />
     <path
         android:fillColor="#FFB300"
-        android:pathData="M64,52 C61.8,52 60,53.8 60,56 C60,59 64,64 64,64 C64,64 68,59 68,56 C68,53.8 66.2,52 64,52 Z" />
+        android:pathData="M64,38 C62.8,38 62,38.8 62,40 C62,41.2 62.8,42 64,42 C65.2,42 66,41.2 66,40 C66,38.8 65.2,38 64,38 Z" />
+
+    <!-- Dynamic Speed / Lightning Slash Accents (Top Right and Left) -->
+    <path
+        android:fillColor="#81C784"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFF"
+        android:pathData="M22,34 L34,30 M94,34 L82,30"
+        android:strokeLineCap="round" />
 
 </vector>

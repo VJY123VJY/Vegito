@@ -5,8 +5,8 @@ Covers all 15 specification test cases:
   TEST 1: Customer address = 5 KM from seller -> order allowed.
   TEST 2: Customer address = 14.9 KM -> order allowed.
   TEST 3: Customer address = exactly 15 KM -> order allowed.
-  TEST 4: Customer address = 15.1 KM -> order blocked.
-  TEST 5: Customer address = 20 KM -> order blocked.
+  TEST 4: Customer address = 15.1 KM -> order allowed.
+  TEST 5: Customer address = 20 KM -> order allowed.
   TEST 6: Seller ONLINE -> customer can place order.
   TEST 7: Seller OFFLINE -> new order blocked with clear message.
   TEST 8: Seller ONLINE + Delivery Partner ONLINE -> normal order -> READY -> delivery assignment.
@@ -16,9 +16,10 @@ Covers all 15 specification test cases:
   TEST 12: New delivery assignment while delivery dashboard is active -> visible notification + ringtone event.
   TEST 13: Notification permission denied -> safe graceful fallback.
   TEST 14: Customer changes address before checkout -> backend recalculates with final selected address.
-  TEST 15: Frontend sends fake distance <=15 KM while actual distance >15 KM -> backend rejects order.
+  TEST 15: Frontend sends a fake distance while actual distance >20 KM -> backend rejects order.
 """
 
+import math
 import pytest
 from decimal import Decimal
 from starlette.testclient import TestClient
@@ -39,6 +40,7 @@ from app.models.cart_item import CartItem
 from app.services.jwt_service import create_access_token
 from app.core.constants import OrderStatus, DeliveryTaskStatus
 from app.services.delivery_service import calculate_haversine_distance_km, DeliveryService
+from app.services.location_service import LocationService
 from app.services.delivery_pricing_service import DeliveryPricingService
 from app.services.order_service import OrderService
 from app.schemas.order import OrderCreate
@@ -146,6 +148,34 @@ def test_missing_coordinates_are_rejected_instead_of_backfilled(setup_solapur_v1
     assert "coordinates" in str(exc2.value).lower() or "GPS" in str(exc2.value)
 
 
+def test_b2c_20km_boundary_uses_unrounded_distance():
+    at_limit, _ = LocationService.is_within_delivery_bounds(20.0, max_km=20.0)
+    just_outside, _ = LocationService.is_within_delivery_bounds(20.0001, max_km=20.0)
+
+    assert at_limit is True
+    assert just_outside is False
+    assert math.isclose(
+        calculate_haversine_distance_km(0.0, 0.0, 0.0, math.degrees(20.0 / 6371.0)),
+        20.0,
+        abs_tol=1e-9,
+    )
+
+
+def test_nearby_sellers_requires_customer_coordinates_and_reports_real_distance(client, setup_solapur_v1):
+    data = setup_solapur_v1
+    endpoint = "/api/v1/customers/nearby-sellers"
+
+    missing_coordinates = client.get(endpoint)
+    assert missing_coordinates.status_code == 422
+
+    response = client.get(endpoint, params={"lat": 17.725421, "lon": 75.906400})
+    assert response.status_code == 200
+
+    sellers = response.json()["data"]
+    seller = next(seller for seller in sellers if seller["user_id"] == data["seller_user"].id)
+    assert 4.99 <= seller["distance_km"] <= 5.01
+
+
 # ==============================================================================
 # TEST 1: Customer address = 5 KM from seller -> order allowed
 # ==============================================================================
@@ -231,7 +261,7 @@ def test_case_3_address_exactly_15km_order_allowed(setup_solapur_v1, db: Session
 
 
 # ==============================================================================
-# TEST 4: Customer address = 15.1 KM -> order blocked
+# TEST 4: Customer address = 15.1 KM -> order allowed
 # ==============================================================================
 def test_case_4_address_15_1km_order_blocked(setup_solapur_v1, db: Session):
     data = setup_solapur_v1
@@ -248,21 +278,22 @@ def test_case_4_address_15_1km_order_blocked(setup_solapur_v1, db: Session):
     db.add(addr_15_1km)
     db.commit()
 
-    with pytest.raises(Exception) as exc:
-        DeliveryPricingService.calculate_delivery_distance_and_fee(db, addr_15_1km.id, data["seller_user"].id)
-    assert "Sorry, this delivery address is outside our 15 KM delivery area." in str(exc.value)
+    fee, distance = DeliveryPricingService.calculate_delivery_distance_and_fee(
+        db, addr_15_1km.id, data["seller_user"].id
+    )
+    assert 15.0 < distance < 20.0
+    assert fee > 0
 
-    # Order checkout must also reject and create no records
+    # The backend accepts the actual distance through the 20 km boundary.
     order_payload = OrderCreate(address_id=addr_15_1km.id, payment_method="COD")
-    with pytest.raises(Exception) as exc2:
-        OrderService.checkout(db, data["cust_user"], order_payload)
-    assert "Sorry, this delivery address is outside our 15 KM delivery area." in str(exc2.value)
+    order = OrderService.checkout(db, data["cust_user"], order_payload)
+    assert order.id is not None
 
 
 # ==============================================================================
-# TEST 5: Customer address = 20 KM -> order blocked
+# TEST 5: Customer address = 20 KM -> order allowed
 # ==============================================================================
-def test_case_5_address_20km_order_blocked(setup_solapur_v1, db: Session):
+def test_case_5_address_20km_order_allowed(setup_solapur_v1, db: Session):
     data = setup_solapur_v1
     # lat ~ 17.860319 gives 20.0 KM
     addr_20km = Address(
@@ -277,9 +308,36 @@ def test_case_5_address_20km_order_blocked(setup_solapur_v1, db: Session):
     db.add(addr_20km)
     db.commit()
 
+    fee, distance = DeliveryPricingService.calculate_delivery_distance_and_fee(
+        db, addr_20km.id, data["seller_user"].id
+    )
+    assert distance <= 20.0
+    assert fee > 0
+    order = OrderService.checkout(
+        db, data["cust_user"], OrderCreate(address_id=addr_20km.id, payment_method="COD")
+    )
+    assert order.id is not None
+
+
+def test_address_just_beyond_20km_is_rejected(setup_solapur_v1, db: Session):
+    data = setup_solapur_v1
+    addr = Address(
+        user_id=data["cust_user"].id,
+        address_line1="Beyond 20km boundary",
+        city="Solapur",
+        state="Maharashtra",
+        pincode="413008",
+        latitude=Decimal("17.8620"),
+        longitude=Decimal("75.906400"),
+    )
+    db.add(addr)
+    db.commit()
+
     with pytest.raises(Exception) as exc:
-        DeliveryPricingService.calculate_delivery_distance_and_fee(db, addr_20km.id, data["seller_user"].id)
-    assert "Sorry, this delivery address is outside our 15 KM delivery area." in str(exc.value)
+        DeliveryPricingService.calculate_delivery_distance_and_fee(
+            db, addr.id, data["seller_user"].id
+        )
+    assert "outside our 20 KM delivery area" in str(exc.value)
 
 
 # ==============================================================================
@@ -332,7 +390,7 @@ def test_case_7_seller_offline_order_blocked(setup_solapur_v1, db: Session):
 
     with pytest.raises(Exception) as exc:
         OrderService.checkout(db, data["cust_user"], OrderCreate(address_id=addr_valid.id, payment_method="COD"))
-    assert "Seller is currently offline. Please try again later." in str(exc.value)
+    assert "currently offline. Please try again later." in str(exc.value)
 
     # Confirm no partial order created
     assert db.query(Order).count() == initial_orders
@@ -527,17 +585,17 @@ def test_case_14_customer_changes_address_recalculates(setup_solapur_v1, db: Ses
     data["shop"].is_available = True
     db.commit()
 
-    # Address A: outside (> 15 KM, 20 KM)
+    # Address A: outside the 20 km limit
     addr_outside = Address(
         user_id=data["cust_user"].id,
         address_line1="Outside Bypass 20km",
         city="Solapur",
         state="Maharashtra",
         pincode="413008",
-        latitude=Decimal("17.860319"),
+        latitude=Decimal("17.8620"),
         longitude=Decimal("75.906400"),
     )
-    # Address B: inside (<= 15 KM, 5 KM)
+    # Address B: inside (5 KM)
     addr_inside = Address(
         user_id=data["cust_user"].id,
         address_line1="Solapur MIDC 5km",
@@ -553,7 +611,7 @@ def test_case_14_customer_changes_address_recalculates(setup_solapur_v1, db: Ses
     # If customer attempts checkout with addr_outside -> rejected
     with pytest.raises(Exception) as exc:
         OrderService.checkout(db, data["cust_user"], OrderCreate(address_id=addr_outside.id, payment_method="COD"))
-    assert "outside our 15 KM delivery area" in str(exc.value)
+    assert "20 KM delivery area" in str(exc.value)
 
     # Customer changes address in UI to addr_inside -> checkout recalculates and succeeds
     order_ok = OrderService.checkout(db, data["cust_user"], OrderCreate(address_id=addr_inside.id, payment_method="COD"))
@@ -561,21 +619,21 @@ def test_case_14_customer_changes_address_recalculates(setup_solapur_v1, db: Ses
 
 
 # ==============================================================================
-# TEST 15: Frontend sends fake distance <=15 KM while actual distance >15 KM -> backend rejects
+# TEST 15: Frontend sends a fake distance while actual distance >20 KM -> backend rejects
 # ==============================================================================
 def test_case_15_backend_authoritative_rejects_fake_frontend_distance(setup_solapur_v1, client: TestClient, db: Session):
     data = setup_solapur_v1
     data["shop"].is_available = True
     db.commit()
 
-    # Address is actually 20 KM away
+    # Address is actually beyond 20 KM
     addr_outside = Address(
         user_id=data["cust_user"].id,
         address_line1="Highway Bypass 20km",
         city="Solapur",
         state="Maharashtra",
         pincode="413008",
-        latitude=Decimal("17.860319"),
+        latitude=Decimal("17.8620"),
         longitude=Decimal("75.906400"),
     )
     db.add(addr_outside)
@@ -598,4 +656,4 @@ def test_case_15_backend_authoritative_rejects_fake_frontend_distance(setup_sola
 
     # Backend must reject based on actual calculated distance
     assert response.status_code == 400
-    assert "outside our 15 KM delivery area" in response.text
+    assert "20 KM delivery area" in response.text

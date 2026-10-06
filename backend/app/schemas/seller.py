@@ -37,6 +37,8 @@ class SellerProfileUpdate(BaseModel):
         if (self.latitude is None) != (self.longitude is None):
             raise ValueError("Latitude and longitude must be provided together.")
         if self.latitude is not None and self.longitude is not None:
+            if not self.latitude.is_finite() or not self.longitude.is_finite():
+                raise ValueError("Shop coordinates must be finite numbers.")
             if not (-90 <= self.latitude <= 90 and -180 <= self.longitude <= 180):
                 raise ValueError("Shop coordinates are outside valid latitude/longitude bounds.")
             if self.latitude == 0 and self.longitude == 0:

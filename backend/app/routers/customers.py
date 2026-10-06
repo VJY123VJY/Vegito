@@ -16,7 +16,7 @@ from app.schemas.customer import CustomerProfileRead, CustomerProfileUpdate, Del
 from app.schemas.common import APIResponse, BaseSchema
 from app.services.customer_service import CustomerService
 from app.services.product_service import ProductService
-from app.services.location_service import LocationService, DEFAULT_SOLAPUR_LAT, DEFAULT_SOLAPUR_LON
+from app.services.location_service import LocationService
 from app.utils.pagination import PaginationParams
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
@@ -123,10 +123,10 @@ def get_customer_home_feed(
     ))
 
 
-@router.get("/nearby-sellers", response_model=APIResponse[List[NearbySellerRead]], summary="Discover verified sellers within 15 KM (Section 15 & 50)")
+@router.get("/nearby-sellers", response_model=APIResponse[List[NearbySellerRead]], summary="Discover verified sellers within 20 KM (Section 15 & 50)")
 def get_nearby_sellers(
-    lat: Optional[float] = Query(None, description="Customer latitude"),
-    lon: Optional[float] = Query(None, description="Customer longitude"),
+    lat: float = Query(..., ge=-90, le=90, description="Customer latitude"),
+    lon: float = Query(..., ge=-180, le=180, description="Customer longitude"),
     db: Session = Depends(get_db),
 ):
     sellers = (
@@ -141,13 +141,9 @@ def get_nearby_sellers(
         s_lat, s_lon = LocationService.resolve_seller_coordinates(db, sp.user_id, fallback_to_default=False)
         if s_lat is None or s_lon is None:
             continue
-        if lat is not None and lon is not None:
-            dist = LocationService.calculate_distance(lat, lon, s_lat, s_lon)
-            # 20 KM boundary
-            if dist > 20.0:
-                continue
-        else:
-            dist = 0.0
+        dist = LocationService.calculate_distance(lat, lon, s_lat, s_lon)
+        if dist > 20.0:
+            continue
 
         prod_count = (
             db.query(SellerProduct)
@@ -176,7 +172,7 @@ def get_nearby_sellers(
 @router.get(
     "/delivery-eligibility",
     response_model=APIResponse[DeliveryEligibilityRead],
-    summary="Validate 15 KM customer delivery eligibility from real seller shop location",
+    summary="Validate 20 KM customer delivery eligibility from real seller shop location",
 )
 def get_delivery_eligibility(
     lat: float = Query(..., description="Customer latitude"),
@@ -186,7 +182,7 @@ def get_delivery_eligibility(
 ):
     """
     Evaluates real GPS distance between customer coordinates and the active seller shop location.
-    Enforces the strict 15 KM B2C delivery boundary without hardcoding or fabricating coordinates.
+    Enforces the 20 KM B2C delivery boundary without hardcoding or fabricating coordinates.
     """
     # 1. Resolve seller
     seller_prof = None
@@ -297,4 +293,3 @@ def get_delivery_eligibility(
             message=msg,
         ),
     )
-

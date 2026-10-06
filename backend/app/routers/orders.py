@@ -23,11 +23,20 @@ from app.config import settings
 def get_delivery_fee(
     address_id: int = Query(..., description="Customer address ID"),
     seller_id: Optional[int] = Query(None, description="Seller user ID (optional)"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     from app.services.delivery_pricing_service import DeliveryPricingService
     from app.models.cart import Cart
+    from app.models.address import Address
+    from app.core.exceptions import NotFoundException
+
+    address = db.query(Address).filter(
+        Address.id == address_id,
+        Address.user_id == current_user.id,
+    ).first()
+    if not address:
+        raise NotFoundException("Selected delivery address was not found.")
 
     if not seller_id and current_user:
         cart = db.query(Cart).filter(Cart.user_id == current_user.id).first()
@@ -59,7 +68,7 @@ def get_delivery_fee(
             "delivery_fee": float(fee),
             "max_allowed_km": max_dist,
             "seller_online": seller_online,
-            "is_deliverable": distance_km <= max_dist,
+            "is_deliverable": seller_online and distance_km <= max_dist,
         },
     )
 

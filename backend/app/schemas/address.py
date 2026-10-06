@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from app.schemas.common import BaseSchema
 
 
@@ -17,6 +17,19 @@ class AddressBase(BaseModel):
     longitude: Optional[Decimal] = None
     address_type: Optional[str] = Field("HOME", max_length=30)
     is_default: bool = False
+
+    @model_validator(mode="after")
+    def validate_coordinates(self):
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Latitude and longitude must be provided together.")
+        if self.latitude is not None and self.longitude is not None:
+            if not self.latitude.is_finite() or not self.longitude.is_finite():
+                raise ValueError("Coordinates must be finite numbers.")
+            if not (-90 <= self.latitude <= 90 and -180 <= self.longitude <= 180):
+                raise ValueError("Coordinates are outside valid latitude/longitude bounds.")
+            if self.latitude == 0 and self.longitude == 0:
+                raise ValueError("Coordinates must identify a real location.")
+        return self
 
 
 class AddressCreate(AddressBase):
@@ -35,6 +48,19 @@ class AddressUpdate(BaseModel):
     longitude: Optional[Decimal] = None
     address_type: Optional[str] = Field(None, max_length=30)
     is_default: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def validate_coordinates(self):
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Latitude and longitude must be provided together.")
+        if self.latitude is not None and self.longitude is not None:
+            if not self.latitude.is_finite() or not self.longitude.is_finite():
+                raise ValueError("Coordinates must be finite numbers.")
+            if not (-90 <= self.latitude <= 90 and -180 <= self.longitude <= 180):
+                raise ValueError("Coordinates are outside valid latitude/longitude bounds.")
+            if self.latitude == 0 and self.longitude == 0:
+                raise ValueError("Coordinates must identify a real location.")
+        return self
 
 
 class AddressRead(BaseSchema, AddressBase):

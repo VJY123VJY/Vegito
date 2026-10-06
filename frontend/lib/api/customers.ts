@@ -47,10 +47,8 @@ export interface NearbySeller {
   active_products_count: number;
 }
 
-export async function getNearbySellers(lat?: number, lon?: number): Promise<NearbySeller[]> {
-  const params: Record<string, number> = {};
-  if (lat !== undefined) params.lat = lat;
-  if (lon !== undefined) params.lon = lon;
+export async function getNearbySellers(lat: number, lon: number): Promise<NearbySeller[]> {
+  const params = { lat, lon };
   const { data } = await api.get<ApiEnvelope<NearbySeller[]>>("/customers/nearby-sellers", { params });
   return data.data;
 }
@@ -93,4 +91,3 @@ export async function getCustomerHomeFeed(): Promise<CustomerHomeFeed> {
   if (!data.data) throw new Error("Customer home feed was empty");
   return data.data;
 }
-

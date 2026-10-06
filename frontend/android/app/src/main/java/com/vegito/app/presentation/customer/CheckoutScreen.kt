@@ -32,9 +32,9 @@ fun CheckoutScreen(
     cart: CartSummary,
     selectedAddress: SavedAddress?,
     onBack: () -> Unit,
-    onAddressUpdated: (SavedAddress) -> Unit,
+    onAddressUpdated: suspend (SavedAddress) -> SavedAddress?,
     onCheckDeliveryEligibility: suspend (SavedAddress) -> DeliveryFeeResponse?,
-    onPlaceOrder: (paymentMethod: String) -> Unit
+    onPlaceOrder: suspend (paymentMethod: String, address: SavedAddress) -> Boolean
 ) {
     val scope = rememberCoroutineScope()
     var currentAddress by remember(selectedAddress) { mutableStateOf(selectedAddress) }
@@ -55,10 +55,18 @@ fun CheckoutScreen(
         addr.latitude,
         addr.longitude
     )
+    val hasMultipleSellers = cart.items.map { it.product.sellerId }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .size > 1
 
     // Automatically prompt for location if missing or invalid
-    LaunchedEffect(addr) {
+    LaunchedEffect(addr, hasMultipleSellers) {
         eligibilityResponse = null
+        if (hasMultipleSellers) {
+            eligibilityError = "Your cart contains products from multiple sellers. Place separate orders for each seller."
+            return@LaunchedEffect
+        }
         if (!hasValidCoordinates) {
             showLocationSheet = true
         } else if (addr != null) {
@@ -70,7 +78,11 @@ fun CheckoutScreen(
                 if (res == null) {
                     eligibilityError = "Could not verify delivery eligibility. Please try again."
                 } else if (!res.isDeliverable) {
-                    eligibilityError = "Sorry, this location is outside the seller's delivery area. (${String.format("%.1f", res.distanceKm)} km from seller)"
+                    eligibilityError = if (!res.sellerOnline) {
+                        "This seller is currently offline. Please choose another seller or try again later."
+                    } else {
+                        "Sorry, this location is outside the seller's delivery area. (${String.format("%.1f", res.distanceKm)} km from seller)"
+                    }
                 }
             } catch (e: Exception) {
                 eligibilityError = "Unable to verify delivery distance. Please verify address."
@@ -145,7 +157,12 @@ fun CheckoutScreen(
                                 isPlacingOrder = true
                                 orderError = null
                                 try {
-                                    onPlaceOrder(paymentMethod)
+                                    val placed = currentAddress?.let {
+                                        onPlaceOrder(paymentMethod, it)
+                                    } ?: false
+                                    if (!placed) {
+                                        orderError = "Your order could not be placed. Please try again."
+                                    }
                                 } catch (e: Exception) {
                                     orderError = "Your order could not be placed. Please try again."
                                 } finally {
@@ -478,11 +495,17 @@ fun CheckoutScreen(
             currentAddress = currentAddress,
             onDismiss = { showLocationSheet = false },
             onAddressConfirmed = { addr ->
-                onAddressUpdated(addr)
-                currentAddress = addr
-                eligibilityError = null
-                orderError = null
-                showLocationSheet = false
+                scope.launch {
+                    val savedAddress = onAddressUpdated(addr)
+                    if (savedAddress != null) {
+                        currentAddress = savedAddress
+                        eligibilityError = null
+                        orderError = null
+                        showLocationSheet = false
+                    } else {
+                        eligibilityError = "Could not save this delivery address. Please try again."
+                    }
+                }
             }
         )
     }

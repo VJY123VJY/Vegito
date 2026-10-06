@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from app.config import settings
