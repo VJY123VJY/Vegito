@@ -104,65 +104,79 @@ class OrderService:
         from app.services.location_service import LocationService
         cust_lat, cust_lon = LocationService.resolve_address_coordinates(db, address)
 
-        first_seller_id = cart_items[0].seller_product.seller_id if (cart_items and cart_items[0].seller_product) else None
-        shop_id = None
-        sp_prof = None
-        if first_seller_id:
-            sp_prof = (
-                db.query(SellerProfile)
-                .filter(or_(SellerProfile.user_id == first_seller_id, SellerProfile.id == first_seller_id))
-                .first()
-            )
-            if sp_prof:
-                shop_id = sp_prof.id
-        if not sp_prof:
-            sp_prof = (
-                db.query(SellerProfile)
-                .join(User, SellerProfile.user_id == User.id)
-                .filter(
-                    User.is_active == True,
-                    SellerProfile.latitude.isnot(None),
-                    SellerProfile.longitude.isnot(None),
-                )
-                .order_by(SellerProfile.id.desc())
-                .first()
-            )
-        if not sp_prof:
-            sp_prof = db.query(SellerProfile).order_by(SellerProfile.id.desc()).first()
+        # STRICT MULTI-SELLER ROUTING ENGINE:
+        # Determine seller deterministically from cart items with zero ambiguous fallback.
+        cart_seller_ids = set()
+        for item in cart_items:
+            if item.seller_product and item.seller_product.seller_id:
+                cart_seller_ids.add(item.seller_product.seller_id)
 
+        if not cart_seller_ids:
+            raise BadRequestException("No seller found for items in cart.")
+
+        if len(cart_seller_ids) > 1:
+            raise BadRequestException(
+                "Cart contains items from multiple sellers. Each order must be fulfilled by a single local store."
+            )
+
+        cart_seller_id = list(cart_seller_ids)[0]
+
+        # Explicit seller lock check: if requested seller_id was provided, enforce match
+        if order_in.seller_id is not None and order_in.seller_id != cart_seller_id:
+            raise BadRequestException(
+                f"Selected seller ID ({order_in.seller_id}) does not match items in cart (Seller ID: {cart_seller_id})."
+            )
+
+        target_seller_id = cart_seller_id
+
+        # Deterministically fetch the selected seller profile (NO RANDOM FALLBACK!)
+        sp_prof = (
+            db.query(SellerProfile)
+            .filter(or_(SellerProfile.user_id == target_seller_id, SellerProfile.id == target_seller_id))
+            .first()
+        )
         if not sp_prof:
-            raise BadRequestException("No eligible seller found to fulfill this order.")
+            raise BadRequestException(f"Selected seller (ID: {target_seller_id}) profile was not found.")
+
+        shop_id = sp_prof.id
+        seller_user_id = sp_prof.user_id
 
         # Enforce seller active status
-        seller_user = db.query(User).filter(User.id == sp_prof.user_id).first()
+        seller_user = db.query(User).filter(User.id == seller_user_id).first()
         if not seller_user or not seller_user.is_active:
-            raise BadRequestException("Seller account is currently inactive. Order cannot be placed.")
+            raise BadRequestException(f"Seller '{sp_prof.business_name}' is currently inactive. Order cannot be placed.")
 
         # Enforce seller availability: block checkout if seller is OFFLINE
         if not sp_prof.is_available:
             raise BadRequestException(
-                message="Seller is currently offline. Please try again later.",
+                message=f"Store '{sp_prof.business_name}' is currently offline. Please try again later.",
                 code="SELLER_OFFLINE",
-                details={"message": "Seller is currently offline. Please try again later."}
+                details={"seller_id": seller_user_id, "business_name": sp_prof.business_name}
             )
 
-        # Resolve seller coordinates and check 1–15 km bounds
-        s_lat, s_lon = LocationService.resolve_seller_coordinates(db, sp_prof.user_id)
+        # Resolve seller coordinates and check strict 20 KM boundary
+        s_lat, s_lon = LocationService.resolve_seller_coordinates(db, seller_user_id, fallback_to_default=False)
         if s_lat is None or s_lon is None:
             raise BadRequestException(
-                message="Seller location coordinates are not configured. Order cannot be routed.",
+                message=f"Store '{sp_prof.business_name}' location coordinates are not configured. Order cannot be routed.",
                 code="SELLER_LOCATION_MISSING",
                 details={"message": "Seller location coordinates are missing."}
+            )
+
+        if cust_lat is None or cust_lon is None:
+            raise BadRequestException(
+                message="Delivery address coordinates could not be detected. Please set address on map.",
+                code="CUSTOMER_LOCATION_MISSING"
             )
 
         seller_dist = LocationService.calculate_distance(cust_lat, cust_lon, s_lat, s_lon)
         is_in_bounds, bounds_msg = LocationService.is_within_delivery_bounds(seller_dist, max_km=20.0)
         if not is_in_bounds:
-            out_msg = f"Sorry, this delivery address is outside our 20 KM delivery area. (Distance: {seller_dist:.1f} km)"
+            out_msg = f"Delivery address is outside the store's 20 KM delivery area ({seller_dist:.2f} KM from {sp_prof.business_name})."
             raise BadRequestException(
                 message=out_msg,
                 code="DELIVERY_OUT_OF_RANGE",
-                details={"distance": seller_dist, "max_distance": 20.0, "message": out_msg}
+                details={"distance": round(seller_dist, 2), "max_distance": 20.0, "seller_name": sp_prof.business_name}
             )
 
         # Centralized Server-Side Distance-Based Delivery Fee (1–20 KM, >20 KM blocked)
@@ -170,7 +184,7 @@ class OrderService:
         delivery_charge, delivery_distance_km = DeliveryPricingService.calculate_delivery_distance_and_fee(
             db=db,
             address_id=order_in.address_id,
-            seller_id=sp_prof.user_id,
+            seller_id=seller_user_id,
         )
 
         # Coupon validation
@@ -216,6 +230,7 @@ class OrderService:
         db.flush()
 
         # Create Order Items and deduct inventory atomically
+        created_order_items = []
         for it in items_to_create:
             order_item = OrderItem(
                 order_id=order.id,
@@ -227,6 +242,7 @@ class OrderService:
                 subtotal=it["subtotal"],
             )
             db.add(order_item)
+            created_order_items.append(order_item)
 
             # Deduct stock and record inventory transaction
             InventoryService.commit_stock_deduction(
@@ -236,6 +252,8 @@ class OrderService:
                 reference_id=order.id,
                 created_by=user.id,
             )
+
+        db.flush()
 
         # Record Coupon Usage if applied
         if coupon_id and discount_amount > 0:
@@ -249,17 +267,18 @@ class OrderService:
 
         # Create Seller Fulfillments (supports 1 seller today and N sellers in future)
         from app.services.seller_fulfillment_service import SellerFulfillmentService
-        order_items_objs = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
-        SellerFulfillmentService.create_fulfillments_for_order(db=db, order=order, items=order_items_objs)
+        SellerFulfillmentService.create_fulfillments_for_order(db=db, order=order, items=created_order_items)
 
 
-        # Initial Status History
+
+        # Initial Status History with Routing Audit
+        routing_note = f"Order routed to seller '{sp_prof.business_name}' (Seller ID: {seller_user_id}, Shop ID: {shop_id}, GPS: {s_lat:.4f},{s_lon:.4f}, Distance: {seller_dist:.2f} KM) via EXPLICIT_SELLER lock"
         status_history = OrderStatusHistory(
             order_id=order.id,
             old_status=None,
             new_status=OrderStatus.NEW.value,
             changed_by=user.id,
-            note="Order placed by customer",
+            note=routing_note,
         )
         db.add(status_history)
 

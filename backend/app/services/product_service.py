@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 from decimal import Decimal
 
 from sqlalchemy import or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.category import Category
 from app.models.product import Product
@@ -143,18 +143,21 @@ class ProductService:
         product_type: Optional[str] = None,
         active_only: bool = True,
         marketplace_only: bool = True,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        seller_id: Optional[int] = None,
+        max_radius_km: float = 20.0,
     ) -> Tuple[List[ProductRead], int]:
         """
         Lists canonical products with aggregated seller offers.
-
-        If marketplace_only is True, only returns products
-        with at least one active offer.
+        Filters offers to sellers within max_radius_km of (lat, lon) if provided.
         """
         from app.services.taxonomy_service import TaxonomyService, VEGETABLE_CATEGORY_IDS, FRUIT_CATEGORY_IDS
+        from app.services.location_service import LocationService
 
         query = db.query(Product).options(
             joinedload(Product.category),
-            joinedload(Product.images),
+            selectinload(Product.images),
             joinedload(Product.seller_products)
             .joinedload(SellerProduct.seller)
             .joinedload(User.seller_profile),
@@ -163,9 +166,7 @@ class ProductService:
         )
 
         if active_only:
-            query = query.filter(
-                Product.is_active == True
-            )
+            query = query.filter(Product.is_active == True)
 
         if product_type:
             p_type = product_type.strip().upper()
@@ -187,7 +188,6 @@ class ProductService:
 
         clean_search = search.strip() if search else None
         if clean_search:
-            # Check if search is a category intent (e.g. "vegetables", "fruits", "citrus", "leafy")
             cat_intent = TaxonomyService.get_category_intent(clean_search)
             if cat_intent:
                 _, cat_ids = cat_intent
@@ -200,24 +200,51 @@ class ProductService:
                     clauses.append(Product.description.ilike(f"%{term}%"))
                 query = query.filter(or_(*clauses))
 
-        # Filter for products that have at least one seller offering it
+        # Filter for products that have active seller offers
         if marketplace_only:
-            query = (
-                query
-                .join(SellerProduct)
-                .filter(
-                    SellerProduct.is_available == True
-                )
-            )
+            query = query.filter(Product.seller_products.any(SellerProduct.is_available == True))
 
-        total_count = query.distinct(Product.id).count()
+        # Cache seller distances for this request to avoid re-querying coordinates
+        seller_dist_cache: dict[int, Optional[float]] = {}
+        def _get_seller_distance(s_user_id: int) -> Optional[float]:
+            if s_user_id in seller_dist_cache:
+                return seller_dist_cache[s_user_id]
+            if lat is None or lon is None:
+                seller_dist_cache[s_user_id] = None
+                return None
+            s_lat, s_lon = LocationService.resolve_seller_coordinates(db, s_user_id, fallback_to_default=False)
+            if s_lat is None or s_lon is None:
+                seller_dist_cache[s_user_id] = None
+                return None
+            d = LocationService.calculate_distance(lat, lon, s_lat, s_lon)
+            seller_dist_cache[s_user_id] = d
+            return d
 
-        # Fetch products matching query
-        raw_products = (
-            query
-            .distinct(Product.id)
-            .all()
-        )
+        def _is_offer_eligible(sp: SellerProduct) -> Tuple[bool, Optional[float]]:
+            if seller_id is not None and sp.seller_id != seller_id:
+                return False, None
+            if not sp.is_available:
+                return False, None
+            profile = sp.seller.seller_profile if sp.seller else None
+            if profile and not profile.is_available:
+                return False, None
+            d = _get_seller_distance(sp.seller_id)
+            if lat is not None and lon is not None:
+                if d is None or d > max_radius_km:
+                    return False, d
+                return True, round(d, 2)
+            return True, None
+
+        # Fetch candidate products matching query
+        raw_products = query.order_by(Product.id.asc()).all()
+
+
+        # If location filter or specific seller filter is active, filter products to eligible ones
+        if (lat is not None and lon is not None) or seller_id is not None:
+            raw_products = [
+                p for p in raw_products
+                if any(_is_offer_eligible(sp)[0] for sp in p.seller_products)
+            ]
 
         # Relevance scoring for search queries
         if clean_search and not TaxonomyService.get_category_intent(clean_search):
@@ -227,133 +254,95 @@ class ProductService:
 
             def calc_relevance(p: Product) -> int:
                 p_name = p.name.lower()
-                # 1. Exact match on product name
                 if p_name == s_lower:
                     return 100
-                # 2. Whole word exact match on product name (e.g. "Apple" in "Royal Delicious Apple")
                 if pattern.search(p_name):
                     return 90
-                # 3. Prefix match on product name
                 if p_name.startswith(s_lower):
                     return 80
-                # 4. Prefix of any word in product name (e.g. "tom" in "Fresh Tomatoes")
                 words = p_name.split()
                 if any(w.startswith(s_lower) for w in words):
                     return 75
-                # 5. Multilingual synonym match on product name
                 for term in TaxonomyService.expand_search_terms(clean_search):
                     if term in p_name:
                         return 60
-                # 6. Substring match on product name
                 if s_lower in p_name:
                     return 40
-                # 7. Description match
                 return 20
 
             raw_products.sort(key=calc_relevance, reverse=True)
 
+        total_count = len(raw_products)
         products = raw_products[pagination.offset : pagination.offset + pagination.limit]
 
         # Build enriched ProductRead responses
         result: List[ProductRead] = []
 
         for p in products:
-
             offers: List[ProductSellerOffer] = []
             prices = []
             total_stock = 0
 
             for sp in p.seller_products:
+                eligible, dist_val = _is_offer_eligible(sp)
+                if not eligible:
+                    continue
 
-                # Seller offers, not master products, define
-                # marketplace price and stock.
-                # Inventory is authoritative when it exists.
-
-                profile = (
-                    sp.seller.seller_profile
-                    if sp.seller
-                    else None
+                inventory = sp.inventory
+                available_stock = (
+                    max(
+                        Decimal("0"),
+                        inventory.quantity - inventory.reserved_quantity,
+                    )
+                    if inventory
+                    else sp.stock_quantity
                 )
 
-                if (
-                    sp.is_available
-                    and (
-                        profile is None
-                        or profile.is_available
+                prices.append(sp.price)
+                total_stock += available_stock
+
+                b_name = (
+                    sp.seller.seller_profile.business_name
+                    if (sp.seller and sp.seller.seller_profile)
+                    else (sp.seller.name if sp.seller else "Farmer Direct")
+                )
+
+                b_rating = (
+                    sp.seller.seller_profile.rating
+                    if (sp.seller and sp.seller.seller_profile)
+                    else Decimal("4.80")
+                )
+
+                freshness_info = FreshnessService.calculate(sp, p)
+
+                offers.append(
+                    ProductSellerOffer(
+                        seller_product_id=sp.id,
+                        seller_id=sp.seller_id,
+                        seller_business_name=b_name,
+                        seller_rating=b_rating,
+                        price=sp.price,
+                        stock_quantity=available_stock,
+                        minimum_order_quantity=sp.minimum_order_quantity,
+                        is_available=sp.is_available,
+                        distance_km=dist_val,
+                        added_date=getattr(sp, "added_date", None),
+                        added_time=getattr(sp, "added_time", None),
+                        harvest_date=getattr(sp, "harvest_date", None),
+                        harvest_time=getattr(sp, "harvest_time", None),
+                        storage_condition=getattr(sp, "storage_condition", None),
+                        origin=getattr(sp, "origin", None),
+                        freshness=freshness_info,
                     )
-                ):
+                )
 
-                    inventory = sp.inventory
+            # Sort offers by distance ascending (closest seller first), then price
+            offers.sort(key=lambda o: (o.distance_km if o.distance_km is not None else 999999, o.price))
 
-                    available_stock = (
-                        max(
-                            Decimal("0"),
-                            inventory.quantity
-                            - inventory.reserved_quantity,
-                        )
-                        if inventory
-                        else sp.stock_quantity
-                    )
-
-                    prices.append(sp.price)
-                    total_stock += available_stock
-
-                    b_name = (
-                        sp.seller.seller_profile.business_name
-                        if (
-                            sp.seller
-                            and sp.seller.seller_profile
-                        )
-                        else (
-                            sp.seller.name
-                            if sp.seller
-                            else "Farmer Direct"
-                        )
-                    )
-
-                    b_rating = (
-                        sp.seller.seller_profile.rating
-                        if (
-                            sp.seller
-                            and sp.seller.seller_profile
-                        )
-                        else Decimal("4.80")
-                    )
-
-                    freshness_info = FreshnessService.calculate(sp, p)
-
-                    offers.append(
-                        ProductSellerOffer(
-                            seller_product_id=sp.id,
-                            seller_id=sp.seller_id,
-                            seller_business_name=b_name,
-                            seller_rating=b_rating,
-                            price=sp.price,
-                            stock_quantity=available_stock,
-                            minimum_order_quantity=(
-                                sp.minimum_order_quantity
-                            ),
-                            is_available=sp.is_available,
-                            added_date=getattr(sp, "added_date", None),
-                            added_time=getattr(sp, "added_time", None),
-                            harvest_date=getattr(sp, "harvest_date", None),
-                            harvest_time=getattr(sp, "harvest_time", None),
-                            storage_condition=getattr(sp, "storage_condition", None),
-                            origin=getattr(sp, "origin", None),
-                            freshness=freshness_info,
-                        )
-                    )
-
-            min_price = (
-                min(prices)
-                if prices
-                else None
-            )
-
+            min_price = min(prices) if prices else None
             is_in_stock = total_stock > 0
 
             read_obj = ProductRead.model_validate(p)
-
             read_obj.min_price = min_price
             read_obj.is_in_stock = is_in_stock
             read_obj.seller_products = offers
@@ -370,13 +359,16 @@ class ProductService:
     def get_product_by_id(
         db: Session,
         product_id: int,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
     ) -> ProductRead:
+        from app.services.location_service import LocationService
 
         product = (
             db.query(Product)
             .options(
                 joinedload(Product.category),
-                joinedload(Product.images),
+                selectinload(Product.images),
                 joinedload(Product.seller_products)
                 .joinedload(SellerProduct.seller)
                 .joinedload(User.seller_profile),
@@ -449,6 +441,12 @@ class ProductService:
 
                 freshness_info = FreshnessService.calculate(sp, product)
 
+                dist_km = None
+                if lat is not None and lon is not None:
+                    s_lat, s_lon = LocationService.resolve_seller_coordinates(db, sp.seller_id, fallback_to_default=False)
+                    if s_lat is not None and s_lon is not None:
+                        dist_km = round(LocationService.calculate_distance(lat, lon, s_lat, s_lon), 2)
+
                 offers.append(
                     ProductSellerOffer(
                         seller_product_id=sp.id,
@@ -461,6 +459,7 @@ class ProductService:
                             sp.minimum_order_quantity
                         ),
                         is_available=sp.is_available,
+                        distance_km=dist_km,
                         added_date=getattr(sp, "added_date", None),
                         added_time=getattr(sp, "added_time", None),
                         harvest_date=getattr(sp, "harvest_date", None),
@@ -470,6 +469,9 @@ class ProductService:
                         freshness=freshness_info,
                     )
                 )
+
+        if lat is not None and lon is not None:
+            offers.sort(key=lambda o: (o.distance_km if o.distance_km is not None else 999999, o.price))
 
         read_obj = ProductRead.model_validate(product)
 

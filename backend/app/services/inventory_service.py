@@ -79,6 +79,10 @@ class InventoryService:
         Converts reserved stock to actual deduction when order is placed/confirmed.
         """
         inv = InventoryService.get_or_create_inventory(db, seller_product_id)
+        if inv.quantity < quantity:
+            raise BadRequestException(
+                f"Insufficient stock available during checkout. Available: {inv.quantity}, requested: {quantity}"
+            )
         inv.quantity -= quantity
         inv.reserved_quantity = max(Decimal("0.000"), inv.reserved_quantity - quantity)
 

@@ -128,8 +128,9 @@ function LoginContent() {
       }
 
       // Section 11: Route automatically by authorized role
+      const redirectParam = searchParams?.get("redirect");
       if (tokenRes.role === "CUSTOMER") {
-        router.push("/customer");
+        router.push(redirectParam || "/customer");
       } else if (tokenRes.role === "SELLER") {
         router.push("/seller");
       } else if (tokenRes.role === "DELIVERY_PARTNER") {
@@ -174,7 +175,12 @@ function LoginContent() {
         return;
       }
 
-      router.push(getRoleRedirectPath(tokenRes.role));
+      const redirectParam = searchParams?.get("redirect");
+      if (tokenRes.role === "CUSTOMER" && redirectParam) {
+        router.push(redirectParam);
+      } else {
+        router.push(getRoleRedirectPath(tokenRes.role));
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

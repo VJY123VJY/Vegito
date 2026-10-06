@@ -8,6 +8,7 @@ from app.schemas.address import AddressRead
 
 class OrderCreate(BaseModel):
     address_id: int
+    seller_id: Optional[int] = Field(None, description="Explicit seller ID lock (optional; verified against cart)")
     payment_method: str = Field("COD", description="COD, UPI, etc.")
     coupon_code: Optional[str] = None
     delivery_slot_start: Optional[datetime.datetime] = None

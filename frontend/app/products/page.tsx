@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -25,6 +25,8 @@ import { addCartItem, getCart } from "@/lib/api/cart";
 import { getErrorMessage } from "@/lib/api/client";
 import { getStoredUserName } from "@/lib/api/auth";
 
+import { getStoredLocation } from "@/components/location/location-modal";
+
 export default function BrowseProductsPage() {
   const queryClient = useQueryClient();
   const userName = getStoredUserName();
@@ -34,14 +36,24 @@ export default function BrowseProductsPage() {
   const [sortBy, setSortBy] = useState<"price-asc" | "price-desc" | "name">("name");
   const [inStockOnly, setInStockOnly] = useState(false);
   const [feedbackToast, setFeedbackToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [locCoords, setLocCoords] = useState<{ lat?: number; lon?: number }>({});
+
+  useEffect(() => {
+    const loc = getStoredLocation();
+    if (loc?.latitude != null && loc.longitude != null) {
+      setLocCoords({ lat: loc.latitude, lon: loc.longitude });
+    }
+  }, []);
 
   const categories = useQuery({ queryKey: ["categories"], queryFn: getCategories });
   const products = useQuery({
-    queryKey: ["all-products", selectedCategory, search],
+    queryKey: ["all-products", selectedCategory, search, locCoords.lat, locCoords.lon],
     queryFn: () =>
       getProducts({
         categoryId: selectedCategory || undefined,
         search: search.trim() || undefined,
+        lat: locCoords.lat,
+        lon: locCoords.lon,
         pageSize: 100,
       }),
   });
@@ -104,7 +116,7 @@ export default function BrowseProductsPage() {
       userName={userName}
       userRole="Customer"
       greeting="Fresh Harvest Vegetables"
-      subtitle="Organically harvested vegetables from verified Solapur farms"
+      subtitle="Organically harvested vegetables from verified local farms within 20 KM"
       searchPlaceholder="Search vegetables..."
       onSearchChange={(val) => setSearch(val)}
     >
@@ -246,7 +258,7 @@ export default function BrowseProductsPage() {
             {processedProducts.map((p) => {
               const offer = p.seller_products?.[0];
               const displayPrice = offer?.price ? Number(offer.price) : Number(p.min_price || 0);
-              const sellerName = offer?.seller_business_name || "Solapur Verified Farm";
+              const sellerName = offer?.seller_business_name || "Verified Local Store";
               const isFav = favSet.has(p.id);
               const primaryImage = p.images?.find((img) => img.is_primary)?.image_url || p.images?.[0]?.image_url;
 

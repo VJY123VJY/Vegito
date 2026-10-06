@@ -63,6 +63,7 @@ class ProductSellerOffer(BaseModel):
     storage_condition: Optional[str] = None
     origin: Optional[str] = None
     freshness: Optional[FreshnessInfo] = None
+    distance_km: Optional[float] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -79,6 +80,7 @@ class ProductSellerOffer(BaseModel):
                 "stock_quantity": data.stock_quantity,
                 "minimum_order_quantity": data.minimum_order_quantity,
                 "is_available": data.is_available,
+                "distance_km": getattr(data, "distance_km", None),
                 "added_date": getattr(data, "added_date", None),
                 "added_time": getattr(data, "added_time", None),
                 "harvest_date": getattr(data, "harvest_date", None),

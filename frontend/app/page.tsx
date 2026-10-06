@@ -1,7 +1,7 @@
 "use client";
 
-import { VegitoWelcome } from "@/components/public/vegito-welcome";
+import { PublicHome } from "@/components/public/public-home";
 
 export default function RootPage() {
-  return <VegitoWelcome />;
+  return <PublicHome />;
 }

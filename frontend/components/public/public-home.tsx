@@ -189,16 +189,23 @@ export function PublicHome() {
   const cartQuery = useQuery({
     queryKey: ["cart"],
     queryFn: getCart,
-    enabled: role === "CUSTOMER",
-    staleTime: 15_000,
+    staleTime: 10_000,
   });
 
   const productsQuery = useQuery({
-    queryKey: ["public-products", selectedCategoryId, searchQuery],
+    queryKey: [
+      "public-products",
+      selectedCategoryId,
+      searchQuery,
+      selectedLocationCoordinates?.latitude,
+      selectedLocationCoordinates?.longitude,
+    ],
     queryFn: () =>
       getProducts({
         categoryId: selectedCategoryId || undefined,
         search: searchQuery.trim() || undefined,
+        lat: selectedLocationCoordinates?.latitude,
+        lon: selectedLocationCoordinates?.longitude,
         pageSize: 100,
       }),
     staleTime: 30_000,
@@ -242,11 +249,35 @@ export function PublicHome() {
 
   // Mutations
   const addCartMut = useMutation({
-    mutationFn: ({ sellerProductId, qty }: { sellerProductId: number; qty: number }) =>
-      addCartItem(sellerProductId, qty),
+    mutationFn: ({
+      sellerProductId,
+      qty,
+      product,
+    }: {
+      sellerProductId: number;
+      qty: number;
+      product?: ApiProduct;
+    }) => {
+      const offer =
+        product?.seller_products?.find((o) => o.seller_product_id === sellerProductId) ||
+        product?.seller_products?.[0];
+      return addCartItem(sellerProductId, qty, {
+        productId: product?.id,
+        productName: product?.name,
+        unit: product?.unit,
+        price: offer?.price
+          ? Number(offer.price)
+          : product?.min_price
+          ? Number(product.min_price)
+          : 0,
+        imageUrl: product?.images?.[0]?.image_url,
+        sellerId: offer?.seller_id,
+        sellerName: offer?.seller_business_name || undefined,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cart"] });
-      setToast({ type: "success", text: "Added fresh vegetable to basket!" });
+      setToast({ type: "success", text: "Added fresh produce to basket! 🧺" });
       setTimeout(() => setToast(null), 2500);
     },
     onError: (err) => {
@@ -281,27 +312,19 @@ export function PublicHome() {
   });
 
   const handleProductQtyChange = (product: ApiProduct, newQty: number) => {
-    if (!role) {
-      router.push("/auth/login?role=customer");
-      return;
-    }
     const cartEntry = cartQuantityByProduct[product.id];
     if (cartEntry) {
       updateCartMut.mutate({ itemId: cartEntry.itemId, quantity: newQty });
     } else if (newQty > 0) {
       const offer = product.seller_products?.[0];
       if (offer?.seller_product_id) {
-        addCartMut.mutate({ sellerProductId: offer.seller_product_id, qty: newQty });
+        addCartMut.mutate({ sellerProductId: offer.seller_product_id, qty: newQty, product });
       }
     }
   };
 
-  const handleAddToCartDirect = (sellerProductId: number, qty: number) => {
-    if (!role) {
-      router.push("/auth/login?role=customer");
-      return;
-    }
-    addCartMut.mutate({ sellerProductId, qty });
+  const handleAddToCartDirect = (sellerProductId: number, qty: number, product?: ApiProduct) => {
+    addCartMut.mutate({ sellerProductId, qty, product });
   };
 
   const productList = productsQuery.data?.items ?? [];
@@ -526,7 +549,7 @@ export function PublicHome() {
 
             {/* Basket Button */}
             <Link
-              href={role === "CUSTOMER" ? "/customer/cart" : "/auth/login?role=customer"}
+              href="/cart"
               style={{
                 position: "relative",
                 width: "42px",
@@ -1576,7 +1599,7 @@ export function PublicHome() {
           }}
         >
           <Link
-            href="/customer/cart"
+            href="/cart"
             style={{
               display: "flex",
               alignItems: "center",

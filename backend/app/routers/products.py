@@ -23,6 +23,9 @@ def list_products(
     search: Optional[str] = Query(None, description="Search term in product name or description"),
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
     product_type: Optional[str] = Query(None, description="Filter by product type (VEGETABLE or FRUIT)"),
+    lat: Optional[float] = Query(None, description="Customer latitude for 20 KM radius filter"),
+    lon: Optional[float] = Query(None, description="Customer longitude for 20 KM radius filter"),
+    seller_id: Optional[int] = Query(None, description="Filter by specific seller ID"),
     db: Session = Depends(get_db),
 ):
     pagination = PaginationParams(page=page, page_size=page_size)
@@ -33,6 +36,10 @@ def list_products(
         category_id=category_id,
         product_type=product_type,
         active_only=True,
+        lat=lat,
+        lon=lon,
+        seller_id=seller_id,
+        max_radius_km=20.0,
     )
     paginated = PaginatedResponse.create(products, total_count, pagination)
     return APIResponse(data=paginated)
@@ -43,8 +50,13 @@ def list_products(
     response_model=APIResponse[ProductRead],
     summary="Get product details with active seller offers",
 )
-def get_product(product_id: int, db: Session = Depends(get_db)):
-    product = ProductService.get_product_by_id(db, product_id)
+def get_product(
+    product_id: int,
+    lat: Optional[float] = Query(None, description="Customer latitude"),
+    lon: Optional[float] = Query(None, description="Customer longitude"),
+    db: Session = Depends(get_db),
+):
+    product = ProductService.get_product_by_id(db, product_id, lat=lat, lon=lon)
     return APIResponse(data=product)
 
 

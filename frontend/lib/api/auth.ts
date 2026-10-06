@@ -227,6 +227,14 @@ export function saveSession(session: TokenResponse) {
       detail: { loggedIn: true, role: session.role, authorized_roles: authRoles },
     })
   );
+
+  if (session.role === "CUSTOMER") {
+    import("./cart").then(({ syncGuestCartToBackend }) => {
+      syncGuestCartToBackend().catch((err) => {
+        console.warn("Auto-sync guest cart notice:", err);
+      });
+    });
+  }
 }
 
 export function getAuthToken(): string | null {

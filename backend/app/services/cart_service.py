@@ -8,6 +8,7 @@ from app.models.seller_product import SellerProduct
 from app.models.product import Product
 from app.models.product_image import ProductImage
 from app.models.inventory import Inventory
+from app.models.seller_profile import SellerProfile
 from app.schemas.cart import CartRead, CartItemRead
 from app.core.exceptions import NotFoundException, BadRequestException
 from app.utils.helpers import round_currency
@@ -101,6 +102,37 @@ class CartService:
 
         if quantity <= 0:
             raise BadRequestException("Quantity must be greater than zero.")
+
+        # Single-Seller Cart Enforcement:
+        # A cart must only contain items from ONE seller at a time.
+        # This prevents order splitting and ensures deterministic routing.
+        existing_items = (
+            db.query(CartItem)
+            .options(
+                joinedload(CartItem.seller_product)
+                .joinedload(SellerProduct.seller)
+                .joinedload(User.seller_profile)
+            )
+            .filter(CartItem.cart_id == cart.id)
+            .all()
+        )
+        if existing_items:
+            first_sp = existing_items[0].seller_product
+            if first_sp and first_sp.seller_id != seller_product.seller_id:
+                existing_shop_name = (
+                    first_sp.seller.seller_profile.business_name
+                    if (first_sp.seller and getattr(first_sp.seller, "seller_profile", None))
+                    else "another store"
+                )
+                raise BadRequestException(
+                    message=f"Your basket already contains items from '{existing_shop_name}'. Vegito orders are fulfilled by a single local store within 20 KM. Please clear your basket or checkout first.",
+                    code="DIFFERENT_SELLER_CONFLICT",
+                    details={
+                        "existing_seller_id": first_sp.seller_id,
+                        "existing_seller_name": existing_shop_name,
+                        "new_seller_id": seller_product.seller_id,
+                    },
+                )
 
         inventory = db.query(Inventory).filter(Inventory.seller_product_id == seller_product.id).first()
         available_stock = (

@@ -63,7 +63,10 @@ def update_customer_profile(
 
 @router.get("/home-feed", response_model=APIResponse[CustomerHomeFeedRead], summary="Personalized customer home feed")
 def get_customer_home_feed(
-    current_user: User = Depends(require_customer), db: Session = Depends(get_db)
+    lat: Optional[float] = Query(None, description="Customer latitude"),
+    lon: Optional[float] = Query(None, description="Customer longitude"),
+    current_user: User = Depends(require_customer),
+    db: Session = Depends(get_db),
 ):
     """Return only real current offers and this customer's own stored signals.
 
@@ -71,7 +74,7 @@ def get_customer_home_feed(
     stock always come from the current seller listing/inventory, not old orders.
     """
     fresh_picks, _ = ProductService.list_products(
-        db, PaginationParams(page=1, page_size=12), active_only=True
+        db, PaginationParams(page=1, page_size=12), active_only=True, lat=lat, lon=lon
     )
     fresh_picks = [product for product in fresh_picks if product.is_in_stock]
 
@@ -145,25 +148,26 @@ def get_nearby_sellers(
                 continue
         else:
             dist = 0.0
-            prod_count = (
-                db.query(SellerProduct)
-                .filter(SellerProduct.seller_id == sp.user_id, SellerProduct.is_available == True, SellerProduct.stock_quantity > 0)
-                .count()
+
+        prod_count = (
+            db.query(SellerProduct)
+            .filter(SellerProduct.seller_id == sp.user_id, SellerProduct.is_available == True, SellerProduct.stock_quantity > 0)
+            .count()
+        )
+        results.append(
+            NearbySellerRead(
+                id=sp.id,
+                user_id=sp.user_id,
+                business_name=sp.business_name,
+                business_type=sp.business_type,
+                address=sp.address or "Local Area",
+                distance_km=round(dist, 2),
+                is_verified=bool(sp.is_verified),
+                rating=sp.rating or Decimal("0.00"),
+                total_orders=sp.total_orders or 0,
+                active_products_count=prod_count,
             )
-            results.append(
-                NearbySellerRead(
-                    id=sp.id,
-                    user_id=sp.user_id,
-                    business_name=sp.business_name,
-                    business_type=sp.business_type,
-                    address=sp.address or "Solapur Market Area",
-                    distance_km=dist,
-                    is_verified=bool(sp.is_verified),
-                    rating=sp.rating or Decimal("0.00"),
-                    total_orders=sp.total_orders or 0,
-                    active_products_count=prod_count,
-                )
-            )
+        )
 
     results.sort(key=lambda s: s.distance_km)
     return APIResponse(data=results)
