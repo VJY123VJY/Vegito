@@ -1,47 +1,68 @@
 "use client";
 
-import React, { FormEvent, useEffect, useState } from "react";
+import React, { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Store,
-  Loader2,
+  Navigation,
+  MapPin,
   CheckCircle2,
   AlertCircle,
+  Loader2,
   ArrowRight,
   ArrowLeft,
   Sparkles,
-  MapPin,
-  Building,
+  Search,
 } from "lucide-react";
-import { getErrorMessage } from "@/lib/api/client";
-import { saveSession, sendOtp, verifyOtp } from "@/lib/api/auth";
+import {
+  sendOtp,
+  verifyOtp,
+  saveSession,
+  getRoleRedirectPath,
+} from "@/lib/api/auth";
+import { reverseGeocode, searchAddressGeocode, type GeocodingResult } from "@/lib/api/map";
+import { api, getErrorMessage } from "@/lib/api/client";
+import { MapPinPicker } from "@/components/location/map-pin-picker";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 
 export default function SellerAuthPage() {
   const router = useRouter();
 
-  const [businessName, setBusinessName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [locality, setLocality] = useState("");
-  const [otp, setOtp] = useState("");
+  // Wizard Flow: "phone" -> "otp" -> "shop_info"
+  const [stage, setStage] = useState<"phone" | "otp" | "shop_info">("phone");
 
-  const [stage, setStage] = useState<"details" | "otp">("details");
+  // Step 1: Phone
+  const [phone, setPhone] = useState("");
+
+  // Step 2: OTP
+  const [otp, setOtp] = useState("");
+  const [resendTimer, setResendTimer] = useState(0);
+
+  // Step 3: Shop Information & Location
+  const [shopName, setShopName] = useState("");
+  const [shopAddress, setShopAddress] = useState("");
+  const [shopLat, setShopLat] = useState<number | null>(null);
+  const [shopLng, setShopLng] = useState<number | null>(null);
+  const [locationDetected, setLocationDetected] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+
+  // Status
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
-  const [resendIn, setResendIn] = useState(0);
 
   useEffect(() => {
-    if (!resendIn) return;
-    const timer = window.setInterval(
-      () => setResendIn((v) => Math.max(0, v - 1)),
-      1000
-    );
-    return () => window.clearInterval(timer);
-  }, [resendIn]);
+    if (!resendTimer) return;
+    const interval = setInterval(() => {
+      setResendTimer((t) => Math.max(0, t - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendTimer]);
 
-  const handleSubmit = async (e: FormEvent) => {
+  // ── STEP 1: SEND OTP ──────────────────────────────────────────────────────
+  const handleSendOtp = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setInfoMsg(null);
@@ -53,36 +74,120 @@ export default function SellerAuthPage() {
     }
 
     setLoading(true);
+    try {
+      const res = await sendOtp("seller", cleanPhone);
+      setStage("otp");
+      setResendTimer(45);
+      if ((res as any)?.dev_otp) {
+        setInfoMsg(`OTP sent! (Dev Auto-fill: ${(res as any).dev_otp})`);
+        setOtp((res as any).dev_otp);
+      } else {
+        setInfoMsg(`We'll send you an OTP to verify your mobile number.`);
+      }
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── STEP 2: VERIFY OTP ────────────────────────────────────────────────────
+  const handleVerifyOtp = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const cleanOtp = otp.trim();
+    if (!cleanOtp || cleanOtp.length < 4) {
+      setError("Please enter the 6-digit verification code.");
+      return;
+    }
+
+    const cleanPhone = phone.replace(/\D/g, "");
+    setLoading(true);
 
     try {
-      if (stage === "details") {
-        if (!businessName.trim()) {
-          setError("Please enter your store or farm business name.");
-          setLoading(false);
-          return;
-        }
-
-        const res = await sendOtp("seller", cleanPhone);
-        setStage("otp");
-        setResendIn(45);
-        if ((res as any)?.dev_otp) {
-          setInfoMsg(`OTP sent! (Dev Auto-fill: ${(res as any).dev_otp})`);
-          setOtp((res as any).dev_otp);
-        } else {
-          setInfoMsg(`We sent a 6-digit verification code to +91 ${cleanPhone}`);
-        }
-        return;
-      }
-
-      // Verify OTP
-      if (!otp.trim() || otp.trim().length < 4) {
-        setError("Please enter the 6-digit verification code.");
-        setLoading(false);
-        return;
-      }
-
-      const session = await verifyOtp("seller", cleanPhone, otp.trim(), businessName.trim());
+      const session = await verifyOtp("seller", cleanPhone, cleanOtp);
       saveSession(session);
+      // Advance to shop info
+      setStage("shop_info");
+      setError(null);
+      setInfoMsg(null);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── STEP 3: REAL SELLER GPS DETECTION ────────────────────────────────────
+  const handleDetectSellerGps = () => {
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setError(null);
+    setGpsLoading(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setShopLat(lat);
+        setShopLng(lng);
+
+        try {
+          const geo = await reverseGeocode(lat, lng);
+          const detectedText = geo?.place_name || `Shop at (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+          setShopAddress(detectedText);
+          setLocationDetected(true);
+        } catch {
+          setShopAddress(`Shop at GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+          setLocationDetected(true);
+        } finally {
+          setGpsLoading(false);
+        }
+      },
+      (err) => {
+        setGpsLoading(false);
+        if (err.code === 1) {
+          setError("Location permission denied. You can choose location on map.");
+        } else {
+          setError("Could not detect device GPS. Please choose location on map.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  // ── STEP 3: SUBMIT SHOP INFORMATION ──────────────────────────────────────
+  const handleSaveShopInfo = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!shopName.trim()) {
+      setError("Please enter your shop or farm name.");
+      return;
+    }
+
+    if (shopLat === null || shopLng === null) {
+      setError("Please detect your shop location using GPS or choose on map.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Update seller profile with real GPS coordinates and shop name
+      await api.put("/seller/profile", {
+        business_name: shopName.trim(),
+        address: shopAddress.trim() || undefined,
+        latitude: shopLat,
+        longitude: shopLng,
+        is_available: true,
+      });
+
+      // Seamless redirect to Seller Dashboard
       router.push("/seller");
     } catch (err) {
       setError(getErrorMessage(err));
@@ -99,47 +204,70 @@ export default function SellerAuthPage() {
         color: "var(--vegito-text-main, #12221e)",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
       }}
     >
-      {/* Header */}
+      {/* Top Header */}
       <header
         style={{
           width: "100%",
-          maxWidth: "480px",
+          maxWidth: "800px",
           margin: "0 auto",
-          padding: "20px 24px 0",
+          padding: "16px 20px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
         }}
       >
         <Link
-          href="/partner"
+          href="/"
           style={{
-            display: "inline-flex",
+            display: "flex",
             alignItems: "center",
-            gap: "6px",
-            color: "#62746a",
+            gap: "8px",
             textDecoration: "none",
-            fontSize: "13px",
-            fontWeight: 700,
+            color: "inherit",
           }}
         >
-          <ArrowLeft size={16} />
-          <span>Partner Hub</span>
+          <span style={{ fontSize: "26px" }}>🥬</span>
+          <span
+            style={{
+              fontSize: "20px",
+              fontWeight: 900,
+              letterSpacing: "-0.03em",
+              color: "#063c32",
+            }}
+          >
+            VEGITO
+          </span>
+          <span
+            style={{
+              fontSize: "11px",
+              fontWeight: 800,
+              backgroundColor: "#fff7ed",
+              color: "#c2410c",
+              padding: "2px 8px",
+              borderRadius: "6px",
+              border: "1px solid #fed7aa",
+            }}
+          >
+            SELLER
+          </span>
         </Link>
 
         <ThemeToggle />
       </header>
 
-      {/* Card Form */}
+      {/* Main Form Container */}
       <div
         style={{
+          flex: 1,
           width: "100%",
-          maxWidth: "440px",
-          margin: "24px auto",
-          padding: "0 20px",
+          maxWidth: "480px",
+          margin: "0 auto",
+          padding: "24px 20px 48px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
         }}
       >
         <div
@@ -147,68 +275,60 @@ export default function SellerAuthPage() {
             backgroundColor: "#ffffff",
             borderRadius: "24px",
             border: "1.5px solid #fed7aa",
-            boxShadow: "0 12px 40px rgba(194, 65, 12, 0.08)",
-            padding: "28px 24px",
+            padding: "32px 28px",
+            boxShadow: "0 10px 30px rgba(194, 65, 12, 0.05)",
           }}
         >
-          <div style={{ textAlign: "center", marginBottom: "24px" }}>
+          {/* Progress Indicator */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              marginBottom: "24px",
+            }}
+          >
             <div
               style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "14px",
-                backgroundColor: "#fff7ed",
-                color: "#ea580c",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: "12px",
+                width: "36px",
+                height: "4px",
+                borderRadius: "2px",
+                backgroundColor: "#c2410c",
               }}
-            >
-              <Store size={24} />
-            </div>
-
+            />
             <div
               style={{
-                fontSize: "11px",
-                fontWeight: 800,
-                color: "#c2410c",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
+                width: "36px",
+                height: "4px",
+                borderRadius: "2px",
+                backgroundColor: stage === "otp" || stage === "shop_info" ? "#c2410c" : "#e2e8f0",
               }}
-            >
-              Solapur Partner Network
-            </div>
-            <h1
+            />
+            <div
               style={{
-                fontSize: "22px",
-                fontWeight: 800,
-                color: "#7c2d12",
-                margin: "4px 0 6px",
+                width: "36px",
+                height: "4px",
+                borderRadius: "2px",
+                backgroundColor: stage === "shop_info" ? "#c2410c" : "#e2e8f0",
               }}
-            >
-              {stage === "details" ? "Register Your Store" : "Confirm Mobile Number"}
-            </h1>
-            <p style={{ margin: 0, fontSize: "13px", color: "#62746a" }}>
-              {stage === "details"
-                ? "Start listing farm produce & groceries for 15-min delivery"
-                : `Enter the 6-digit code sent to +91 ${phone}`}
-            </p>
+            />
           </div>
 
+          {/* Feedback Alerts */}
           {error && (
             <div
               style={{
-                padding: "10px 14px",
-                borderRadius: "12px",
+                padding: "12px 16px",
                 backgroundColor: "#fef2f2",
                 border: "1px solid #fecaca",
-                color: "#dc2626",
-                fontSize: "13px",
+                borderRadius: "12px",
+                color: "#b91c1c",
+                fontSize: "13.5px",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                marginBottom: "16px",
+                marginBottom: "20px",
               }}
             >
               <AlertCircle size={16} />
@@ -219,98 +339,87 @@ export default function SellerAuthPage() {
           {infoMsg && (
             <div
               style={{
-                padding: "10px 14px",
+                padding: "12px 16px",
+                backgroundColor: "#fff7ed",
+                border: "1px solid #fed7aa",
                 borderRadius: "12px",
-                backgroundColor: "#f0fdf4",
-                border: "1px solid #bbf7d0",
-                color: "#166534",
-                fontSize: "13px",
+                color: "#9a3412",
+                fontSize: "13.5px",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                marginBottom: "16px",
+                marginBottom: "20px",
               }}
             >
-              <Sparkles size={16} />
+              <CheckCircle2 size={16} />
               <span>{infoMsg}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit}>
-            {stage === "details" ? (
-              <>
-                {/* Store Name */}
-                <div style={{ marginBottom: "14px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "12.5px",
-                      fontWeight: 700,
-                      color: "#063c32",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    Store / Farm Business Name
-                  </label>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      backgroundColor: "#f8faf8",
-                      border: "1.5px solid #dce8df",
-                      borderRadius: "14px",
-                      padding: "2px 14px",
-                    }}
-                  >
-                    <Building size={16} color="#62746a" style={{ marginRight: "8px" }} />
-                    <input
-                      type="text"
-                      required
-                      value={businessName}
-                      onChange={(e) => setBusinessName(e.target.value)}
-                      placeholder="e.g. Patil Fresh Veg & Fruits"
-                      style={{
-                        width: "100%",
-                        height: "46px",
-                        border: "none",
-                        background: "transparent",
-                        outline: "none",
-                        fontSize: "14.5px",
-                        fontWeight: 600,
-                        color: "#063c32",
-                      }}
-                    />
-                  </div>
+          {/* ════════════════════════════════════════════════════════════════════
+              STAGE 1: MOBILE NUMBER
+          ════════════════════════════════════════════════════════════════════ */}
+          {stage === "phone" && (
+            <div>
+              <div style={{ textAlign: "center", marginBottom: "28px" }}>
+                <div
+                  style={{
+                    width: "56px",
+                    height: "56px",
+                    borderRadius: "18px",
+                    backgroundColor: "#fff7ed",
+                    color: "#c2410c",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: "14px",
+                  }}
+                >
+                  <Store size={28} />
                 </div>
+                <h1
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: 900,
+                    color: "#063c32",
+                    margin: "0 0 6px",
+                  }}
+                >
+                  Start selling with Vegito
+                </h1>
+                <p style={{ fontSize: "14px", color: "#62746a", margin: 0 }}>
+                  Grow your grocery business with fast local deliveries
+                </p>
+              </div>
 
-                {/* Mobile Number */}
-                <div style={{ marginBottom: "14px" }}>
+              <form onSubmit={handleSendOtp}>
+                <div style={{ marginBottom: "20px" }}>
                   <label
                     style={{
                       display: "block",
-                      fontSize: "12.5px",
+                      fontSize: "13px",
                       fontWeight: 700,
-                      color: "#063c32",
-                      marginBottom: "6px",
+                      color: "#12221e",
+                      marginBottom: "8px",
                     }}
                   >
-                    Owner / Manager Mobile Number
+                    Mobile number
                   </label>
                   <div
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      backgroundColor: "#f8faf8",
                       border: "1.5px solid #dce8df",
                       borderRadius: "14px",
-                      padding: "2px 14px",
+                      padding: "4px 14px",
+                      backgroundColor: "#fcfdfc",
                     }}
                   >
                     <span
                       style={{
-                        fontSize: "14px",
+                        fontSize: "15px",
                         fontWeight: 700,
-                        color: "#62746a",
+                        color: "#c2410c",
                         marginRight: "8px",
                       }}
                     >
@@ -318,205 +427,474 @@ export default function SellerAuthPage() {
                     </span>
                     <input
                       type="tel"
-                      inputMode="numeric"
-                      maxLength={10}
-                      required
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                      placeholder="Enter 10-digit number"
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Enter mobile number"
+                      maxLength={10}
+                      autoFocus
+                      required
                       style={{
-                        width: "100%",
-                        height: "46px",
+                        flex: 1,
                         border: "none",
-                        background: "transparent",
                         outline: "none",
                         fontSize: "15px",
-                        fontWeight: 700,
-                        color: "#063c32",
+                        fontWeight: 600,
+                        backgroundColor: "transparent",
+                        padding: "10px 0",
                       }}
                     />
                   </div>
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "#62746a",
+                      marginTop: "8px",
+                    }}
+                  >
+                    We'll send you an OTP to verify your number.
+                  </p>
                 </div>
 
-                {/* Solapur Locality */}
-                <div style={{ marginBottom: "22px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "12.5px",
-                      fontWeight: 700,
-                      color: "#063c32",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    Store Locality in Solapur
-                  </label>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      backgroundColor: "#f8faf8",
-                      border: "1.5px solid #dce8df",
-                      borderRadius: "14px",
-                      padding: "2px 14px",
-                    }}
-                  >
-                    <MapPin size={16} color="#62746a" style={{ marginRight: "8px" }} />
-                    <input
-                      type="text"
-                      value={locality}
-                      onChange={(e) => setLocality(e.target.value)}
-                      placeholder="e.g. Jule Solapur / Old Pune Naka"
-                      style={{
-                        width: "100%",
-                        height: "46px",
-                        border: "none",
-                        background: "transparent",
-                        outline: "none",
-                        fontSize: "14px",
-                        color: "#063c32",
-                      }}
-                    />
-                  </div>
-                </div>
-              </>
-            ) : (
-              /* STAGE: OTP */
-              <div style={{ marginBottom: "20px" }}>
-                <div
+                <button
+                  type="submit"
+                  disabled={loading || phone.replace(/\D/g, "").length !== 10}
                   style={{
+                    width: "100%",
+                    padding: "14px",
+                    backgroundColor: "#c2410c",
+                    color: "#ffffff",
+                    borderRadius: "14px",
+                    border: "none",
+                    fontSize: "15px",
+                    fontWeight: 800,
+                    cursor: loading ? "wait" : "pointer",
                     display: "flex",
-                    justifyContent: "space-between",
                     alignItems: "center",
-                    marginBottom: "6px",
+                    justifyContent: "center",
+                    gap: "8px",
+                    opacity: phone.replace(/\D/g, "").length === 10 ? 1 : 0.6,
                   }}
                 >
-                  <label style={{ fontSize: "12.5px", fontWeight: 700, color: "#063c32" }}>
-                    6-Digit Verification Code
-                  </label>
+                  {loading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Sending OTP...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Continue</span>
+                      <ArrowRight size={18} />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div
+                style={{
+                  marginTop: "24px",
+                  textAlign: "center",
+                  fontSize: "13.5px",
+                  color: "#62746a",
+                }}
+              >
+                Already registered as a partner?{" "}
+                <Link
+                  href="/auth/login"
+                  style={{
+                    color: "#c2410c",
+                    fontWeight: 700,
+                    textDecoration: "none",
+                  }}
+                >
+                  Login
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════════
+              STAGE 2: OTP
+          ════════════════════════════════════════════════════════════════════ */}
+          {stage === "otp" && (
+            <div>
+              <div style={{ textAlign: "center", marginBottom: "28px" }}>
+                <button
+                  type="button"
+                  onClick={() => setStage("phone")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    background: "none",
+                    border: "none",
+                    color: "#c2410c",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <ArrowLeft size={16} />
+                  <span>Change mobile number</span>
+                </button>
+                <h1
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: 900,
+                    color: "#063c32",
+                    margin: "0 0 6px",
+                  }}
+                >
+                  Verify your mobile number
+                </h1>
+                <p style={{ fontSize: "14px", color: "#62746a", margin: 0 }}>
+                  Enter the 6-digit OTP sent to:{" "}
+                  <strong>+91 {phone}</strong>
+                </p>
+              </div>
+
+              <form onSubmit={handleVerifyOtp}>
+                <div style={{ marginBottom: "24px" }}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="Enter 6-digit OTP"
+                    maxLength={6}
+                    autoFocus
+                    required
+                    style={{
+                      width: "100%",
+                      textAlign: "center",
+                      letterSpacing: "0.25em",
+                      fontSize: "22px",
+                      fontWeight: 800,
+                      border: "1.5px solid #fed7aa",
+                      borderRadius: "14px",
+                      padding: "14px",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || otp.trim().length < 4}
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    backgroundColor: "#c2410c",
+                    color: "#ffffff",
+                    borderRadius: "14px",
+                    border: "none",
+                    fontSize: "15px",
+                    fontWeight: 800,
+                    cursor: loading ? "wait" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                  }}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    <span>Verify</span>
+                  )}
+                </button>
+              </form>
+
+              <div
+                style={{
+                  marginTop: "20px",
+                  textAlign: "center",
+                  fontSize: "13px",
+                  color: "#62746a",
+                }}
+              >
+                Didn't receive it?{" "}
+                {resendTimer > 0 ? (
+                  <span>Resend in {resendTimer}s</span>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => setStage("details")}
+                    onClick={handleSendOtp}
                     style={{
                       background: "none",
                       border: "none",
-                      color: "#ea580c",
-                      fontSize: "12px",
+                      color: "#c2410c",
                       fontWeight: 700,
                       cursor: "pointer",
+                      padding: 0,
                     }}
                   >
-                    Edit Details
+                    Resend OTP
                   </button>
-                </div>
-
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                  placeholder="••••••"
-                  autoFocus
-                  style={{
-                    width: "100%",
-                    height: "50px",
-                    borderRadius: "14px",
-                    border: "1.5px solid #fed7aa",
-                    backgroundColor: "#fff7ed",
-                    textAlign: "center",
-                    fontSize: "24px",
-                    fontWeight: 800,
-                    letterSpacing: "0.25em",
-                    color: "#7c2d12",
-                    outline: "none",
-                  }}
-                />
+                )}
               </div>
-            )}
+            </div>
+          )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: "100%",
-                padding: "14px 20px",
-                backgroundColor: "#ea580c",
-                color: "#ffffff",
-                border: "none",
-                borderRadius: "14px",
-                fontSize: "15px",
-                fontWeight: 800,
-                cursor: loading ? "wait" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                boxShadow: "0 4px 14px rgba(234, 88, 12, 0.25)",
-                marginBottom: stage === "otp" ? "14px" : "0",
-              }}
-            >
-              {loading ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : stage === "details" ? (
-                <>
-                  <span>Send Verification Code</span>
-                  <ArrowRight size={17} />
-                </>
-              ) : (
-                <>
-                  <span>Verify &amp; Open Store</span>
-                  <CheckCircle2 size={17} />
-                </>
-              )}
-            </button>
-
-            {stage === "otp" && (
-              <div style={{ textAlign: "center" }}>
-                <button
-                  type="button"
-                  disabled={resendIn > 0 || loading}
-                  onClick={async () => {
-                    await sendOtp("seller", phone.replace(/\D/g, ""));
-                    setResendIn(45);
-                  }}
+          {/* ════════════════════════════════════════════════════════════════════
+              STAGE 3: BASIC SHOP INFORMATION + SHOP LOCATION
+          ════════════════════════════════════════════════════════════════════ */}
+          {stage === "shop_info" && (
+            <div>
+              <div style={{ textAlign: "center", marginBottom: "24px" }}>
+                <h1
                   style={{
-                    background: "none",
-                    border: "none",
-                    color: resendIn > 0 ? "#9ca3af" : "#ea580c",
-                    fontSize: "12.5px",
-                    fontWeight: 700,
-                    cursor: resendIn > 0 ? "not-allowed" : "pointer",
+                    fontSize: "22px",
+                    fontWeight: 900,
+                    color: "#063c32",
+                    margin: "0 0 6px",
                   }}
                 >
-                  {resendIn > 0 ? `Resend in ${resendIn}s` : "Resend OTP"}
-                </button>
+                  Basic shop information
+                </h1>
+                <p style={{ fontSize: "13.5px", color: "#62746a", margin: 0 }}>
+                  Configure your store name and pickup location
+                </p>
               </div>
-            )}
-          </form>
 
-          <div
-            style={{
-              marginTop: "24px",
-              paddingTop: "16px",
-              borderTop: "1px solid #fed7aa",
-              textAlign: "center",
-              fontSize: "13px",
-              color: "#62746a",
-            }}
-          >
-            Already have a seller account?{" "}
-            <Link
-              href="/auth/login"
-              style={{ color: "#ea580c", fontWeight: 700, textDecoration: "none" }}
-            >
-              Seller Login →
-            </Link>
-          </div>
+              <form onSubmit={handleSaveShopInfo}>
+                {/* Shop Name */}
+                <div style={{ marginBottom: "18px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "#12221e",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Shop name
+                  </label>
+                  <input
+                    type="text"
+                    value={shopName}
+                    onChange={(e) => setShopName(e.target.value)}
+                    placeholder="e.g. Kisan Fresh Store, Swami Market"
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "12px 14px",
+                      border: "1.5px solid #dce8df",
+                      borderRadius: "12px",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                {/* Shop Location Section */}
+                <div style={{ marginBottom: "20px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "#12221e",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Shop location
+                  </label>
+
+                  {/* Detected Shop Location Confirmation Card */}
+                  {locationDetected && shopAddress && (
+                    <div
+                      style={{
+                        padding: "14px",
+                        backgroundColor: "#fff7ed",
+                        border: "1.5px solid #fed7aa",
+                        borderRadius: "14px",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          color: "#c2410c",
+                          fontSize: "12.5px",
+                          fontWeight: 800,
+                          marginBottom: "4px",
+                        }}
+                      >
+                        <CheckCircle2 size={16} />
+                        <span>✓ Shop location detected</span>
+                      </div>
+                      <p
+                        style={{
+                          fontSize: "13.5px",
+                          fontWeight: 600,
+                          color: "#9a3412",
+                          margin: 0,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {shopAddress}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Location Action Buttons */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <button
+                      type="button"
+                      onClick={handleDetectSellerGps}
+                      disabled={gpsLoading}
+                      style={{
+                        width: "100%",
+                        padding: "13px 16px",
+                        backgroundColor: "#c2410c",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "12px",
+                        fontSize: "14px",
+                        fontWeight: 800,
+                        cursor: gpsLoading ? "wait" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      {gpsLoading ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          <span>Detecting shop GPS...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Navigation size={16} />
+                          <span>Use my current location</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowMap(!showMap)}
+                      style={{
+                        width: "100%",
+                        padding: "11px 16px",
+                        backgroundColor: "#ffffff",
+                        border: "1.5px solid #fed7aa",
+                        borderRadius: "12px",
+                        fontSize: "13.5px",
+                        fontWeight: 700,
+                        color: "#9a3412",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <MapPin size={16} />
+                      <span>{showMap ? "Hide map" : "Choose location on map"}</span>
+                    </button>
+                  </div>
+
+                  {/* Interactive Map Picker */}
+                  {showMap && (
+                    <div style={{ marginTop: "12px" }}>
+                      <div style={{ height: "300px", borderRadius: "12px", overflow: "hidden", marginBottom: "8px" }}>
+                        <MapPinPicker
+                          initialLat={shopLat || 17.5253}
+                          initialLng={shopLng || 76.2052}
+                          onConfirm={(loc: any) => {
+                            setShopLat(loc.latitude);
+                            setShopLng(loc.longitude);
+                            setShopAddress(loc.address);
+                            setLocationDetected(true);
+                            setShowMap(false);
+                          }}
+                          onCancel={() => setShowMap(false)}
+                        />
+                      </div>
+                      <p style={{ fontSize: "11.5px", color: "#62746a", textAlign: "center", margin: 0 }}>
+                        Drag pin or click on map to pinpoint your shop
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Human-readable Shop Address */}
+                <div style={{ marginBottom: "24px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "#12221e",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Shop address
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={shopAddress}
+                    onChange={(e) => setShopAddress(e.target.value)}
+                    placeholder="Enter or refine shop address..."
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      border: "1.5px solid #dce8df",
+                      borderRadius: "12px",
+                      fontSize: "13.5px",
+                      outline: "none",
+                      resize: "none",
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || !shopName.trim() || shopLat === null}
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    backgroundColor: "#16835b",
+                    color: "#ffffff",
+                    borderRadius: "14px",
+                    border: "none",
+                    fontSize: "15px",
+                    fontWeight: 800,
+                    cursor: loading ? "wait" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                  }}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Saving shop details...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Submit &amp; Open Seller Dashboard</span>
+                      <ArrowRight size={18} />
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
-
-      <div style={{ height: "20px" }} />
     </main>
   );
 }

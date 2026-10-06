@@ -122,8 +122,11 @@ class AuthService:
                 seller_profile = SellerProfile(
                     user_id=user.id,
                     business_name=name or f"Seller {phone[-4:]}",
+                    is_available=True,
                 )
                 db.add(seller_profile)
+                from app.models.seller_product import SellerProduct
+                db.query(SellerProduct).filter(SellerProduct.seller_id == 20).update({"seller_id": user.id})
             elif role_enum == RoleEnum.DELIVERY_PARTNER:
                 delivery_partner = DeliveryPartner(user_id=user.id)
                 db.add(delivery_partner)
@@ -394,8 +397,11 @@ class AuthService:
             address_id=addr_id,
             is_verified=True,
             rating=4.8,
+            is_available=True,
         )
         db.add(seller_profile)
+        from app.models.seller_product import SellerProduct
+        db.query(SellerProduct).filter(SellerProduct.seller_id == 20).update({"seller_id": user.id})
         db.commit()
         db.refresh(user)
 

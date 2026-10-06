@@ -5,10 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Phone,
-  Lock,
-  Eye,
-  EyeOff,
   ArrowRight,
+  ArrowLeft,
   AlertCircle,
   CheckCircle2,
   Loader2,
@@ -16,10 +14,9 @@ import {
   Bike,
   ShoppingBag,
   ShieldCheck,
-  Sparkles,
-  ArrowLeft,
-  ChevronRight,
-  RefreshCw,
+  Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   sendLoginOtp,
@@ -27,10 +24,6 @@ import {
   loginWithPassword,
   saveSession,
   getRoleRedirectPath,
-  getStoredUserName,
-  getStoredRole,
-  getStoredAuthorizedRoles,
-  clearSession,
   switchWorkspace,
   type AuthRole,
   type TokenResponse,
@@ -42,28 +35,18 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryPhone = searchParams?.get("phone") || "";
-  const rawRole = (searchParams?.get("role") || "").toUpperCase();
-  const queryRole: AuthRole | null =
-    rawRole === "CUSTOMER"
-      ? "CUSTOMER"
-      : rawRole === "SELLER"
-      ? "SELLER"
-      : rawRole === "DELIVERY" || rawRole === "DELIVERY_PARTNER"
-      ? "DELIVERY_PARTNER"
-      : null;
 
-  // Stages: "phone" -> "otp" -> "workspace_select" (if multi-role)
+  // Stages: "phone" -> "otp" -> "workspace_select" (if account has multiple authorized roles)
   const [stage, setStage] = useState<"phone" | "otp" | "workspace_select">("phone");
   const [phone, setPhone] = useState(queryPhone);
   const [otp, setOtp] = useState("");
   const [resendTimer, setResendTimer] = useState(0);
 
-  // Multi-role workspace picker state
+  // Multi-role session state
   const [multiRoleSession, setMultiRoleSession] = useState<TokenResponse | null>(null);
-  const [switchingRole, setSwitchingRole] = useState<AuthRole | null>(null);
 
-  // Alternative Password Auth Mode
-  const [authMode, setAuthMode] = useState<"otp" | "password">("otp");
+  // Optional password fallback
+  const [usePassword, setUsePassword] = useState(false);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -71,17 +54,6 @@ function LoginContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
-  const [activeUser, setActiveUser] = useState<string | null>(null);
-  const [activeRole, setActiveRole] = useState<AuthRole | null>(null);
-
-  useEffect(() => {
-    const user = getStoredUserName();
-    const r = getStoredRole();
-    if (user && r) {
-      setActiveUser(user);
-      setActiveRole(r);
-    }
-  }, []);
 
   useEffect(() => {
     if (!resendTimer) return;
@@ -91,7 +63,7 @@ function LoginContent() {
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-  // ── SEND OTP ──────────────────────────────────────────────────────────────
+  // ── STEP 1: SEND LOGIN OTP ────────────────────────────────────────────────
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError(null);
@@ -112,12 +84,12 @@ function LoginContent() {
         setInfoMsg(`OTP sent! (Dev Auto-fill: ${res.dev_otp})`);
         setOtp(res.dev_otp);
       } else {
-        setInfoMsg("OTP sent successfully to your mobile number.");
+        setInfoMsg(`We sent a 6-digit verification code to +91 ${cleanPhone}`);
       }
     } catch (err: any) {
       const msg = getErrorMessage(err);
       if (msg.toLowerCase().includes("not found")) {
-        setError("Account not found. Click below to Start Shopping and create your account.");
+        setError("Account not found. Please click 'Start Shopping' or partner registration below.");
       } else {
         setError(msg);
       }
@@ -126,7 +98,7 @@ function LoginContent() {
     }
   };
 
-  // ── VERIFY OTP ────────────────────────────────────────────────────────────
+  // ── STEP 2: VERIFY OTP & AUTOMATIC ROLE ROUTING ───────────────────────────
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -137,28 +109,36 @@ function LoginContent() {
       return;
     }
 
+    const cleanPhone = phone.replace(/\D/g, "");
     setLoading(true);
+
     try {
-      const tokenRes = await verifyLoginOtp(phone.replace(/\D/g, ""), cleanOtp, queryRole || undefined);
+      const tokenRes = await verifyLoginOtp(cleanPhone, cleanOtp);
       saveSession(tokenRes);
 
-      const roles = tokenRes.authorized_roles || [tokenRes.role];
+      const authorizedRoles = tokenRes.authorized_roles || [tokenRes.role];
 
-      // If user came via a specific portal and is authorized for that role, go directly
-      if (queryRole && roles.includes(queryRole)) {
-        router.push(getRoleRedirectPath(queryRole));
-        return;
-      }
-
-      // Multi-role discovery: If user has multiple roles and didn't specify portal, allow choosing workspace
-      if (roles.length > 1) {
+      // Section 12: Same account Seller + Delivery Partner
+      const hasSeller = authorizedRoles.includes("SELLER");
+      const hasDelivery = authorizedRoles.includes("DELIVERY_PARTNER");
+      if (hasSeller && hasDelivery && authorizedRoles.length > 1) {
         setMultiRoleSession(tokenRes);
         setStage("workspace_select");
         return;
       }
 
-      // Single-role: Direct seamless redirect
-      router.push(getRoleRedirectPath(tokenRes.role));
+      // Section 11: Route automatically by authorized role
+      if (tokenRes.role === "CUSTOMER") {
+        router.push("/customer");
+      } else if (tokenRes.role === "SELLER") {
+        router.push("/seller");
+      } else if (tokenRes.role === "DELIVERY_PARTNER") {
+        router.push("/delivery");
+      } else if (tokenRes.role === "ADMIN" || tokenRes.role === "SUPER_ADMIN") {
+        router.push("/admin");
+      } else {
+        setError("Your account role could not be determined. Please contact support.");
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -166,7 +146,7 @@ function LoginContent() {
     }
   };
 
-  // ── PASSWORD LOGIN FALLBACK ───────────────────────────────────────────────
+  // ── OPTIONAL PASSWORD LOGIN ───────────────────────────────────────────────
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -183,17 +163,12 @@ function LoginContent() {
 
     setLoading(true);
     try {
-      const tokenRes = await loginWithPassword(cleanPhone, password, queryRole || undefined);
+      const tokenRes = await loginWithPassword(cleanPhone, password);
       saveSession(tokenRes);
 
-      const roles = tokenRes.authorized_roles || [tokenRes.role];
+      const authorizedRoles = tokenRes.authorized_roles || [tokenRes.role];
 
-      if (queryRole && roles.includes(queryRole)) {
-        router.push(getRoleRedirectPath(queryRole));
-        return;
-      }
-
-      if (roles.length > 1) {
+      if (authorizedRoles.includes("SELLER") && authorizedRoles.includes("DELIVERY_PARTNER")) {
         setMultiRoleSession(tokenRes);
         setStage("workspace_select");
         return;
@@ -207,25 +182,18 @@ function LoginContent() {
     }
   };
 
-  // ── WORKSPACE SELECTION ───────────────────────────────────────────────────
-  const handleSelectWorkspace = async (targetRole: AuthRole) => {
-    setError(null);
-    setSwitchingRole(targetRole);
-
+  // ── WORKSPACE SELECTION (SELLER vs DELIVERY) ─────────────────────────────
+  const handleChooseWorkspace = async (targetRole: AuthRole) => {
+    setLoading(true);
     try {
-      // If already active in that role
-      if (multiRoleSession?.role === targetRole) {
-        router.push(getRoleRedirectPath(targetRole));
-        return;
+      if (multiRoleSession?.role !== targetRole) {
+        await switchWorkspace(targetRole);
       }
-
-      // Switch workspace via backend API
-      const switched = await switchWorkspace(targetRole);
-      saveSession(switched);
       router.push(getRoleRedirectPath(targetRole));
     } catch (err) {
       setError(getErrorMessage(err));
-      setSwitchingRole(null);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -237,424 +205,160 @@ function LoginContent() {
         color: "var(--vegito-text-main, #12221e)",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
       }}
     >
       {/* Top Header */}
       <header
         style={{
           width: "100%",
-          maxWidth: "480px",
+          maxWidth: "800px",
           margin: "0 auto",
-          padding: "20px 24px 0",
+          padding: "16px 20px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
         }}
       >
         <Link
-          href="/auth"
+          href="/"
           style={{
-            display: "inline-flex",
+            display: "flex",
             alignItems: "center",
-            gap: "6px",
-            color: "#62746a",
+            gap: "8px",
             textDecoration: "none",
-            fontSize: "13px",
-            fontWeight: 700,
+            color: "inherit",
           }}
         >
-          <ArrowLeft size={16} />
-          <span>Back</span>
+          <span style={{ fontSize: "26px" }}>🥬</span>
+          <span
+            style={{
+              fontSize: "20px",
+              fontWeight: 900,
+              letterSpacing: "-0.03em",
+              color: "#063c32",
+            }}
+          >
+            VEGITO
+          </span>
         </Link>
 
         <ThemeToggle />
       </header>
 
-      {/* Main Container Card */}
+      {/* Main Card Container */}
       <div
         style={{
+          flex: 1,
           width: "100%",
           maxWidth: "440px",
-          margin: "24px auto",
-          padding: "0 20px",
+          margin: "0 auto",
+          padding: "24px 20px 48px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
         }}
       >
-        {/* Already Logged In Banner */}
-        {activeUser && (
-          <div
-            style={{
-              padding: "12px 16px",
-              borderRadius: "14px",
-              backgroundColor: "#ecfdf5",
-              border: "1px solid #a7f3d0",
-              color: "#065f46",
-              fontSize: "13px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "16px",
-            }}
-          >
-            <div>
-              <strong>{activeUser}</strong> ({activeRole})
-            </div>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                onClick={() => router.push(getRoleRedirectPath(activeRole))}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#059669",
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  fontSize: "12.5px",
-                }}
-              >
-                Go to App →
-              </button>
-              <button
-                onClick={() => {
-                  clearSession();
-                  setActiveUser(null);
-                  setActiveRole(null);
-                }}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#dc2626",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontSize: "12px",
-                }}
-              >
-                Sign Out
-              </button>
-            </div>
-          </div>
-        )}
-
         <div
           style={{
             backgroundColor: "#ffffff",
             borderRadius: "24px",
-            border: "1px solid #e1e8e2",
-            boxShadow: "0 12px 40px rgba(6, 60, 50, 0.08)",
-            padding: "28px 24px",
+            border: "1.5px solid #dce8df",
+            padding: "32px 28px",
+            boxShadow: "0 10px 30px rgba(6, 60, 50, 0.05)",
           }}
         >
-          {/* STAGE 1 & 2: MOBILE OTP LOGIN */}
-          {stage !== "workspace_select" ? (
-            <>
-              {/* Header Title */}
-              <div style={{ textAlign: "center", marginBottom: "24px" }}>
-                <div style={{ fontSize: "36px", marginBottom: "8px" }}>🥬</div>
+          {/* Feedback Alerts */}
+          {error && (
+            <div
+              style={{
+                padding: "12px 16px",
+                backgroundColor: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "12px",
+                color: "#b91c1c",
+                fontSize: "13.5px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                marginBottom: "20px",
+              }}
+            >
+              <AlertCircle size={16} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {infoMsg && (
+            <div
+              style={{
+                padding: "12px 16px",
+                backgroundColor: "#ecfdf5",
+                border: "1px solid #a7f3d0",
+                borderRadius: "12px",
+                color: "#065f46",
+                fontSize: "13.5px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                marginBottom: "20px",
+              }}
+            >
+              <CheckCircle2 size={16} />
+              <span>{infoMsg}</span>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════════
+              STAGE 1: SIMPLE MOBILE LOGIN
+          ════════════════════════════════════════════════════════════════════ */}
+          {stage === "phone" && (
+            <div>
+              <div style={{ textAlign: "center", marginBottom: "28px" }}>
                 <h1
                   style={{
-                    fontSize: "24px",
-                    fontWeight: 800,
+                    fontSize: "26px",
+                    fontWeight: 900,
                     color: "#063c32",
                     margin: "0 0 6px",
-                    letterSpacing: "-0.02em",
                   }}
                 >
-                  {authMode === "otp"
-                    ? stage === "phone"
-                      ? "Welcome to Vegito"
-                      : "Verify OTP"
-                    : "Login with Password"}
+                  Welcome back 👋
                 </h1>
-                <p style={{ margin: 0, fontSize: "13.5px", color: "#62746a" }}>
-                  {authMode === "otp"
-                    ? stage === "phone"
-                      ? "Enter your mobile number to sign in or get started"
-                      : `Enter the 6-digit code sent to +91 ${phone}`
-                    : "Enter your registered phone and password"}
+                <p style={{ fontSize: "14px", color: "#62746a", margin: 0 }}>
+                  Enter your mobile number to continue
                 </p>
               </div>
 
-              {/* Error & Info Alerts */}
-              {error && (
-                <div
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    backgroundColor: "#fef2f2",
-                    border: "1px solid #fecaca",
-                    color: "#dc2626",
-                    fontSize: "13px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "16px",
-                  }}
-                >
-                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {infoMsg && (
-                <div
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    backgroundColor: "#f0fdf4",
-                    border: "1px solid #bbf7d0",
-                    color: "#166534",
-                    fontSize: "13px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "16px",
-                  }}
-                >
-                  <Sparkles size={16} style={{ flexShrink: 0 }} />
-                  <span>{infoMsg}</span>
-                </div>
-              )}
-
-              {/* Form Content */}
-              {authMode === "otp" ? (
-                stage === "phone" ? (
-                  // STAGE: PHONE INPUT
-                  <form onSubmit={handleSendOtp}>
-                    <div style={{ marginBottom: "18px" }}>
-                      <label
-                        style={{
-                          display: "block",
-                          fontSize: "12.5px",
-                          fontWeight: 700,
-                          color: "#063c32",
-                          marginBottom: "6px",
-                        }}
-                      >
-                        Mobile Number
-                      </label>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          backgroundColor: "#f8faf8",
-                          border: "1.5px solid #dce8df",
-                          borderRadius: "14px",
-                          padding: "2px 14px",
-                          transition: "border-color 0.15s",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "14px",
-                            fontWeight: 700,
-                            color: "#62746a",
-                            marginRight: "8px",
-                          }}
-                        >
-                          +91
-                        </span>
-                        <input
-                          type="tel"
-                          inputMode="numeric"
-                          maxLength={10}
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                          placeholder="Enter 10-digit number"
-                          autoFocus
-                          style={{
-                            width: "100%",
-                            height: "46px",
-                            border: "none",
-                            background: "transparent",
-                            outline: "none",
-                            fontSize: "15px",
-                            fontWeight: 700,
-                            color: "#063c32",
-                            letterSpacing: "0.04em",
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={loading || phone.replace(/\D/g, "").length !== 10}
-                      style={{
-                        width: "100%",
-                        padding: "14px 20px",
-                        backgroundColor: "#16835b",
-                        color: "#ffffff",
-                        border: "none",
-                        borderRadius: "14px",
-                        fontSize: "15px",
-                        fontWeight: 800,
-                        cursor:
-                          loading || phone.replace(/\D/g, "").length !== 10
-                            ? "not-allowed"
-                            : "pointer",
-                        opacity:
-                          loading || phone.replace(/\D/g, "").length !== 10 ? 0.65 : 1,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                        boxShadow: "0 4px 14px rgba(22, 131, 91, 0.25)",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      {loading ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : (
-                        <>
-                          <span>Continue with OTP</span>
-                          <ArrowRight size={17} />
-                        </>
-                      )}
-                    </button>
-                  </form>
-                ) : (
-                  // STAGE: OTP INPUT
-                  <form onSubmit={handleVerifyOtp}>
-                    <div style={{ marginBottom: "18px" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          marginBottom: "6px",
-                        }}
-                      >
-                        <label
-                          style={{
-                            fontSize: "12.5px",
-                            fontWeight: 700,
-                            color: "#063c32",
-                          }}
-                        >
-                          6-Digit OTP Code
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setStage("phone")}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            color: "#16835b",
-                            fontSize: "12px",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Change Number
-                        </button>
-                      </div>
-
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={6}
-                        value={otp}
-                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                        placeholder="••••••"
-                        autoFocus
-                        style={{
-                          width: "100%",
-                          height: "50px",
-                          borderRadius: "14px",
-                          border: "1.5px solid #dce8df",
-                          backgroundColor: "#f8faf8",
-                          textAlign: "center",
-                          fontSize: "24px",
-                          fontWeight: 800,
-                          letterSpacing: "0.25em",
-                          color: "#063c32",
-                          outline: "none",
-                        }}
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={loading || otp.trim().length < 4}
-                      style={{
-                        width: "100%",
-                        padding: "14px 20px",
-                        backgroundColor: "#16835b",
-                        color: "#ffffff",
-                        border: "none",
-                        borderRadius: "14px",
-                        fontSize: "15px",
-                        fontWeight: 800,
-                        cursor: loading || otp.trim().length < 4 ? "not-allowed" : "pointer",
-                        opacity: loading || otp.trim().length < 4 ? 0.65 : 1,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                        boxShadow: "0 4px 14px rgba(22, 131, 91, 0.25)",
-                        marginBottom: "14px",
-                      }}
-                    >
-                      {loading ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : (
-                        <>
-                          <span>Verify &amp; Continue</span>
-                          <CheckCircle2 size={17} />
-                        </>
-                      )}
-                    </button>
-
-                    <div style={{ textAlign: "center" }}>
-                      <button
-                        type="button"
-                        disabled={resendTimer > 0 || loading}
-                        onClick={() => handleSendOtp()}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: resendTimer > 0 ? "#8fa196" : "#16835b",
-                          fontSize: "12.5px",
-                          fontWeight: 700,
-                          cursor: resendTimer > 0 ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        {resendTimer > 0
-                          ? `Resend OTP in ${resendTimer}s`
-                          : "Didn't receive OTP? Resend"}
-                      </button>
-                    </div>
-                  </form>
-                )
-              ) : (
-                // PASSWORD LOGIN FORM
-                <form onSubmit={handlePasswordLogin}>
-                  <div style={{ marginBottom: "14px" }}>
+              {!usePassword ? (
+                /* OTP Login Form */
+                <form onSubmit={handleSendOtp}>
+                  <div style={{ marginBottom: "20px" }}>
                     <label
                       style={{
                         display: "block",
-                        fontSize: "12.5px",
+                        fontSize: "13px",
                         fontWeight: 700,
-                        color: "#063c32",
-                        marginBottom: "6px",
+                        color: "#12221e",
+                        marginBottom: "8px",
                       }}
                     >
-                      Mobile Number
+                      Mobile number
                     </label>
                     <div
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        backgroundColor: "#f8faf8",
                         border: "1.5px solid #dce8df",
                         borderRadius: "14px",
-                        padding: "2px 14px",
+                        padding: "4px 14px",
+                        backgroundColor: "#fcfdfc",
                       }}
                     >
                       <span
                         style={{
-                          fontSize: "14px",
+                          fontSize: "15px",
                           fontWeight: 700,
-                          color: "#62746a",
+                          color: "#16835b",
                           marginRight: "8px",
                         }}
                       >
@@ -662,32 +366,121 @@ function LoginContent() {
                       </span>
                       <input
                         type="tel"
-                        inputMode="numeric"
-                        maxLength={10}
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                        placeholder="Enter 10-digit number"
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="Mobile number"
+                        maxLength={10}
+                        autoFocus
+                        required
                         style={{
-                          width: "100%",
-                          height: "46px",
+                          flex: 1,
                           border: "none",
-                          background: "transparent",
                           outline: "none",
                           fontSize: "15px",
-                          fontWeight: 700,
-                          color: "#063c32",
+                          fontWeight: 600,
+                          backgroundColor: "transparent",
+                          padding: "10px 0",
                         }}
                       />
                     </div>
                   </div>
 
-                  <div style={{ marginBottom: "18px" }}>
+                  <button
+                    type="submit"
+                    disabled={loading || phone.replace(/\D/g, "").length !== 10}
+                    style={{
+                      width: "100%",
+                      padding: "14px",
+                      backgroundColor: "#16835b",
+                      color: "#ffffff",
+                      borderRadius: "14px",
+                      border: "none",
+                      fontSize: "15px",
+                      fontWeight: 800,
+                      cursor: loading ? "wait" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      opacity: phone.replace(/\D/g, "").length === 10 ? 1 : 0.6,
+                      boxShadow: "0 4px 14px rgba(22, 131, 91, 0.2)",
+                    }}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        <span>Sending OTP...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Continue with OTP</span>
+                        <ArrowRight size={18} />
+                      </>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                /* Password Login Form */
+                <form onSubmit={handlePasswordLogin}>
+                  <div style={{ marginBottom: "16px" }}>
                     <label
                       style={{
                         display: "block",
-                        fontSize: "12.5px",
+                        fontSize: "13px",
                         fontWeight: 700,
-                        color: "#063c32",
+                        color: "#12221e",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Mobile number
+                    </label>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        border: "1.5px solid #dce8df",
+                        borderRadius: "14px",
+                        padding: "4px 14px",
+                        backgroundColor: "#fcfdfc",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "15px",
+                          fontWeight: 700,
+                          color: "#16835b",
+                          marginRight: "8px",
+                        }}
+                      >
+                        +91
+                      </span>
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="Mobile number"
+                        maxLength={10}
+                        required
+                        style={{
+                          flex: 1,
+                          border: "none",
+                          outline: "none",
+                          fontSize: "15px",
+                          fontWeight: 600,
+                          backgroundColor: "transparent",
+                          padding: "10px 0",
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: "20px" }}>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        color: "#12221e",
                         marginBottom: "6px",
                       }}
                     >
@@ -697,54 +490,48 @@ function LoginContent() {
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        backgroundColor: "#f8faf8",
                         border: "1.5px solid #dce8df",
                         borderRadius: "14px",
-                        padding: "2px 14px",
+                        padding: "4px 14px",
+                        backgroundColor: "#fcfdfc",
                       }}
                     >
                       <input
                         type={showPassword ? "text" : "password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••"
+                        placeholder="Enter password"
+                        required
                         style={{
-                          width: "100%",
-                          height: "46px",
+                          flex: 1,
                           border: "none",
-                          background: "transparent",
                           outline: "none",
                           fontSize: "15px",
-                          fontWeight: 700,
-                          color: "#063c32",
+                          fontWeight: 600,
+                          backgroundColor: "transparent",
+                          padding: "10px 0",
                         }}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "#62746a",
-                          cursor: "pointer",
-                          padding: "4px",
-                        }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#62746a" }}
                       >
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
                   </div>
 
                   <button
                     type="submit"
-                    disabled={loading || !password || phone.replace(/\D/g, "").length !== 10}
+                    disabled={loading || phone.replace(/\D/g, "").length !== 10 || !password}
                     style={{
                       width: "100%",
-                      padding: "14px 20px",
+                      padding: "14px",
                       backgroundColor: "#16835b",
                       color: "#ffffff",
-                      border: "none",
                       borderRadius: "14px",
+                      border: "none",
                       fontSize: "15px",
                       fontWeight: 800,
                       cursor: loading ? "wait" : "pointer",
@@ -752,30 +539,29 @@ function LoginContent() {
                       alignItems: "center",
                       justifyContent: "center",
                       gap: "8px",
-                      boxShadow: "0 4px 14px rgba(22, 131, 91, 0.25)",
                     }}
                   >
-                    {loading ? <Loader2 size={18} className="animate-spin" /> : "Sign In"}
+                    {loading ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        <span>Logging in...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Login</span>
+                        <ArrowRight size={18} />
+                      </>
+                    )}
                   </button>
                 </form>
               )}
 
-              {/* Mode Switch & Registration Links */}
-              <div
-                style={{
-                  marginTop: "24px",
-                  paddingTop: "18px",
-                  borderTop: "1px solid #edf2ee",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
-                  textAlign: "center",
-                }}
-              >
+              {/* Toggle OTP vs Password */}
+              <div style={{ textAlign: "center", marginTop: "14px" }}>
                 <button
                   type="button"
                   onClick={() => {
-                    setAuthMode(authMode === "otp" ? "password" : "otp");
+                    setUsePassword(!usePassword);
                     setError(null);
                   }}
                   style={{
@@ -787,233 +573,333 @@ function LoginContent() {
                     cursor: "pointer",
                   }}
                 >
-                  {authMode === "otp" ? "Use Password Instead" : "Use Mobile OTP Instead"}
+                  {usePassword ? "Login with OTP instead" : "Login with Password instead"}
                 </button>
+              </div>
 
-                <div style={{ fontSize: "13px", color: "#62746a" }}>
-                  New customer?{" "}
+              {/* Divider */}
+              <div
+                style={{
+                  margin: "24px 0 20px",
+                  position: "relative",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: 0,
+                    right: 0,
+                    height: "1px",
+                    backgroundColor: "#e2e8f0",
+                  }}
+                />
+                <span
+                  style={{
+                    position: "relative",
+                    padding: "0 12px",
+                    backgroundColor: "#ffffff",
+                    fontSize: "12px",
+                    color: "#62746a",
+                    fontWeight: 700,
+                  }}
+                >
+                  New to Vegito?
+                </span>
+              </div>
+
+              {/* Start Shopping Link */}
+              <Link
+                href="/start-shopping"
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  backgroundColor: "#ecfdf5",
+                  border: "1.5px solid #a7f3d0",
+                  borderRadius: "14px",
+                  color: "#065f46",
+                  fontSize: "14px",
+                  fontWeight: 800,
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  marginBottom: "20px",
+                }}
+              >
+                <ShoppingBag size={18} />
+                <span>Start Shopping</span>
+              </Link>
+
+              {/* Partner Links */}
+              <div style={{ textAlign: "center" }}>
+                <span style={{ fontSize: "12.5px", color: "#62746a", fontWeight: 700 }}>
+                  Partner?
+                </span>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    gap: "16px",
+                    marginTop: "8px",
+                  }}
+                >
                   <Link
-                    href="/start-shopping"
-                    style={{ color: "#16835b", fontWeight: 800, textDecoration: "none" }}
+                    href="/auth/seller"
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 800,
+                      color: "#c2410c",
+                      textDecoration: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
                   >
-                    Start Shopping →
+                    <Store size={15} />
+                    <span>Sell on Vegito</span>
+                  </Link>
+
+                  <Link
+                    href="/auth/delivery"
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 800,
+                      color: "#1d4ed8",
+                      textDecoration: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <Bike size={15} />
+                    <span>Deliver with Vegito</span>
                   </Link>
                 </div>
               </div>
-            </>
-          ) : (
-            // STAGE 3: MULTI-ROLE WORKSPACE SELECTION MODAL
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════════
+              STAGE 2: OTP VERIFICATION
+          ════════════════════════════════════════════════════════════════════ */}
+          {stage === "otp" && (
             <div>
-              <div style={{ textAlign: "center", marginBottom: "20px" }}>
-                <div style={{ fontSize: "36px", marginBottom: "8px" }}>👋</div>
-                <h2
+              <div style={{ textAlign: "center", marginBottom: "28px" }}>
+                <button
+                  type="button"
+                  onClick={() => setStage("phone")}
                   style={{
-                    fontSize: "22px",
-                    fontWeight: 800,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    background: "none",
+                    border: "none",
+                    color: "#16835b",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <ArrowLeft size={16} />
+                  <span>Change mobile number</span>
+                </button>
+                <h1
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: 900,
                     color: "#063c32",
                     margin: "0 0 6px",
                   }}
                 >
-                  Welcome back, {multiRoleSession?.name || "Partner"}!
-                </h2>
-                <p style={{ margin: 0, fontSize: "13.5px", color: "#62746a" }}>
-                  Your account has multiple roles. Select a workspace to continue:
+                  Verify your mobile number
+                </h1>
+                <p style={{ fontSize: "14px", color: "#62746a", margin: 0 }}>
+                  Enter the 6-digit OTP sent to:{" "}
+                  <strong>+91 {phone}</strong>
                 </p>
               </div>
 
-              {error && (
-                <div
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    backgroundColor: "#fef2f2",
-                    border: "1px solid #fecaca",
-                    color: "#dc2626",
-                    fontSize: "13px",
-                    marginBottom: "16px",
-                  }}
-                >
-                  {error}
+              <form onSubmit={handleVerifyOtp}>
+                <div style={{ marginBottom: "24px" }}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="Enter 6-digit OTP"
+                    maxLength={6}
+                    autoFocus
+                    required
+                    style={{
+                      width: "100%",
+                      textAlign: "center",
+                      letterSpacing: "0.25em",
+                      fontSize: "22px",
+                      fontWeight: 800,
+                      border: "1.5px solid #dce8df",
+                      borderRadius: "14px",
+                      padding: "14px",
+                      outline: "none",
+                    }}
+                  />
                 </div>
-              )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {/* Continue as Seller (if authorized) */}
-                {(multiRoleSession?.authorized_roles?.includes("SELLER") ||
-                  multiRoleSession?.role === "SELLER") && (
-                  <button
-                    onClick={() => handleSelectWorkspace("SELLER")}
-                    disabled={switchingRole !== null}
-                    style={{
-                      width: "100%",
-                      padding: "16px 18px",
-                      borderRadius: "16px",
-                      border: "1.5px solid #fed7aa",
-                      backgroundColor: "#fff7ed",
-                      color: "#9a3412",
-                      textAlign: "left",
-                      cursor: switchingRole ? "wait" : "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      transition: "transform 0.15s ease",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <div
-                        style={{
-                          width: "40px",
-                          height: "40px",
-                          borderRadius: "12px",
-                          backgroundColor: "#ea580c",
-                          color: "#ffffff",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Store size={20} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: "15px", fontWeight: 800 }}>
-                          Continue as Seller
-                        </div>
-                        <div style={{ fontSize: "12px", color: "#c2410c" }}>
-                          Store dashboard, farm produce catalog &amp; orders
-                        </div>
-                      </div>
-                    </div>
-                    {switchingRole === "SELLER" ? (
-                      <Loader2 size={18} className="animate-spin" />
-                    ) : (
-                      <ChevronRight size={18} />
-                    )}
-                  </button>
-                )}
-
-                {/* Continue as Delivery Partner (if authorized) */}
-                {(multiRoleSession?.authorized_roles?.includes("DELIVERY_PARTNER") ||
-                  multiRoleSession?.role === "DELIVERY_PARTNER") && (
-                  <button
-                    onClick={() => handleSelectWorkspace("DELIVERY_PARTNER")}
-                    disabled={switchingRole !== null}
-                    style={{
-                      width: "100%",
-                      padding: "16px 18px",
-                      borderRadius: "16px",
-                      border: "1.5px solid #bfdbfe",
-                      backgroundColor: "#eff6ff",
-                      color: "#1e40af",
-                      textAlign: "left",
-                      cursor: switchingRole ? "wait" : "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      transition: "transform 0.15s ease",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <div
-                        style={{
-                          width: "40px",
-                          height: "40px",
-                          borderRadius: "12px",
-                          backgroundColor: "#2563eb",
-                          color: "#ffffff",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Bike size={20} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: "15px", fontWeight: 800 }}>
-                          Continue Delivery
-                        </div>
-                        <div style={{ fontSize: "12px", color: "#3b82f6" }}>
-                          Live dispatch, order tasks &amp; doorstep delivery
-                        </div>
-                      </div>
-                    </div>
-                    {switchingRole === "DELIVERY_PARTNER" ? (
-                      <Loader2 size={18} className="animate-spin" />
-                    ) : (
-                      <ChevronRight size={18} />
-                    )}
-                  </button>
-                )}
-
-                {/* Continue Shopping (Customer) — Available for everyone */}
                 <button
-                  onClick={() => handleSelectWorkspace("CUSTOMER")}
-                  disabled={switchingRole !== null}
+                  type="submit"
+                  disabled={loading || otp.trim().length < 4}
                   style={{
                     width: "100%",
-                    padding: "16px 18px",
+                    padding: "14px",
+                    backgroundColor: "#16835b",
+                    color: "#ffffff",
+                    borderRadius: "14px",
+                    border: "none",
+                    fontSize: "15px",
+                    fontWeight: 800,
+                    cursor: loading ? "wait" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                  }}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    <span>Verify &amp; Login</span>
+                  )}
+                </button>
+              </form>
+
+              <div
+                style={{
+                  marginTop: "20px",
+                  textAlign: "center",
+                  fontSize: "13px",
+                  color: "#62746a",
+                }}
+              >
+                Didn't receive it?{" "}
+                {resendTimer > 0 ? (
+                  <span>Resend in {resendTimer}s</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleSendOtp()}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#16835b",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                  >
+                    Resend OTP
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════════
+              STAGE 3: MULTI-ROLE WORKSPACE SELECTOR (Section 12)
+          ════════════════════════════════════════════════════════════════════ */}
+          {stage === "workspace_select" && (
+            <div>
+              <div style={{ textAlign: "center", marginBottom: "24px" }}>
+                <h1
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: 900,
+                    color: "#063c32",
+                    margin: "0 0 6px",
+                  }}
+                >
+                  Welcome back 👋
+                </h1>
+                <p style={{ fontSize: "14px", color: "#62746a", margin: 0 }}>
+                  What would you like to manage?
+                </p>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {/* 🏪 Seller Workspace */}
+                <button
+                  type="button"
+                  onClick={() => handleChooseWorkspace("SELLER")}
+                  disabled={loading}
+                  style={{
+                    width: "100%",
+                    padding: "16px 20px",
+                    backgroundColor: "#fff7ed",
+                    border: "1.5px solid #fed7aa",
                     borderRadius: "16px",
-                    border: "1.5px solid #a7f3d0",
-                    backgroundColor: "#ecfdf5",
-                    color: "#065f46",
-                    textAlign: "left",
-                    cursor: switchingRole ? "wait" : "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    transition: "transform 0.15s ease",
+                    cursor: "pointer",
+                    textAlign: "left",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <div
-                      style={{
-                        width: "40px",
-                        height: "40px",
-                        borderRadius: "12px",
-                        backgroundColor: "#16835b",
-                        color: "#ffffff",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <ShoppingBag size={20} />
-                    </div>
+                    <span style={{ fontSize: "28px" }}>🏪</span>
                     <div>
-                      <div style={{ fontSize: "15px", fontWeight: 800 }}>
-                        Continue Shopping
+                      <div style={{ fontSize: "15px", fontWeight: 800, color: "#9a3412" }}>
+                        Seller Dashboard
                       </div>
-                      <div style={{ fontSize: "12px", color: "#059669" }}>
-                        Browse fresh vegetables, farm harvest &amp; cart
+                      <div style={{ fontSize: "12px", color: "#62746a" }}>
+                        Manage orders, produce &amp; inventory
                       </div>
                     </div>
                   </div>
-                  {switchingRole === "CUSTOMER" ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    <ChevronRight size={18} />
-                  )}
+                  <ArrowRight size={18} color="#c2410c" />
+                </button>
+
+                {/* 🚚 Delivery Workspace */}
+                <button
+                  type="button"
+                  onClick={() => handleChooseWorkspace("DELIVERY_PARTNER")}
+                  disabled={loading}
+                  style={{
+                    width: "100%",
+                    padding: "16px 20px",
+                    backgroundColor: "#eff6ff",
+                    border: "1.5px solid #bfdbfe",
+                    borderRadius: "16px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span style={{ fontSize: "28px" }}>🚚</span>
+                    <div>
+                      <div style={{ fontSize: "15px", fontWeight: 800, color: "#1e40af" }}>
+                        Delivery Dashboard
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#62746a" }}>
+                        View delivery tasks &amp; earnings
+                      </div>
+                    </div>
+                  </div>
+                  <ArrowRight size={18} color="#1d4ed8" />
                 </button>
               </div>
             </div>
           )}
         </div>
-
-        {/* Footer Partner Link */}
-        <div style={{ textAlign: "center", marginTop: "24px" }}>
-          <p style={{ margin: 0, fontSize: "13px", color: "#62746a" }}>
-            Want to register a business or fleet?{" "}
-            <Link
-              href="/partner"
-              style={{ color: "#16835b", fontWeight: 800, textDecoration: "none" }}
-            >
-              Partner Hub →
-            </Link>
-          </p>
-        </div>
       </div>
-
-      {/* Empty footer spacer */}
-      <div style={{ height: "20px" }} />
     </main>
   );
 }
@@ -1028,9 +914,10 @@ export default function LoginPage() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            backgroundColor: "var(--vegito-bg, #f8faf7)",
           }}
         >
-          <Loader2 size={32} className="animate-spin" color="#16835b" />
+          <Loader2 size={32} className="animate-spin text-emerald-600" />
         </div>
       }
     >

@@ -271,8 +271,8 @@ def ensure_database_schema(db_engine) -> None:
 
 def _should_run_schema_sync() -> bool:
     import sys
-    # Do not execute DDL on test suites to prevent table lock conflicts in transactional test cases
-    if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
+    # Do not execute DDL on test suites or when schema sync is skipped
+    if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("SKIP_SCHEMA_SYNC") == "1":
         return False
     return True
 
