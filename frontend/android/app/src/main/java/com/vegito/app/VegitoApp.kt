@@ -63,7 +63,7 @@ fun VegitoApp() {
 
     // Live Seller Workspace State
     var sellerProfile by remember { mutableStateOf<SellerProfileDto?>(null) }
-    var sellerStats by remember { mutableStateOf(SellerDashboardStats(isOnline = true, todaySales = 1850.0, activeOrdersCount = 3)) }
+    var sellerStats by remember { mutableStateOf(SellerDashboardStats(isOnline = false)) }
     var sellerOrdersList by remember { mutableStateOf<List<Order>>(emptyList()) }
     var sellerRevenueData by remember { mutableStateOf<List<TimeSeriesPointDto>>(emptyList()) }
     var sellerTopProducts by remember { mutableStateOf<List<TopProductAnalyticsDto>>(emptyList()) }
@@ -74,10 +74,10 @@ fun VegitoApp() {
     var deliveryEarningsData by remember { mutableStateOf(DeliveryEarningsData()) }
     var deliveryProfileDto by remember { mutableStateOf<DeliveryPartnerProfileDto?>(null) }
     var activeDeliveryTaskForMap by remember { mutableStateOf<DeliveryTask?>(null) }
-    var isDeliveryOnline by remember { mutableStateOf(true) }
+    var isDeliveryOnline by remember { mutableStateOf(false) }
 
     // Live Admin Workspace State
-    var adminMetrics by remember { mutableStateOf(AdminAnalytics(450, 32, 18, 84, 14200.0, 4)) }
+    var adminMetrics by remember { mutableStateOf(AdminAnalytics()) }
     var adminSellersList by remember { mutableStateOf<List<AdminSellerItemDto>>(emptyList()) }
     var adminDeliveryPartnersList by remember { mutableStateOf<List<AdminDeliveryPartnerItemDto>>(emptyList()) }
 
@@ -378,8 +378,12 @@ fun VegitoApp() {
                             scope.launch {
                                 val res = repository.sendOtp(phone = phone, role = role)
                                 isAuthLoading = false
-                                authDevOtp = res?.devOtp ?: "123456"
-                                navController.navigate("otp")
+                                if (res != null) {
+                                    authDevOtp = res.devOtp
+                                    navController.navigate("otp")
+                                } else {
+                                    authErrorMessage = "Could not send verification code. Check your connection and try again."
+                                }
                             }
                         },
                         onPasswordLogin = { phone, pass, role ->
@@ -425,7 +429,12 @@ fun VegitoApp() {
                                     pendingPhoneForOtp = reqDto.phone
                                     pendingRoleForOtp = reqDto.role.lowercase()
                                     val otpRes = repository.sendOtp(reqDto.phone, reqDto.role.lowercase())
-                                    authDevOtp = otpRes?.devOtp ?: "123456"
+                                    if (otpRes != null) {
+                                        authDevOtp = otpRes.devOtp
+                                    } else {
+                                        authDevOtp = null
+                                        authErrorMessage = "Registration succeeded, but the verification code could not be sent. Try logging in or resend the code."
+                                    }
                                     navController.navigate("otp")
                                 } else {
                                     authErrorMessage = "Registration failed. Mobile may already be registered."
@@ -448,11 +457,14 @@ fun VegitoApp() {
                         onResendOtp = {
                             isAuthLoading = true
                             authErrorMessage = null
+                            authDevOtp = null
                             scope.launch {
                                 val res = repository.sendOtp(phone = pendingPhoneForOtp, role = pendingRoleForOtp)
                                 isAuthLoading = false
                                 if (res != null) {
                                     authDevOtp = res.devOtp
+                                } else {
+                                    authErrorMessage = "Could not resend verification code. Check your connection and try again."
                                 }
                             }
                         },
@@ -488,17 +500,7 @@ fun VegitoApp() {
                                         }
                                     }
                                 } else {
-                                    sessionManager.saveAuthToken("dev_token_${System.currentTimeMillis()}")
-                                    sessionManager.saveActiveRole(pendingRoleForOtp)
-                                    val target = when (pendingRoleForOtp.lowercase()) {
-                                        "seller" -> "seller_dashboard"
-                                        "delivery_partner" -> "delivery_dashboard"
-                                        "admin" -> "admin_dashboard"
-                                        else -> "customer_home"
-                                    }
-                                    navController.navigate(target) {
-                                        popUpTo("onboarding") { inclusive = true }
-                                    }
+                                    authErrorMessage = "Verification failed. Check the code and try again."
                                 }
                             }
                         }

@@ -39,8 +39,7 @@ fun OtpScreen(
     onVerifyOtp: (otp: String) -> Unit,
     onResendOtp: () -> Unit = {}
 ) {
-    val activeDevOtp = devOtp ?: "123456"
-    var otp by remember { mutableStateOf(TextFieldValue(activeDevOtp)) }
+    var otp by remember { mutableStateOf(TextFieldValue(devOtp.orEmpty())) }
 
     LaunchedEffect(devOtp) {
         if (!devOtp.isNullOrEmpty()) {
@@ -166,62 +165,48 @@ fun OtpScreen(
         Spacer(modifier = Modifier.height(18.dp))
 
         // Development OTP Banner & 1-Tap Autofill Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
-            border = BorderStroke(1.2.dp, Color(0xFF81C784))
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        if (!devOtp.isNullOrBlank()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                border = BorderStroke(1.2.dp, Color(0xFF81C784))
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("⚡", fontSize = 16.sp)
-                    Spacer(modifier = Modifier.width(6.dp))
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
-                        text = "विकास चाचणी कोड (Dev OTP): $activeDevOtp",
-                        fontWeight = FontWeight.ExtraBold,
+                        text = "Development OTP: $devOtp",
+                        fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = Color(0xFF1B5E20)
                     )
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "एसएमएसची वाट पाहू नका. चाचणीसाठी हा कोड थेट वापरता येईल.",
-                    fontSize = 11.sp,
-                    color = Color(0xFF2E7D32)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Instant 1-Tap Fill & Sign In Button with bounceClick
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = VegitoPrimaryLight,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .bounceClick(scaleDown = 0.96f) {
-                            otp = TextFieldValue(activeDevOtp)
-                            onVerifyOtp(activeDevOtp)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = VegitoPrimaryLight,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .bounceClick(scaleDown = 0.96f) {
+                                otp = TextFieldValue(devOtp)
+                                onVerifyOtp(devOtp)
+                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "Fill code and continue",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                         }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "⚡ 1-क्लिक OTP भरा आणि पुढे जा ($activeDevOtp)",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(16.dp))
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         // Hidden input for keyboard capture
         OutlinedTextField(

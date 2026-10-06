@@ -32,10 +32,10 @@ fun SellerAnalyticsScreen(
     var selectedPeriod by remember { mutableStateOf("today") }
 
     val totalRevenue = remember(revenueData) {
-        if (revenueData.isNotEmpty()) revenueData.sumOf { it.value } else 1850.0
+        revenueData.sumOf { it.value }
     }
     val totalOrders = remember(revenueData) {
-        if (revenueData.isNotEmpty()) revenueData.sumOf { it.ordersCount ?: 0 } else 14
+        revenueData.sumOf { it.ordersCount ?: 0 }
     }
     val avgOrder = if (totalOrders > 0) totalRevenue / totalOrders else 0.0
 
