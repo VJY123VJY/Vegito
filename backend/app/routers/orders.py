@@ -37,16 +37,33 @@ def get_delivery_fee(
                 seller_id = first_item.seller_product.seller_id
 
     if not seller_id:
+        from app.models.seller_product import SellerProduct
         active_prof = (
             db.query(SellerProfile)
+            .join(SellerProduct, SellerProduct.seller_id == SellerProfile.user_id)
             .join(User, SellerProfile.user_id == User.id)
             .filter(
                 User.is_active == True,
+                SellerProfile.is_available == True,
                 SellerProfile.latitude.isnot(None),
                 SellerProfile.longitude.isnot(None),
+                SellerProduct.is_available == True,
             )
+            .order_by(SellerProfile.id.desc())
             .first()
         )
+        if not active_prof:
+            active_prof = (
+                db.query(SellerProfile)
+                .join(User, SellerProfile.user_id == User.id)
+                .filter(
+                    User.is_active == True,
+                    SellerProfile.latitude.isnot(None),
+                    SellerProfile.longitude.isnot(None),
+                )
+                .order_by(SellerProfile.id.desc())
+                .first()
+            )
         if active_prof:
             seller_id = active_prof.user_id
 
@@ -58,9 +75,9 @@ def get_delivery_fee(
     if seller_id:
         shop_prof = db.query(SellerProfile).filter(SellerProfile.user_id == seller_id).first()
     if not shop_prof:
-        shop_prof = db.query(SellerProfile).filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None)).first()
+        shop_prof = db.query(SellerProfile).filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None)).order_by(SellerProfile.id.desc()).first()
     if not shop_prof:
-        shop_prof = db.query(SellerProfile).first()
+        shop_prof = db.query(SellerProfile).order_by(SellerProfile.id.desc()).first()
     seller_online = bool(shop_prof.is_available) if shop_prof else True
 
     max_dist = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))

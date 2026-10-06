@@ -192,6 +192,23 @@ def get_delivery_eligibility(
             .first()
         )
     if not seller_prof:
+        # Prioritize active online seller with active produce listings and GPS coordinates
+        from app.models.seller_product import SellerProduct
+        seller_prof = (
+            db.query(SellerProfile)
+            .join(SellerProduct, SellerProduct.seller_id == SellerProfile.user_id)
+            .join(User, SellerProfile.user_id == User.id)
+            .filter(
+                User.is_active == True,
+                SellerProfile.is_available == True,
+                SellerProfile.latitude.isnot(None),
+                SellerProfile.longitude.isnot(None),
+                SellerProduct.is_available == True,
+            )
+            .order_by(SellerProfile.id.desc())
+            .first()
+        )
+    if not seller_prof:
         # Prioritize active online seller with verified status and GPS coordinates
         seller_prof = (
             db.query(SellerProfile)
@@ -202,6 +219,7 @@ def get_delivery_eligibility(
                 SellerProfile.latitude.isnot(None),
                 SellerProfile.longitude.isnot(None),
             )
+            .order_by(SellerProfile.id.desc())
             .first()
         )
     if not seller_prof:
@@ -209,6 +227,7 @@ def get_delivery_eligibility(
         seller_prof = (
             db.query(SellerProfile)
             .filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None))
+            .order_by(SellerProfile.id.desc())
             .first()
         )
 

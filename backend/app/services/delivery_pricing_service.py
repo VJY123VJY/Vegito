@@ -31,6 +31,21 @@ class DeliveryPricingService:
             )
 
         if not shop_prof:
+            from app.models.seller_product import SellerProduct
+            shop_prof = (
+                db.query(SellerProfile)
+                .join(SellerProduct, SellerProduct.seller_id == SellerProfile.user_id)
+                .join(User, SellerProfile.user_id == User.id)
+                .filter(
+                    User.is_active == True,
+                    SellerProfile.latitude.isnot(None),
+                    SellerProfile.longitude.isnot(None),
+                    SellerProduct.is_available == True,
+                )
+                .order_by(SellerProfile.id.desc())
+                .first()
+            )
+        if not shop_prof:
             shop_prof = (
                 db.query(SellerProfile)
                 .join(User, SellerProfile.user_id == User.id)
@@ -39,13 +54,14 @@ class DeliveryPricingService:
                     SellerProfile.latitude.isnot(None),
                     SellerProfile.longitude.isnot(None),
                 )
+                .order_by(SellerProfile.id.desc())
                 .first()
             )
         if not shop_prof:
             shop_prof = db.query(SellerProfile).filter(
                 SellerProfile.latitude.isnot(None),
                 SellerProfile.longitude.isnot(None),
-            ).first()
+            ).order_by(SellerProfile.id.desc()).first()
 
         if not shop_prof:
             return None, None

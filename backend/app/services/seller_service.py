@@ -296,8 +296,24 @@ class SellerService:
         if profile_id and profile_id not in seller_ids:
             seller_ids.append(profile_id)
 
+        # In single-seller V1, if current user is the primary active seller, include legacy seed seller IDs
+        primary_seller = (
+            db.query(SellerProfile)
+            .join(User, SellerProfile.user_id == User.id)
+            .filter(User.is_active == True, SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None))
+            .order_by(SellerProfile.id.desc())
+            .first()
+        )
+        if primary_seller and primary_seller.user_id == user.id:
+            seller_ids.extend([6, 1])
+
         query = (
             db.query(Order)
+            .options(
+                joinedload(Order.customer),
+                joinedload(Order.address),
+                joinedload(Order.items),
+            )
             .outerjoin(OrderItem, Order.id == OrderItem.order_id)
             .outerjoin(SellerProduct, OrderItem.seller_product_id == SellerProduct.id)
             .outerjoin(SellerOrderFulfillment, Order.id == SellerOrderFulfillment.order_id)

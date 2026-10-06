@@ -95,6 +95,7 @@ _pool_kwargs = (
     if _is_serverless()
     else {
         "pool_pre_ping": True,
+        "pool_recycle": 300,
         "pool_size": 10,
         "max_overflow": 20,
     }
@@ -127,6 +128,34 @@ def ensure_database_schema(db_engine) -> None:
             conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_otp_verified_at TIMESTAMP WITH TIME ZONE;"))
             conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_otp_attempts INTEGER NOT NULL DEFAULT 0;"))
             conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_otp_max_attempts INTEGER NOT NULL DEFAULT 5;"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_type VARCHAR(20) NOT NULL DEFAULT 'RETAIL';"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS business_id BIGINT;"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS requested_delivery_date DATE;"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS requested_delivery_window VARCHAR(50);"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_total NUMERIC(12, 2);"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_notes TEXT;"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_delivery_fee NUMERIC(10, 2);"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_status VARCHAR(30);"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_sent_at TIMESTAMP WITHOUT TIME ZONE;"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_expires_at TIMESTAMP WITHOUT TIME ZONE;"))
+            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(100);"))
+
+            # products columns
+            conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS shelf_life_days INTEGER DEFAULT 7;"))
+            conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS freshness_category VARCHAR(50);"))
+
+            # order_items columns
+            conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS quoted_unit_price NUMERIC(10, 2);"))
+            conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS quoted_subtotal NUMERIC(12, 2);"))
+            conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS seller_notes VARCHAR(255);"))
+
+            # seller_products columns
+            conn.execute(text("ALTER TABLE seller_products ADD COLUMN IF NOT EXISTS added_date DATE;"))
+            conn.execute(text("ALTER TABLE seller_products ADD COLUMN IF NOT EXISTS added_time TIME WITHOUT TIME ZONE;"))
+            conn.execute(text("ALTER TABLE seller_products ADD COLUMN IF NOT EXISTS harvest_date DATE;"))
+            conn.execute(text("ALTER TABLE seller_products ADD COLUMN IF NOT EXISTS harvest_time TIME WITHOUT TIME ZONE;"))
+            conn.execute(text("ALTER TABLE seller_products ADD COLUMN IF NOT EXISTS storage_condition VARCHAR(100);"))
+            conn.execute(text("ALTER TABLE seller_products ADD COLUMN IF NOT EXISTS origin VARCHAR(150);"))
 
             # delivery_tasks columns
             conn.execute(text("ALTER TABLE delivery_tasks ADD COLUMN IF NOT EXISTS failure_reason VARCHAR(100);"))

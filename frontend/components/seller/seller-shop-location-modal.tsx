@@ -100,7 +100,7 @@ export function SellerShopLocationModal({
   function handleConfirmSave() {
     if (!detectedCoords) return;
     saveMutation.mutate({
-      address: detectedAddress.trim() || seller?.address || "Solapur Shop Location",
+      address: detectedAddress.trim() || seller?.address || `Shop Location (${detectedCoords.latitude.toFixed(4)}, ${detectedCoords.longitude.toFixed(4)})`,
       latitude: detectedCoords.latitude,
       longitude: detectedCoords.longitude,
     });

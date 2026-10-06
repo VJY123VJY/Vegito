@@ -329,7 +329,23 @@ export function CustomerHome() {
                   ) : products.isError ? (
                     <div className={styles.empty}>
                       <strong>Fresh products couldn&apos;t be loaded.</strong>
-                      <span>Try searching again in a moment.</span>
+                      <span>Please check your connection and try again.</span>
+                      <button
+                        onClick={() => products.refetch()}
+                        style={{
+                          marginTop: "10px",
+                          padding: "8px 18px",
+                          borderRadius: "8px",
+                          backgroundColor: "#16a34a",
+                          color: "#ffffff",
+                          border: "none",
+                          fontSize: "13px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Retry
+                      </button>
                     </div>
                   ) : availableProducts.length === 0 ? (
                     <div className={styles.empty}>

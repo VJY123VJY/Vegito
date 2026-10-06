@@ -26,15 +26,21 @@ def list_seller_orders(
     orders, total_count = SellerService.list_orders(db, current_user, pagination, status=status)
     from app.utils.display_number import batch_compute_order_display_numbers
     display_nums = batch_compute_order_display_numbers(db, [o.id for o in orders])
+    from app.schemas.order import OrderItemRead
     sanitized_orders = []
     for idx, o in enumerate(orders, start=1):
         read_obj = OrderRead.model_validate(o)
         read_obj.delivery_latitude = None
         read_obj.delivery_longitude = None
         read_obj.display_number = display_nums.get(o.id, f"{idx:02d}")
+        if o.customer:
+            read_obj.customer_name = o.customer.name or (f"Customer ({o.customer.phone[-4:]})" if o.customer.phone else "Customer")
+        if o.items:
+            read_obj.items = [OrderItemRead.model_validate(it) for it in o.items]
+            read_obj.items_count = len(o.items)
         if o.address:
-            raw_area = o.address.landmark or o.address.address_line1 or o.address.city or "Solapur"
-            read_obj.delivery_area = raw_area.split(",")[0].strip()
+            raw_area = o.address.landmark or o.address.address_line1 or o.address.city or ""
+            read_obj.delivery_area = raw_area.split(",")[0].strip() if raw_area else "Local Area"
         if o.status not in ["READY", "READY_FOR_PICKUP", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED"]:
             read_obj.pickup_otp = None
         sanitized_orders.append(read_obj)

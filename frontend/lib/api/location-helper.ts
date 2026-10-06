@@ -116,13 +116,10 @@ export async function detectLocationAndValidateEligibility(
 
     const geoResult = await reverseGeocode(coords.latitude, coords.longitude);
 
-    let pin = geoResult?.pincode?.trim();
+    let pin = geoResult?.pincode?.trim() || "";
     if (!pin) {
       const match = (geoResult?.place_name || "").match(/\b([1-9]\d{5})\b/);
       if (match) pin = match[1];
-    }
-    if (!pin) {
-      pin = "413001";
     }
 
     const address: AddressComponents = {
@@ -130,7 +127,7 @@ export async function detectLocationAndValidateEligibility(
       house_number: geoResult?.house_number,
       street: geoResult?.street,
       area: geoResult?.area,
-      city: geoResult?.city || "Solapur",
+      city: geoResult?.city || "",
       state: geoResult?.state || "Maharashtra",
       pincode: pin,
       place_name: geoResult?.place_name || "",

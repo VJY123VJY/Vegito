@@ -46,12 +46,8 @@ class CustomerService:
 
     @staticmethod
     def create_address(db: Session, user: User, address_in: AddressCreate) -> Address:
-        if address_in.city.strip().casefold() != settings.SERVICE_CITY.casefold():
-            raise BadRequestException(
-                f"Vegito currently delivers only in {settings.SERVICE_CITY}."
-            )
-
         # Validate 20 KM radius against real seller shop location
+        max_km = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))
         if address_in.latitude is not None and address_in.longitude is not None:
             seller = (
                 db.query(SellerProfile)
@@ -61,17 +57,22 @@ class CustomerService:
                     SellerProfile.latitude.isnot(None),
                     SellerProfile.longitude.isnot(None),
                 )
+                .order_by(SellerProfile.id.desc())
                 .first()
             )
             if not seller:
-                seller = db.query(SellerProfile).filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None)).first()
+                seller = (
+                    db.query(SellerProfile)
+                    .filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None))
+                    .order_by(SellerProfile.id.desc())
+                    .first()
+                )
             if seller:
                 s_lat, s_lon = LocationService.resolve_seller_coordinates(db, seller.user_id, fallback_to_default=False)
                 if s_lat is not None and s_lon is not None:
                     dist = LocationService.calculate_distance(
                         float(address_in.latitude), float(address_in.longitude), s_lat, s_lon
                     )
-                    max_km = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))
                     if dist > max_km:
                         raise BadRequestException(
                             message=f"This address is outside our {int(max_km)} km delivery area (Distance: {dist:.1f} km from {seller.business_name}). Vegito currently delivers within {int(max_km)} km of our seller.",
@@ -112,11 +113,6 @@ class CustomerService:
             raise NotFoundException(f"Address with id {address_id} not found")
 
         update_dict = update_in.model_dump(exclude_unset=True)
-        if "city" in update_dict and update_dict["city"] is not None:
-            if update_dict["city"].strip().casefold() != settings.SERVICE_CITY.casefold():
-                raise BadRequestException(
-                    f"Vegito currently delivers only in {settings.SERVICE_CITY}."
-                )
 
         new_lat = update_dict.get("latitude", address.latitude)
         new_lon = update_dict.get("longitude", address.longitude)
@@ -129,10 +125,16 @@ class CustomerService:
                     SellerProfile.latitude.isnot(None),
                     SellerProfile.longitude.isnot(None),
                 )
+                .order_by(SellerProfile.id.desc())
                 .first()
             )
             if not seller:
-                seller = db.query(SellerProfile).filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None)).first()
+                seller = (
+                    db.query(SellerProfile)
+                    .filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None))
+                    .order_by(SellerProfile.id.desc())
+                    .first()
+                )
             if seller:
                 s_lat, s_lon = LocationService.resolve_seller_coordinates(db, seller.user_id, fallback_to_default=False)
                 if s_lat is not None and s_lon is not None:

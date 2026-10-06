@@ -71,10 +71,7 @@ class OrderService:
         )
         if not address:
             raise NotFoundException("Selected delivery address was not found.")
-        if address.city.strip().casefold() != settings.SERVICE_CITY.casefold():
-            raise BadRequestException(
-                f"Vegito currently delivers only in {settings.SERVICE_CITY}."
-            )
+        # Remove hardcoded city check: delivery is determined by real 20 KM GPS radius from seller shop.
 
         subtotal = Decimal("0.00")
         items_to_create = []
@@ -119,7 +116,19 @@ class OrderService:
             if sp_prof:
                 shop_id = sp_prof.id
         if not sp_prof:
-            sp_prof = db.query(SellerProfile).first()
+            sp_prof = (
+                db.query(SellerProfile)
+                .join(User, SellerProfile.user_id == User.id)
+                .filter(
+                    User.is_active == True,
+                    SellerProfile.latitude.isnot(None),
+                    SellerProfile.longitude.isnot(None),
+                )
+                .order_by(SellerProfile.id.desc())
+                .first()
+            )
+        if not sp_prof:
+            sp_prof = db.query(SellerProfile).order_by(SellerProfile.id.desc()).first()
 
         if not sp_prof:
             raise BadRequestException("No eligible seller found to fulfill this order.")

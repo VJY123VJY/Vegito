@@ -29,7 +29,7 @@ export default function CheckoutPage() {
   const [selectedAddress, setSelectedAddress] = useState<number>();
   const [showNewAddress, setShowNewAddress] = useState(false);
   const [line, setLine] = useState("");
-  const [city, setCity] = useState("Solapur");
+  const [city, setCity] = useState("");
   const [stateName, setStateName] = useState("Maharashtra");
   const [pincode, setPincode] = useState("");
   const [addressType, setAddressType] = useState("HOME");
@@ -73,7 +73,7 @@ export default function CheckoutPage() {
       }
       return createAddress({
         address_line1: line.trim(),
-        city: city || "Solapur",
+        city: city.trim() || "Local Area",
         state: stateName || "Maharashtra",
         country: "India",
         pincode: pincode.trim() || "413001",
@@ -111,8 +111,8 @@ export default function CheckoutPage() {
       });
       setCoordinates(res.coordinates);
       const autofillLine = res.address.address_line1 || res.address.place_name || "";
-      const autofillPin = res.address.pincode || "413001";
-      const autofillCity = res.address.city || "Solapur";
+      const autofillPin = res.address.pincode || "";
+      const autofillCity = res.address.city || "";
       const autofillState = res.address.state || "Maharashtra";
 
       setLine(autofillLine);
@@ -151,7 +151,7 @@ export default function CheckoutPage() {
   if (cart.isLoading || addresses.isLoading) return <main className="simple-page"><p className="helper">Preparing secure checkout...</p></main>;
   if (!cart.data?.items.length) return <main className="simple-page"><h1>Your basket is empty</h1><Link className="primary-action" href="/categories">Browse produce</Link></main>;
 
-  return <main className="simple-page cart-page"><Link className="back-link" href="/customer/cart"><ArrowLeft size={16} /> Back to basket</Link><h1>Checkout</h1><p className="helper">Vegito Solapur delivery network (within 20 KM of shop).</p>
+  return <main className="simple-page cart-page"><Link className="back-link" href="/customer/cart"><ArrowLeft size={16} /> Back to basket</Link><h1>Checkout</h1><p className="helper">Vegito produce delivery (within 20 KM of seller shop).</p>
 
     {/* Seller Availability Banner */}
     <div
@@ -189,7 +189,7 @@ export default function CheckoutPage() {
 
     <section className="checkout-panel"><div className="section-head"><div><p className="section-kicker">DELIVERY ADDRESS</p><h2>Where should we deliver?</h2></div><MapPin size={22} color="var(--vegito-accent)" /></div>
       <div className="address-options">{addresses.data?.map((address) => <button type="button" className={`address-option ${selectedAddress === address.id ? "selected" : ""}`} key={address.id} onClick={() => setSelectedAddress(address.id)}><b>{address.address_type || "Address"}</b><span>{address.address_line1}, {address.city} {address.pincode}</span></button>)}</div>
-      <button type="button" className="text-button" onClick={() => setShowNewAddress(!showNewAddress)}><Plus size={15} /> Add Solapur address</button>
+      <button type="button" className="text-button" onClick={() => setShowNewAddress(!showNewAddress)}><Plus size={15} /> Add delivery address</button>
       {showNewAddress ? (
         <form className="address-form" onSubmit={submitAddress} style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -297,23 +297,23 @@ export default function CheckoutPage() {
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 600, color: "#374151" }}>
-              City
+              City / Town
               <input
                 required
                 value={city}
                 onChange={(event) => setCity(event.target.value)}
-                placeholder="Solapur"
+                placeholder="e.g. Akkalkot or Solapur"
                 style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "8px", fontSize: "13px" }}
               />
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 600, color: "#374151" }}>
-              Solapur pincode
+              Pincode
               <input
                 required
                 inputMode="numeric"
                 value={pincode}
                 onChange={(event) => setPincode(event.target.value.replace(/\D/g, "").slice(0, 10))}
-                placeholder="413001"
+                placeholder="6-digit PIN code"
                 style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "8px", fontSize: "13px" }}
               />
             </label>

@@ -161,7 +161,7 @@ export async function reverseGeocode(
           const streetName = addressFeature?.text || (primary.place_type?.includes("address") ? primary.text : undefined);
           const poiName = poiFeature?.text || (primary.place_type?.includes("poi") ? primary.text : undefined);
           const areaName = neighborhoodFeature?.text || localityFeature?.text || contextLocality || undefined;
-          const cityName = placeFeature?.text || contextPlace || "Solapur";
+          const cityName = placeFeature?.text || contextPlace || "";
           const stateName = regionFeature?.text || contextRegion || "Maharashtra";
 
           // Postal code extraction: postcode feature -> context -> regex from place_name
@@ -215,7 +215,7 @@ export async function reverseGeocode(
       const houseNum = addr.house_number || addr.house_name || addr.building || undefined;
       const streetName = addr.road || addr.street || addr.pedestrian || addr.suburb || undefined;
       const areaName = addr.neighbourhood || addr.suburb || addr.residential || addr.subdistrict || addr.quarter || undefined;
-      const cityName = addr.city || addr.town || addr.village || addr.city_district || "Solapur";
+      const cityName = addr.city || addr.town || addr.village || addr.municipality || addr.subdistrict || addr.county || addr.city_district || addr.state_district || "";
       const stateName = addr.state || "Maharashtra";
       let pin = addr.postcode || undefined;
       if (!pin) {

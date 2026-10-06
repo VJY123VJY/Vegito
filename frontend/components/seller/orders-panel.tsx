@@ -92,7 +92,7 @@ function OrderCard({ order }: { order: Order }) {
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
           <span style={{ fontSize: "15px", fontWeight: 800, color: "#111827" }}>
-            #{order.order_number}
+            #{order.display_number ? `${order.display_number} (${order.order_number})` : order.order_number}
           </span>
           {order.is_urgent && (
             <span
@@ -149,7 +149,7 @@ function OrderCard({ order }: { order: Order }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#4b5563", fontSize: "12.5px" }}>
           <MapPin size={14} color="#16a34a" />
-          <span>{order.delivery_area || "Solapur Local"}</span>
+          <span>{order.delivery_area || "Local Area"}</span>
         </div>
         <span style={{ fontSize: "12px", color: "#6b7280" }}>
           Payment: <b>{order.payment_method === "COD" ? "Cash On Delivery" : "Online Prepaid"}</b>

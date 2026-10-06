@@ -197,7 +197,7 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
           setGeoError("Location request timed out.");
         }
       },
-      { timeout: 10000, enableHighAccuracy: true }
+      { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 }
     );
   };
 

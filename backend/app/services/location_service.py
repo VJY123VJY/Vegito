@@ -151,19 +151,34 @@ class LocationService:
         if not profile:
             profile = (
                 db.query(SellerProfile)
+                .join(SellerProduct, SellerProduct.seller_id == SellerProfile.user_id)
+                .join(User, SellerProfile.user_id == User.id)
+                .filter(
+                    User.is_active == True,
+                    SellerProfile.latitude.isnot(None),
+                    SellerProfile.longitude.isnot(None),
+                    SellerProduct.is_available == True,
+                )
+                .order_by(SellerProfile.id.desc())
+                .first()
+            )
+        if not profile:
+            profile = (
+                db.query(SellerProfile)
                 .join(User, SellerProfile.user_id == User.id)
                 .filter(
                     User.is_active == True,
                     SellerProfile.latitude.isnot(None),
                     SellerProfile.longitude.isnot(None),
                 )
+                .order_by(SellerProfile.id.desc())
                 .first()
             )
         if not profile:
             profile = db.query(SellerProfile).filter(
                 SellerProfile.latitude.isnot(None),
                 SellerProfile.longitude.isnot(None)
-            ).first()
+            ).order_by(SellerProfile.id.desc()).first()
 
         if not profile:
             return None, None
