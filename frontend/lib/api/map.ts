@@ -43,15 +43,17 @@ export interface RouteGeometry {
  * Forward geocoding: search address string to get coordinates
  */
 export async function searchAddressGeocode(
-  query: string
+  query: string,
+  proximityCoords?: [number, number]
 ): Promise<GeocodingResult[]> {
   if (!query || query.trim().length < 3) return [];
 
   if (MAPBOX_TOKEN) {
     try {
+      const proxParam = proximityCoords ? `&proximity=${proximityCoords[0]},${proximityCoords[1]}` : "";
       const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
         query
-      )}.json?access_token=${MAPBOX_TOKEN}&country=IN&proximity=${DEFAULT_SOLAPUR_COORDS[0]},${DEFAULT_SOLAPUR_COORDS[1]}&limit=5`;
+      )}.json?access_token=${MAPBOX_TOKEN}&country=IN${proxParam}&limit=5`;
 
       const res = await fetch(endpoint);
 
@@ -144,24 +146,27 @@ export async function reverseGeocode(
           let contextPostcode: string | undefined;
           let contextPlace: string | undefined;
           let contextRegion: string | undefined;
+          let contextNeighborhood: string | undefined;
           let contextLocality: string | undefined;
+          let contextDistrict: string | undefined;
 
           for (const feat of features) {
             for (const ctx of feat.context || []) {
               if (!contextPostcode && ctx.id?.startsWith("postcode")) contextPostcode = ctx.text;
               if (!contextPlace && ctx.id?.startsWith("place")) contextPlace = ctx.text;
               if (!contextRegion && ctx.id?.startsWith("region")) contextRegion = ctx.text;
-              if (!contextLocality && (ctx.id?.startsWith("neighborhood") || ctx.id?.startsWith("locality") || ctx.id?.startsWith("district"))) {
-                contextLocality = ctx.text;
-              }
+              if (!contextNeighborhood && ctx.id?.startsWith("neighborhood")) contextNeighborhood = ctx.text;
+              if (!contextLocality && ctx.id?.startsWith("locality")) contextLocality = ctx.text;
+              if (!contextDistrict && ctx.id?.startsWith("district")) contextDistrict = ctx.text;
             }
           }
 
           const houseNum = addressFeature?.address || primary.address || undefined;
           const streetName = addressFeature?.text || (primary.place_type?.includes("address") ? primary.text : undefined);
           const poiName = poiFeature?.text || (primary.place_type?.includes("poi") ? primary.text : undefined);
-          const areaName = neighborhoodFeature?.text || localityFeature?.text || contextLocality || undefined;
-          const cityName = placeFeature?.text || contextPlace || "";
+          // Never use district as the neighborhood or area
+          const areaName = neighborhoodFeature?.text || contextNeighborhood || localityFeature?.text || contextLocality || undefined;
+          const cityName = placeFeature?.text || contextPlace || localityFeature?.text || contextLocality || contextDistrict || "";
           const stateName = regionFeature?.text || contextRegion || "Maharashtra";
 
           // Postal code extraction: postcode feature -> context -> regex from place_name
@@ -175,8 +180,8 @@ export async function reverseGeocode(
           const lineParts = [houseNum, poiName, streetName, areaName].filter(Boolean);
           const uniqueParts = Array.from(new Set(lineParts));
           let addressLine1 = uniqueParts.join(", ");
-          if (!addressLine1) {
-            const rawParts = (primary.place_name || "").split(",").map((s: string) => s.trim());
+          if (!addressLine1 && primary.place_name) {
+            const rawParts = primary.place_name.split(",").map((s: string) => s.trim());
             addressLine1 = rawParts.slice(0, 2).filter(Boolean).join(", ");
           }
           if (!addressLine1) {
@@ -206,16 +211,21 @@ export async function reverseGeocode(
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
-      { headers: { Accept: "application/json" } }
+      {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "VegitoApp/1.0 (contact@vegito.in)",
+        },
+      }
     );
 
     if (res.ok) {
       const data = await res.json();
       const addr = data.address || {};
       const houseNum = addr.house_number || addr.house_name || addr.building || undefined;
-      const streetName = addr.road || addr.street || addr.pedestrian || addr.suburb || undefined;
-      const areaName = addr.neighbourhood || addr.suburb || addr.residential || addr.subdistrict || addr.quarter || undefined;
-      const cityName = addr.city || addr.town || addr.village || addr.municipality || addr.subdistrict || addr.county || addr.city_district || addr.state_district || "";
+      const streetName = addr.road || addr.street || addr.pedestrian || undefined;
+      const areaName = addr.neighbourhood || addr.suburb || addr.residential || addr.quarter || undefined;
+      const cityName = addr.city || addr.town || addr.village || addr.municipality || addr.county || addr.subdistrict || "";
       const stateName = addr.state || "Maharashtra";
       let pin = addr.postcode || undefined;
       if (!pin) {

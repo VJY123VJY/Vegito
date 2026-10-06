@@ -1,17 +1,30 @@
-"use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell, ChevronDown, MapPin, Search, ShoppingBasket } from "lucide-react";
 import { Wordmark } from "@/components/brand/wordmark";
+import { getStoredLocation } from "@/components/location/location-modal";
+
 export function CustomerHeader({ count }: { count: number }) {
   const router = useRouter();
+  const [locTitle, setLocTitle] = useState("Set location");
+
+  useEffect(() => {
+    const loc = getStoredLocation();
+    if (loc?.city) {
+      setLocTitle(loc.city);
+    } else if (loc?.address) {
+      setLocTitle(loc.address.split(",")[0] || "Set location");
+    }
+  }, []);
+
   return (
     <header className="customer-header">
       <div className="top-row">
         <Link href="/customer"><Wordmark /></Link>
         <button className="location" onClick={() => router.push("/customer/profile/addresses")}>
           <MapPin size={17} />
-          <span><small>Delivering to</small><b>Solapur, Maharashtra</b></span>
+          <span><small>Delivering to</small><b>{locTitle}</b></span>
           <ChevronDown size={15} />
         </button>
         <nav className="desktop-links" aria-label="Customer links">

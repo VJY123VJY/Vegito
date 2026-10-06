@@ -25,6 +25,7 @@ import { reverseGeocode, searchAddressGeocode, type GeocodingResult } from "@/li
 import { api, getErrorMessage } from "@/lib/api/client";
 import { MapPinPicker } from "@/components/location/map-pin-picker";
 import { ThemeToggle } from "@/components/common/theme-toggle";
+import { getFreshDeviceCoordinates } from "@/lib/api/location-helper";
 
 export default function SellerAuthPage() {
   const router = useRouter();
@@ -120,44 +121,37 @@ export default function SellerAuthPage() {
   };
 
   // ── STEP 3: REAL SELLER GPS DETECTION ────────────────────────────────────
-  const handleDetectSellerGps = () => {
-    if (!navigator.geolocation) {
-      setError("Geolocation is not supported by your browser.");
-      return;
-    }
-
+  const handleDetectSellerGps = async () => {
     setError(null);
     setGpsLoading(true);
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        setShopLat(lat);
-        setShopLng(lng);
+    try {
+      const coords = await getFreshDeviceCoordinates({ timeoutMs: 20000 });
+      const lat = coords.latitude;
+      const lng = coords.longitude;
+      setShopLat(lat);
+      setShopLng(lng);
 
-        try {
-          const geo = await reverseGeocode(lat, lng);
-          const detectedText = geo?.place_name || `Shop at (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-          setShopAddress(detectedText);
-          setLocationDetected(true);
-        } catch {
-          setShopAddress(`Shop at GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
-          setLocationDetected(true);
-        } finally {
-          setGpsLoading(false);
-        }
-      },
-      (err) => {
-        setGpsLoading(false);
-        if (err.code === 1) {
-          setError("Location permission denied. You can choose location on map.");
-        } else {
-          setError("Could not detect device GPS. Please choose location on map.");
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+      try {
+        const geo = await reverseGeocode(lat, lng);
+        const detectedText = geo?.place_name || geo?.address_line1 || `Shop at GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        setShopAddress(detectedText);
+        setLocationDetected(true);
+      } catch {
+        setShopAddress(`Shop at GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+        setLocationDetected(true);
+      }
+    } catch (err: any) {
+      if (err?.code === "PERMISSION_DENIED") {
+        setError("Location permission was denied. You can choose shop location on map.");
+      } else if (err?.code === "LOW_ACCURACY") {
+        setError(err.message || "Your location accuracy is low. Please enable GPS or choose on map.");
+      } else {
+        setError(err?.message || "Could not detect device GPS. Please choose shop location on map.");
+      }
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
   // ── STEP 3: SUBMIT SHOP INFORMATION ──────────────────────────────────────

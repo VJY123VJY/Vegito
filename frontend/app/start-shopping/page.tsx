@@ -39,6 +39,7 @@ import {
 import { createAddress } from "@/lib/api/addresses";
 import { getErrorMessage } from "@/lib/api/client";
 import { ThemeToggle } from "@/components/common/theme-toggle";
+import { getFreshDeviceCoordinates } from "@/lib/api/location-helper";
 
 export default function StartShoppingPage() {
   const router = useRouter();
@@ -163,53 +164,46 @@ export default function StartShoppingPage() {
   };
 
   // ── STEP 3: FRESH GPS DETECTION ───────────────────────────────────────────
-  const handleDetectGps = () => {
-    if (!navigator.geolocation) {
-      setError("Geolocation is not supported by your browser.");
-      return;
-    }
-
+  const handleDetectGps = async () => {
     setError(null);
     setGpsLoading(true);
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        try {
-          const res = await reverseGeocode(lat, lng);
-          const detectedAddr = res?.place_name || `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-          const loc: SelectedLocationData = {
-            address: detectedAddr,
-            city: res?.city || "",
-            pincode: res?.pincode || "",
-            latitude: lat,
-            longitude: lng,
-          };
-          setSelectedLoc(loc);
-        } catch {
-          const loc: SelectedLocationData = {
-            address: `Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
-            city: "",
-            pincode: "",
-            latitude: lat,
-            longitude: lng,
-          };
-          setSelectedLoc(loc);
-        } finally {
-          setGpsLoading(false);
-        }
-      },
-      (err) => {
-        setGpsLoading(false);
-        if (err.code === 1) {
-          setError("Location permission was denied. You can enter address manually or choose on map.");
-        } else {
-          setError("Could not detect location. Please enter address manually or choose on map.");
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+    try {
+      const coords = await getFreshDeviceCoordinates({ timeoutMs: 20000 });
+      const lat = coords.latitude;
+      const lng = coords.longitude;
+      try {
+        const res = await reverseGeocode(lat, lng);
+        const detectedAddr = res?.place_name || res?.address_line1 || `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        const loc: SelectedLocationData = {
+          address: detectedAddr,
+          city: res?.city || "",
+          pincode: res?.pincode || "",
+          latitude: lat,
+          longitude: lng,
+        };
+        setSelectedLoc(loc);
+      } catch {
+        const loc: SelectedLocationData = {
+          address: `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+          city: "",
+          pincode: "",
+          latitude: lat,
+          longitude: lng,
+        };
+        setSelectedLoc(loc);
+      }
+    } catch (err: any) {
+      if (err?.code === "PERMISSION_DENIED") {
+        setError("Location permission was denied. You can enter address manually or choose on map.");
+      } else if (err?.code === "LOW_ACCURACY") {
+        setError(err.message || "Your location accuracy is low. Please enable device GPS or choose on map.");
+      } else {
+        setError(err?.message || "Could not detect device GPS. Please enter address manually or choose on map.");
+      }
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
   // ── STEP 3: CONFIRM & SAVE LOCATION ───────────────────────────────────────

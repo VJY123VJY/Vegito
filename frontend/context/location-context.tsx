@@ -27,6 +27,8 @@ export interface LocationContextValue {
   status: LocationStatus;
   message: string;
   coordinates: GpsCoordinates | null;
+  accuracy: number | null;
+  timestamp: number | null;
   address: AddressComponents | null;
   eligibility: DeliveryEligibilityData | null;
   isLocating: boolean;
@@ -43,6 +45,8 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<LocationStatus>("IDLE");
   const [message, setMessage] = useState<string>("Checking location...");
   const [coordinates, setCoordinates] = useState<GpsCoordinates | null>(null);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [timestamp, setTimestamp] = useState<number | null>(null);
   const [address, setAddress] = useState<AddressComponents | null>(null);
   const [eligibility, setEligibility] = useState<DeliveryEligibilityData | null>(null);
   const [permissionState, setPermissionState] = useState<"granted" | "prompt" | "denied" | "unknown">("unknown");
@@ -60,23 +64,37 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
 
       const coords = await getFreshDeviceCoordinates();
       setCoordinates(coords);
+      setAccuracy(coords.accuracy);
+      setTimestamp(coords.timestamp);
       setStatus("LOCATION_READY");
-      setMessage("Location captured. Detecting address...");
+      setMessage(`Location captured (±${coords.accuracy}m). Detecting address...`);
 
       setStatus("REVERSE_GEOCODING");
-      const geoResult = await reverseGeocode(coords.latitude, coords.longitude);
+      let geoResult: any = null;
+      try {
+        geoResult = await reverseGeocode(coords.latitude, coords.longitude);
+      } catch (e) {
+        console.warn("Reverse geocode failed:", e);
+      }
+
+      let pin = geoResult?.pincode?.trim() || "";
+      if (!pin && geoResult?.place_name) {
+        const match = geoResult.place_name.match(/\b([1-9]\d{5})\b/);
+        if (match) pin = match[1];
+      }
+
       const parsedAddress: AddressComponents = {
         address_line1:
           geoResult?.address_line1 ||
-          geoResult?.place_name ||
-          `Doorstep at ${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`,
+          geoResult?.street ||
+          "",
         house_number: geoResult?.house_number,
         street: geoResult?.street,
         area: geoResult?.area,
-        city: geoResult?.city || "Solapur",
+        city: geoResult?.city || "",
         state: geoResult?.state || "Maharashtra",
-        pincode: geoResult?.pincode || "413001",
-        place_name: geoResult?.place_name || "",
+        pincode: pin,
+        place_name: geoResult?.place_name || `GPS (${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)})`,
       };
       setAddress(parsedAddress);
       setStatus("ADDRESS_READY");
@@ -202,6 +220,8 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
         status,
         message,
         coordinates,
+        accuracy,
+        timestamp,
         address,
         eligibility,
         isLocating,

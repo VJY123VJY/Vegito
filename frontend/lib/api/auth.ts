@@ -323,6 +323,10 @@ export function clearSession() {
     "vegito.customer.location",
     "vegito.selected_location",
     "vegito.saved_address",
+    "vegito.smart_location_state",
+    "vegito.smart_location_timestamp",
+    "vegito.smart_location_accuracy",
+    "vegito.location_selected",
   ];
   keys.forEach((k) => {
     localStorage.removeItem(k);

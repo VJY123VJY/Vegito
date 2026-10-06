@@ -34,6 +34,10 @@ export default function CheckoutPage() {
   const [pincode, setPincode] = useState("");
   const [addressType, setAddressType] = useState("HOME");
   const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number }>();
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [capturedTimestamp, setCapturedTimestamp] = useState<number | null>(null);
+  const [reverseGeocodeFailed, setReverseGeocodeFailed] = useState(false);
+  const [detectedAddressSummary, setDetectedAddressSummary] = useState("");
   const [eligibilityData, setEligibilityData] = useState<DeliveryEligibilityData | null>(null);
   const [locState, setLocState] = useState<LocationDetectionState>({ status: "idle" });
   const [isLocating, setIsLocating] = useState(false);
@@ -71,12 +75,21 @@ export default function CheckoutPage() {
       if (eligibilityData && !eligibilityData.is_eligible) {
         throw new Error(eligibilityData.message || "This address is outside our 20 km delivery area.");
       }
+      if (!line.trim()) {
+        throw new Error("Please enter your house/flat, street, or area.");
+      }
+      if (!city.trim()) {
+        throw new Error("Please enter your city or town name.");
+      }
+      if (pincode.trim().length < 6) {
+        throw new Error("Please enter a valid 6-digit postal PIN code.");
+      }
       return createAddress({
         address_line1: line.trim(),
-        city: city.trim() || "Local Area",
-        state: stateName || "Maharashtra",
+        city: city.trim(),
+        state: stateName.trim() || "Maharashtra",
         country: "India",
-        pincode: pincode.trim() || "413001",
+        pincode: pincode.trim(),
         address_type: addressType,
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,
@@ -88,7 +101,10 @@ export default function CheckoutPage() {
       setShowNewAddress(false);
       setLine("");
       setPincode("");
+      setCity("");
       setCoordinates(undefined);
+      setAccuracy(null);
+      setCapturedTimestamp(null);
       setEligibilityData(null);
       setLocState({ status: "idle" });
       setError("");
@@ -103,14 +119,23 @@ export default function CheckoutPage() {
   });
 
   async function handleUseCurrentLocation() {
+    setSelectedAddress(undefined);
     setIsLocating(true);
     setError("");
+    setReverseGeocodeFailed(false);
     try {
       const res = await detectLocationAndValidateEligibility((st) => {
         setLocState(st);
       });
       setCoordinates(res.coordinates);
-      const autofillLine = res.address.address_line1 || res.address.place_name || "";
+      setAccuracy(res.accuracy);
+      setCapturedTimestamp(res.timestamp);
+
+      if (!res.reverseGeocodeSuccess) {
+        setReverseGeocodeFailed(true);
+      }
+
+      const autofillLine = res.address.address_line1 || res.address.street || "";
       const autofillPin = res.address.pincode || "";
       const autofillCity = res.address.city || "";
       const autofillState = res.address.state || "Maharashtra";
@@ -120,8 +145,11 @@ export default function CheckoutPage() {
       setCity(autofillCity);
       setStateName(autofillState);
       setEligibilityData(res.eligibility);
+      setDetectedAddressSummary(res.address.place_name || autofillLine);
     } catch (err: any) {
-      // Error is set in locState
+      if (err?.code === "LOW_ACCURACY" && err?.coordinates?.accuracy) {
+        setAccuracy(err.coordinates.accuracy);
+      }
     } finally {
       setIsLocating(false);
     }
@@ -134,12 +162,22 @@ export default function CheckoutPage() {
       return;
     }
     if (eligibilityData && !eligibilityData.is_eligible) {
-      setError("This address is outside our 15 KM delivery area. Please select a closer delivery address.");
+      setError("This address is outside our 20 KM delivery area. Please select a closer delivery address.");
       return;
     }
-    if (line.trim() && pincode.trim().length >= 5) {
-      addAddress.mutate();
+    if (!line.trim()) {
+      setError("Please enter your house/flat number, street, or area.");
+      return;
     }
+    if (!city.trim()) {
+      setError("Please enter your city / town name.");
+      return;
+    }
+    if (pincode.trim().length < 6) {
+      setError("Please enter a valid 6-digit postal PIN code.");
+      return;
+    }
+    addAddress.mutate();
   }
 
   const isSellerOnline = deliveryFeeQuery.data?.seller_online ?? sellerAvailability.data?.is_online ?? true;
@@ -227,7 +265,7 @@ export default function CheckoutPage() {
               alignItems: "center",
               justifyContent: "center",
               gap: "8px",
-              padding: "10px 16px",
+              padding: "11px 16px",
               backgroundColor: "#e9f6ee",
               color: "#063c32",
               border: "1.5px solid #16835b",
@@ -238,46 +276,116 @@ export default function CheckoutPage() {
             }}
           >
             {isLocating ? <Loader2 size={16} className="animate-spin" /> : <Crosshair size={16} color="#16835b" />}
-            {isLocating ? "Detecting your location..." : "Use my current location"}
+            {isLocating ? "Detecting location..." : "Use my current location"}
           </button>
 
-          {/* Location State & 15 KM Delivery Eligibility Card */}
-          {isLocating || locState.status === "detecting_gps" || locState.status === "reverse_geocoding" || locState.status === "checking_eligibility" ? (
+          {/* Location State & Progress Steps */}
+          {isLocating || locState.status === "detecting_gps" || locState.status === "gps_captured" || locState.status === "reverse_geocoding" || locState.status === "checking_eligibility" ? (
             <div style={{ padding: "10px 14px", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px", fontSize: "12.5px", color: "#166534", display: "flex", alignItems: "center", gap: "8px" }}>
               <Loader2 size={14} className="animate-spin" />
-              <span>{"message" in locState ? locState.message : "Detecting location..."}</span>
+              <span>{"message" in locState ? locState.message : "Detecting device GPS..."}</span>
             </div>
           ) : null}
 
+          {/* Low Accuracy Warning */}
+          {locState.status === "low_accuracy" ? (
+            <div style={{ padding: "12px 14px", backgroundColor: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: "10px", fontSize: "12.5px", color: "#92400e", display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700 }}>
+                <AlertCircle size={16} color="#b45309" />
+                <span>Your location accuracy is low{accuracy ? ` (±${accuracy}m)` : ""}.</span>
+              </div>
+              <p style={{ margin: 0, fontSize: "12px", color: "#78350f" }}>
+                Please turn on device GPS/location services for a precise doorstep fix, or enter your delivery address manually.
+              </p>
+              <div style={{ display: "flex", gap: "8px", marginTop: "2px" }}>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  style={{ padding: "5px 12px", borderRadius: "6px", backgroundColor: "#b45309", color: "#ffffff", border: "none", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
+                >
+                  Try Again
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocState({ status: "idle" })}
+                  style={{ padding: "5px 12px", borderRadius: "6px", backgroundColor: "#ffffff", color: "#92400e", border: "1px solid #d97706", fontSize: "11.5px", fontWeight: 600, cursor: "pointer" }}
+                >
+                  Enter Address Manually
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Permission Denied or Unknown Error */}
           {locState.status === "error" ? (
-            <div style={{ padding: "10px 14px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: "10px", fontSize: "12.5px", color: "#b91c1c", display: "flex", alignItems: "center", gap: "8px" }}>
-              <AlertCircle size={14} />
-              <span>{locState.message} You can also enter your address details manually below.</span>
+            <div style={{ padding: "12px 14px", backgroundColor: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: "10px", fontSize: "12.5px", color: "#b91c1c", display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700 }}>
+                <AlertCircle size={16} />
+                <span>{locState.message}</span>
+              </div>
+              <div style={{ display: "flex", gap: "8px", marginTop: "2px" }}>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  style={{ padding: "5px 12px", borderRadius: "6px", backgroundColor: "#dc2626", color: "#ffffff", border: "none", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
+                >
+                  Try Again
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocState({ status: "idle" })}
+                  style={{ padding: "5px 12px", borderRadius: "6px", backgroundColor: "#ffffff", color: "#b91c1c", border: "1px solid #f87171", fontSize: "11.5px", fontWeight: 600, cursor: "pointer" }}
+                >
+                  Enter Address Manually
+                </button>
+              </div>
             </div>
           ) : null}
 
+          {/* Reverse Geocode Unavailable Notice */}
+          {reverseGeocodeFailed && coordinates && (
+            <div style={{ padding: "8px 12px", backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", fontSize: "12px", color: "#1e40af" }}>
+              📍 Real GPS captured ({coordinates.latitude.toFixed(5)}, {coordinates.longitude.toFixed(5)}), but address could not be auto-detected. Please type your street and town below.
+            </div>
+          )}
+
+          {/* Diagnostics & Delivery Eligibility Card */}
           {eligibilityData ? (
             <div
               style={{
-                padding: "12px 14px",
-                borderRadius: "10px",
+                padding: "12px 16px",
+                borderRadius: "12px",
                 backgroundColor: eligibilityData.is_eligible ? "#f0fdf4" : "#fef2f2",
                 border: eligibilityData.is_eligible ? "1.5px solid #86efac" : "1.5px solid #f87171",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                <span style={{ fontSize: "12.5px", fontWeight: 800, color: eligibilityData.is_eligible ? "#166534" : "#991b1b" }}>
+                <span style={{ fontSize: "13px", fontWeight: 800, color: eligibilityData.is_eligible ? "#166534" : "#991b1b" }}>
                   {eligibilityData.is_eligible ? "✓ Location captured & address detected" : "✕ Outside 20 KM delivery area"}
                 </span>
                 <span style={{ fontSize: "11px", fontWeight: 800, padding: "2px 8px", borderRadius: "999px", backgroundColor: eligibilityData.is_eligible ? "#dcfce7" : "#fee2e2", color: eligibilityData.is_eligible ? "#15803d" : "#dc2626" }}>
                   {eligibilityData.is_eligible ? "Eligible" : "Outside Area"}
                 </span>
               </div>
-              <p style={{ margin: "2px 0 0", fontSize: "12px", color: eligibilityData.is_eligible ? "#15803d" : "#b91c1c" }}>
+              <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: eligibilityData.is_eligible ? "#15803d" : "#b91c1c" }}>
                 Delivering from: <strong>{eligibilityData.seller_name || "Vegito Seller"}</strong> · Distance: <strong>{eligibilityData.distance_km} KM</strong>
               </p>
+
+              {/* Safe Diagnostics Badge */}
+              <div style={{ fontSize: "11px", color: "#4b5563", marginTop: "6px", display: "flex", gap: "12px", flexWrap: "wrap", padding: "4px 8px", backgroundColor: "rgba(255,255,255,0.7)", borderRadius: "6px" }}>
+                {accuracy ? <span><strong>Accuracy:</strong> ±{accuracy} meters</span> : null}
+                {coordinates ? <span><strong>GPS:</strong> {coordinates.latitude.toFixed(5)}, {coordinates.longitude.toFixed(5)}</span> : null}
+                {capturedTimestamp ? <span><strong>Captured:</strong> {new Date(capturedTimestamp).toLocaleTimeString()}</span> : null}
+              </div>
+
+              {detectedAddressSummary ? (
+                <p style={{ margin: "4px 0 0", fontSize: "11.5px", color: "#374151" }}>
+                  Detected address: <strong>{detectedAddressSummary}</strong>
+                </p>
+              ) : null}
+
               {!eligibilityData.is_eligible ? (
-                <p style={{ margin: "4px 0 0", fontSize: "11.5px", color: "#991b1b" }}>
+                <p style={{ margin: "6px 0 0", fontSize: "11.5px", color: "#991b1b" }}>
                   We currently deliver within 20 km of our seller. This address cannot be used for delivery.
                 </p>
               ) : null}
@@ -302,7 +410,7 @@ export default function CheckoutPage() {
                 required
                 value={city}
                 onChange={(event) => setCity(event.target.value)}
-                placeholder="e.g. Akkalkot or Solapur"
+                placeholder="e.g. Town, City, or Village"
                 style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "8px", fontSize: "13px" }}
               />
             </label>
@@ -338,7 +446,7 @@ export default function CheckoutPage() {
       ) : null}
     </section>
 
-    {/* Delivery Distance & 15 KM Radius Validation Card */}
+    {/* Delivery Distance & 20 KM Radius Validation Card */}
     {selectedAddress && deliveryFeeQuery.data ? (
       <div
         style={{
@@ -363,7 +471,7 @@ export default function CheckoutPage() {
           </p>
         ) : (
           <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#166534" }}>
-            Within Solapur 20 KM coverage area from seller shop.
+            Within 20 KM delivery coverage area from seller shop.
           </p>
         )}
       </div>

@@ -33,7 +33,7 @@ const LOCATION_ACCURACY_KEY = "vegito.smart_location_accuracy";
 export function SmartLocationBar({ onOpenModal }: SmartLocationBarProps) {
   const [locState, setLocState] = useState<LocationState>("LOCATION_PENDING");
   const [accuracy, setAccuracy] = useState<number | null>(null);
-  const [locationText, setLocationText] = useState("Solapur Central Mandi · 413001");
+  const [locationText, setLocationText] = useState("Set your delivery location");
   const [isRequesting, setIsRequesting] = useState(false);
 
   useEffect(() => {
@@ -90,14 +90,14 @@ export function SmartLocationBar({ onOpenModal }: SmartLocationBarProps) {
 
     setIsRequesting(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         setIsRequesting(false);
         const acc = Math.round(pos.coords.accuracy);
         setAccuracy(acc);
         localStorage.setItem(LOCATION_ACCURACY_KEY, String(acc));
         localStorage.setItem(LOCATION_TIMESTAMP_KEY, String(Date.now()));
 
-        if (acc > 100) {
+        if (acc > 3000) {
           setLocState("LOCATION_LOW_ACCURACY");
           localStorage.setItem(LOCATION_STATE_KEY, "LOCATION_LOW_ACCURACY");
         } else {
@@ -105,14 +105,28 @@ export function SmartLocationBar({ onOpenModal }: SmartLocationBarProps) {
           localStorage.setItem(LOCATION_STATE_KEY, "LOCATION_CONFIRMED");
         }
 
-        // Save coordinates
-        const cur = getStoredLocation();
-        saveStoredLocation({
-          ...(cur ?? {}),
-          address: cur?.address || `Current Location (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`,
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-        });
+        // Fresh address from real coordinates
+        try {
+          const { reverseGeocode } = await import("@/lib/api/map");
+          const geo = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+          const freshAddr = geo?.place_name || `Location (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`;
+          setLocationText(freshAddr);
+          saveStoredLocation({
+            address: freshAddr,
+            city: geo?.city,
+            pincode: geo?.pincode,
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          });
+        } catch {
+          const fallbackAddr = `Location (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`;
+          setLocationText(fallbackAddr);
+          saveStoredLocation({
+            address: fallbackAddr,
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          });
+        }
 
         window.dispatchEvent(
           new CustomEvent("vegito:location_changed", {

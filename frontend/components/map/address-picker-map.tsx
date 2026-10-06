@@ -170,15 +170,15 @@ export function AddressPickerMap({
         latitude: lat,
         longitude: lng,
         address_line1: addressLine,
-        city: geo?.city || "Solapur",
-        pincode: geo?.pincode || "413001",
+        city: geo?.city || "",
+        pincode: geo?.pincode || "",
       });
 
       if (!geo?.place_name) {
         setLocationError("Address lookup was partial. You can edit the address fields below.");
       }
     } catch {
-      setResolvedAddress({ latitude: lat, longitude: lng, address_line1: "", city: "Solapur", pincode: "413001" });
+      setResolvedAddress({ latitude: lat, longitude: lng, address_line1: "", city: "", pincode: "" });
       setLocationError("Address lookup failed. Enter the address details below.");
     } finally {
       setIsReverseGeocoding(false);

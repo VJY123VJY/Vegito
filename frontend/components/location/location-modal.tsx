@@ -22,6 +22,7 @@ import {
 import { listAddresses, type Address } from "@/lib/api/addresses";
 import { isLoggedIn } from "@/lib/api/auth";
 import { MapPinPicker } from "./map-pin-picker";
+import { getFreshDeviceCoordinates } from "@/lib/api/location-helper";
 
 export interface SelectedLocationData {
   address: string;
@@ -145,60 +146,51 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
   };
 
   // Browser Geolocation flow
-  const handleDetectCurrentLocation = () => {
-    if (!("geolocation" in navigator)) {
-      setGeoState("error");
-      setGeoError("Geolocation is not supported by your browser");
-      return;
-    }
-
+  const handleDetectCurrentLocation = async () => {
     setGeoState("requesting");
     setGeoError(null);
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        setGeoState("detecting");
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
+    try {
+      const coords = await getFreshDeviceCoordinates({ timeoutMs: 20000 });
+      setGeoState("detecting");
+      const lat = coords.latitude;
+      const lng = coords.longitude;
 
-        try {
-          const res = await reverseGeocode(lat, lng);
-          const locationData: SelectedLocationData = {
-            address: res?.place_name || `Current location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
-            city: res?.city,
-            pincode: res?.pincode,
-            latitude: lat,
-            longitude: lng,
-          };
+      try {
+        const res = await reverseGeocode(lat, lng);
+        const locationData: SelectedLocationData = {
+          address: res?.place_name || res?.address_line1 || `Current location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+          city: res?.city,
+          pincode: res?.pincode,
+          latitude: lat,
+          longitude: lng,
+        };
 
-          setGeoState("detected");
-          setTimeout(() => {
-            handleSelectLocation(locationData);
-          }, 600);
-        } catch {
-          const fallbackData: SelectedLocationData = {
-            address: `Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
-            latitude: lat,
-            longitude: lng,
-          };
-          setGeoState("detected");
-          setTimeout(() => {
-            handleSelectLocation(fallbackData);
-          }, 600);
-        }
-      },
-      (err) => {
-        setGeoState("error");
-        if (err.code === 1) {
-          setGeoError("Location permission denied. Please allow access or select below.");
-        } else if (err.code === 2) {
-          setGeoError("Location unavailable. Please select from popular areas.");
-        } else {
-          setGeoError("Location request timed out.");
-        }
-      },
-      { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 }
-    );
+        setGeoState("detected");
+        setTimeout(() => {
+          handleSelectLocation(locationData);
+        }, 600);
+      } catch {
+        const fallbackData: SelectedLocationData = {
+          address: `Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+          latitude: lat,
+          longitude: lng,
+        };
+        setGeoState("detected");
+        setTimeout(() => {
+          handleSelectLocation(fallbackData);
+        }, 600);
+      }
+    } catch (err: any) {
+      setGeoState("error");
+      if (err?.code === "PERMISSION_DENIED") {
+        setGeoError("Location permission denied. Please allow access or select below.");
+      } else if (err?.code === "LOW_ACCURACY") {
+        setGeoError(err.message || "Your location accuracy is low. Please enable GPS and try again.");
+      } else {
+        setGeoError(err?.message || "Location unavailable. Please select on map or enter manually.");
+      }
+    }
   };
 
   return (
