@@ -1,9 +1,9 @@
 """
-location_service.py — Centralized Geographic Distance & 1–15 KM Routing Service for Vegito.
+location_service.py — Centralized Geographic Distance & 1–20 KM Routing Service for Vegito.
 
 Implements:
 1. Haversine distance calculation between two GPS coordinates (lat/lon).
-2. Configurable delivery distance bounds (MIN_DELIVERY_DISTANCE_KM = 1.0, MAX_DELIVERY_DISTANCE_KM = 15.0).
+2. Configurable delivery distance bounds (MIN_DELIVERY_DISTANCE_KM = 1.0, MAX_DELIVERY_DISTANCE_KM = 20.0).
 3. Safe handling for same-location / same-building edge cases (< 1.0 km).
 4. Address coordinate resolution and persistence.
 5. Seller coordinate resolution and validation.
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 # Configurable bounds
 MIN_DELIVERY_DISTANCE_KM: float = getattr(settings, "MIN_DELIVERY_DISTANCE_KM", 1.0)
-MAX_DELIVERY_DISTANCE_KM: float = getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 15.0)
+MAX_DELIVERY_DISTANCE_KM: float = getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0)
 ALLOW_SAME_BUILDING_DELIVERY: bool = getattr(settings, "ALLOW_SAME_BUILDING_DELIVERY", True)
 
 
@@ -72,7 +72,7 @@ class LocationService:
     ) -> Tuple[bool, str]:
         """
         Validates if distance is within Vegito's operational bounds:
-        - Must be <= MAX_DELIVERY_DISTANCE_KM (15.0 km).
+        - Must be <= MAX_DELIVERY_DISTANCE_KM (20.0 km).
         - If < MIN_DELIVERY_DISTANCE_KM (1.0 km), allowed as local/same-location delivery if allow_same_location is True.
         """
         min_limit = min_km if min_km is not None else MIN_DELIVERY_DISTANCE_KM
@@ -168,13 +168,13 @@ class LocationService:
         customer_lat: float,
         customer_lon: float,
         product_ids: Optional[List[int]] = None,
-        max_distance_km: float = 15.0,
+        max_distance_km: float = MAX_DELIVERY_DISTANCE_KM,
     ) -> List[Dict[str, Any]]:
         """
-        Finds all active, nearby sellers within max_distance_km (1–15 km) from customer location.
+        Finds all active, nearby sellers within max_distance_km (1–20 km) from customer location.
         Filters out:
           - Sellers that are inactive or offline.
-          - Sellers beyond 15 km.
+          - Sellers beyond 20 km.
           - Sellers lacking stock if product_ids is specified.
         """
         profiles = (
@@ -243,10 +243,10 @@ class LocationService:
         db: Session,
         seller_lat: float,
         seller_lon: float,
-        max_distance_km: float = 15.0,
+        max_distance_km: float = 20.0,
     ) -> List[Tuple[DeliveryPartner, float]]:
         """
-        Finds eligible delivery partners within 1–15 km of the seller's pickup location.
+        Finds eligible delivery partners within 1–20 km of the seller's pickup location.
         Criteria:
           1. User active and partner available.
           2. No active concurrent delivery.

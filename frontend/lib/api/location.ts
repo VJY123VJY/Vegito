@@ -118,140 +118,28 @@ export function subscribeToLocation(
  * Never sends fake GPS.
  */
 export function watchDeliveryBoyGps(
-  orderId: number,
-  token: string,
-  onCoords?: (coords: { lat: number; lng: number; accuracy?: number }) => void,
+  taskId: number,
+  _token: string,
+  onCoords?: (coords: {
+    lat: number;
+    lng: number;
+    accuracy?: number;
+  }) => void,
   onError?: (err: any) => void,
 ): () => void {
-  if (typeof window === "undefined" || !navigator.geolocation) {
-    onError?.({ message: "Geolocation API not supported by this browser" });
-    return () => {};
-  }
-
-  const apiBase = getApiBaseUrl()
-    .replace(/^http/, "ws")
-    .replace(/\/api\/v1$/, ""); // ws://host:port
-
-  const wsUrl = `${apiBase}/ws/delivery/${orderId}?token=${encodeURIComponent(token)}`;
-
-  let ws: WebSocket | null = null;
-  let isStopped = false;
-  let lastSentTime = 0;
-  let lastLat: number | null = null;
-  let lastLng: number | null = null;
-  let watchId: number | null = null;
-  let reconnectTimer: any = null;
-
-  function connectWs() {
-    if (isStopped) return;
-    try {
-      ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        // Send keepalive ping
-      };
-
-      ws.onclose = () => {
-        if (!isStopped) {
-          reconnectTimer = setTimeout(connectWs, 3000);
-        }
-      };
-
-      ws.onerror = (e) => {
-        onError?.(e);
-      };
-    } catch (e) {
-      onError?.(e);
-      if (!isStopped) reconnectTimer = setTimeout(connectWs, 4000);
-    }
-  }
-
-  connectWs();
-
-  // Watch position with high accuracy
-  watchId = navigator.geolocation.watchPosition(
-    (position) => {
-      const { latitude, longitude, accuracy, heading, speed } = position.coords;
-      onCoords?.({ lat: latitude, lng: longitude, accuracy });
-
-      const now = Date.now();
-      const timeElapsed = now - lastSentTime;
-
-      // Distance check
-      let movedSignificantly = false;
-      if (lastLat !== null && lastLng !== null) {
-        const dLat = Math.abs(latitude - lastLat);
-        const dLng = Math.abs(longitude - lastLng);
-        // ~10-15 meters approx
-        movedSignificantly = dLat > 0.0001 || dLng > 0.0001;
-      } else {
-        movedSignificantly = true;
-      }
-
-      // Throttle: Send if >= 3.5s elapsed or moved significantly after 2s
-      if (timeElapsed >= 3500 || (movedSignificantly && timeElapsed >= 2000)) {
-        lastSentTime = now;
-        lastLat = latitude;
-        lastLng = longitude;
-
-        // Dual-transport transmission:
-        // 1. Send via WebSocket if connected
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          try {
-            ws.send(
-              JSON.stringify({
-                order_id: orderId,
-                latitude,
-                longitude,
-                accuracy: accuracy ?? null,
-                heading: heading ?? null,
-                speed: speed ? speed * 3.6 : null, // convert m/s to km/h
-              }),
-            );
-          } catch {
-            // WS send failed, HTTP fallback below will handle
-          }
-        }
-
-        // 2. Reliable HTTP fallback: Record in backend database & live location store
-        api.post("/delivery/location", {
-          latitude,
-          longitude,
-          accuracy_meters: accuracy ?? undefined,
-          heading: heading ?? undefined,
-          speed_kmh: speed ? speed * 3.6 : undefined,
-        }).catch(() => {
-          // Retry to general location update if specific endpoint fails
-          api.post("/location/update", {
-            task_id: orderId,
-            lat: latitude,
-            lng: longitude,
-            accuracy,
-          }).catch(() => {});
-        });
-      }
+  return startLocationTracking(
+    taskId,
+    (coords) => {
+      onCoords?.({
+        lat: coords.latitude,
+        lng: coords.longitude,
+        accuracy: coords.accuracy,
+      });
     },
     (err) => {
-      console.warn("GPS watchPosition error:", err);
       onError?.(err);
     },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 5000,
-      timeout: 10000,
-    },
   );
-
-  return () => {
-    isStopped = true;
-    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-    if (reconnectTimer) clearTimeout(reconnectTimer);
-    if (ws) {
-      ws.onclose = null;
-      ws.close();
-      ws = null;
-    }
-  };
 }
 
 /**
