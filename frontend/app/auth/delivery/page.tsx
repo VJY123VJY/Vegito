@@ -99,7 +99,11 @@ export default function DeliveryPartnerAuthPage() {
     try {
       const session = await verifyOtp("delivery", cleanPhone, cleanOtp);
       saveSession(session);
-      // Advance to profile info
+      if (!session.is_new_user) {
+        window.location.href = "/delivery";
+        return;
+      }
+      // Advance to profile info for new registration
       setStage("profile_info");
       setError(null);
       setInfoMsg(null);
@@ -136,7 +140,7 @@ export default function DeliveryPartnerAuthPage() {
       }
 
       // Seamless redirect to Delivery Dashboard
-      router.push("/delivery");
+      window.location.href = "/delivery";
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

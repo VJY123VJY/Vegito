@@ -1,6 +1,9 @@
 package com.vegito.app.presentation.customer
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -48,7 +51,7 @@ fun LocationSetupScreen(
         val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
         val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
-        if (fineGranted || coarseGranted) {
+        if (fineGranted) {
             detecting = true
             errorMessage = null
             scope.launch {
@@ -59,6 +62,10 @@ fun LocationSetupScreen(
                     }
                     is LocationResult.GpsDisabled -> {
                         errorMessage = "Location services (GPS) are turned off."
+                        detecting = false
+                    }
+                    is LocationResult.PreciseLocationRequired -> {
+                        errorMessage = result.message
                         detecting = false
                     }
                     is LocationResult.PermissionDenied -> {
@@ -75,8 +82,12 @@ fun LocationSetupScreen(
                     }
                 }
             }
+        } else if (coarseGranted) {
+            errorMessage = "Precise location is required to verify your delivery distance."
+            detecting = false
         } else {
             errorMessage = "Location permission is required to detect nearby fresh produce."
+            detecting = false
         }
     }
 
@@ -211,8 +222,8 @@ fun LocationSetupScreen(
                                 addressLine = manualAddressLine,
                                 city = manualCity,
                                 pincode = manualPincode,
-                                latitude = 17.6805,
-                                longitude = 75.9064,
+                                latitude = 0.0,
+                                longitude = 0.0,
                                 isDefault = true
                             )
                             onLocationConfirmed(addr)
@@ -267,6 +278,34 @@ fun LocationSetupScreen(
             errorMessage?.let { err ->
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(text = err, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, textAlign = TextAlign.Center)
+                val requiresPreciseLocation = err.contains("Precise location", ignoreCase = true)
+                val requiresAppSettings = requiresPreciseLocation ||
+                    err.contains("permission", ignoreCase = true)
+                val locationServicesDisabled = err.contains("Location services", ignoreCase = true)
+                if (requiresAppSettings || locationServicesDisabled) {
+                    TextButton(
+                        onClick = {
+                            val intent = if (requiresAppSettings) {
+                                Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.fromParts("package", context.packageName, null)
+                                )
+                            } else {
+                                Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                            }
+                            context.startActivity(intent)
+                        }
+                    ) {
+                        Text(
+                            when {
+                                requiresPreciseLocation -> "Enable Precise Location"
+                                requiresAppSettings -> "Open App Settings"
+                                else -> "Turn On Location"
+                            },
+                            color = VegitoPrimary
+                        )
+                    }
+                }
             }
         }
     }

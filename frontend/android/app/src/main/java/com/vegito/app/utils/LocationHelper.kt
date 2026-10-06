@@ -1,23 +1,29 @@
 package com.vegito.app.utils
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
+import android.os.Looper
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
-import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 sealed class LocationResult {
     data class Success(
@@ -31,20 +37,32 @@ sealed class LocationResult {
     ) : LocationResult()
 
     data class GpsDisabled(val message: String = "Location services (GPS) are turned off.") : LocationResult()
+    data class PreciseLocationRequired(
+        val message: String = "Precise location is required to verify your delivery distance."
+    ) : LocationResult()
     data class PermissionDenied(val isPermanentlyDenied: Boolean = false) : LocationResult()
-    data class Timeout(val message: String = "Location detection is taking too long.") : LocationResult()
+    data class Timeout(
+        val message: String = "GPS did not get a precise fix in time. Turn on Precise Location, move to an open area, and try again."
+    ) : LocationResult()
     data class Error(val message: String) : LocationResult()
 }
 
 object LocationHelper {
     private const val TAG = "VegitoLocation"
-    private const val TIMEOUT_MS = 10000L
+    private const val TIMEOUT_MS = 45000L
+    private const val MAX_ACCEPTABLE_ACCURACY_METERS = 100.0f
+    private const val MAX_LOCATION_AGE_MS = 45_000L
+
+    fun hasFineLocationPermission(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    fun hasCoarseLocationPermission(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     fun isGpsEnabled(context: Context): Boolean {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
             ?: return false
-        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-                locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
     }
 
     /**
@@ -63,8 +81,26 @@ object LocationHelper {
         return true
     }
 
+    private fun isLocationFreshAndAccurate(location: Location): Boolean {
+        if (!location.hasAccuracy()) return false
+        if (location.accuracy > MAX_ACCEPTABLE_ACCURACY_METERS) return false
+        if (location.time == 0L) return false
+        val ageMs = System.currentTimeMillis() - location.time
+        return ageMs >= 0L && ageMs <= MAX_LOCATION_AGE_MS
+    }
+
     @SuppressLint("MissingPermission")
     suspend fun getFreshLocation(context: Context): LocationResult {
+        if (!hasFineLocationPermission(context)) {
+            return if (hasCoarseLocationPermission(context)) {
+                Log.w(TAG, "Approximate location permission only; precise GPS is required")
+                LocationResult.PreciseLocationRequired()
+            } else {
+                Log.w(TAG, "Location permission missing")
+                LocationResult.PermissionDenied()
+            }
+        }
+
         if (!isGpsEnabled(context)) {
             Log.w(TAG, "GPS / Location provider is disabled")
             return LocationResult.GpsDisabled()
@@ -72,16 +108,16 @@ object LocationHelper {
 
         return withTimeoutOrNull(TIMEOUT_MS) {
             try {
-                // 1. Try Google FusedLocationProviderClient first
                 val fusedClient = LocationServices.getFusedLocationProviderClient(context)
                 val location = requestFusedLocation(fusedClient)
-                    ?: requestLocationManagerFallback(context)
 
-                if (location != null && isValidCoordinates(location.latitude, location.longitude)) {
-                    Log.i(TAG, "Acquired real GPS fix: lat=${location.latitude}, lng=${location.longitude}, acc=${location.accuracy}m")
+                if (location != null && isLocationFreshAndAccurate(location)) {
+                    Log.i(TAG, "Acquired fresh GPS fix: lat=${location.latitude}, lng=${location.longitude}, acc=${location.accuracy}m, ageMs=${System.currentTimeMillis() - location.time}")
                     reverseGeocode(context, location.latitude, location.longitude)
                 } else {
-                    LocationResult.Error("Unable to acquire valid GPS coordinates. Please try again.")
+                    val msg = "Precise location is required to verify your delivery distance. Move to an open area and try again."
+                    Log.w(TAG, "Rejected stale or low-accuracy GPS fix: ${location?.accuracy ?: "unknown"}m")
+                    LocationResult.Error(msg)
                 }
             } catch (e: SecurityException) {
                 Log.e(TAG, "SecurityException: Location permission missing", e)
@@ -95,29 +131,32 @@ object LocationHelper {
 
     @SuppressLint("MissingPermission")
     private suspend fun requestFusedLocation(fusedClient: FusedLocationProviderClient): Location? {
-        val cts = CancellationTokenSource()
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
+            .setMinUpdateIntervalMillis(500L)
+            .setWaitForAccurateLocation(true)
+            .build()
+
         return suspendCancellableCoroutine { cont ->
-            cont.invokeOnCancellation { cts.cancel() }
-            fusedClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
-                .addOnSuccessListener { loc: Location? ->
-                    if (loc != null && isValidCoordinates(loc.latitude, loc.longitude)) {
-                        cont.resume(loc)
-                    } else {
-                        // Fallback to lastLocation if fresh location returned null
-                        fusedClient.lastLocation
-                            .addOnSuccessListener { lastLoc ->
-                                cont.resume(lastLoc)
-                            }
-                            .addOnFailureListener {
-                                cont.resume(null)
-                            }
+            val callback = object : LocationCallback() {
+                override fun onLocationResult(result: com.google.android.gms.location.LocationResult) {
+                    val location = result.lastLocation ?: return
+                    if (isValidCoordinates(location.latitude, location.longitude) &&
+                        isLocationFreshAndAccurate(location) &&
+                        cont.isActive
+                    ) {
+                        cont.resume(location)
                     }
                 }
-                .addOnFailureListener {
-                    // Try lastLocation as fallback
-                    fusedClient.lastLocation
-                        .addOnSuccessListener { lastLoc -> cont.resume(lastLoc) }
-                        .addOnFailureListener { cont.resume(null) }
+            }
+
+            cont.invokeOnCancellation {
+                fusedClient.removeLocationUpdates(callback)
+            }
+
+            fusedClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
+                .addOnFailureListener { error ->
+                    fusedClient.removeLocationUpdates(callback)
+                    if (cont.isActive) cont.resumeWithException(error)
                 }
         }
     }
@@ -126,13 +165,7 @@ object LocationHelper {
     private fun requestLocationManagerFallback(context: Context): Location? {
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
         val gpsLoc = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-        val netLoc = lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-
-        return when {
-            gpsLoc != null && netLoc != null -> if (gpsLoc.time >= netLoc.time) gpsLoc else netLoc
-            gpsLoc != null -> gpsLoc
-            else -> netLoc
-        }
+        return if (gpsLoc != null && isLocationFreshAndAccurate(gpsLoc)) gpsLoc else null
     }
 
     suspend fun reverseGeocode(context: Context, lat: Double, lng: Double): LocationResult.Success =

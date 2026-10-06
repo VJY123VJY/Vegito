@@ -72,7 +72,7 @@ fun LocationSelectionBottomSheet(
         val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
         val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
-        if (fineGranted || coarseGranted) {
+        if (fineGranted) {
             state = LocationSheetState.DETECTING
             scope.launch {
                 when (val result = LocationHelper.getFreshLocation(context)) {
@@ -82,6 +82,10 @@ fun LocationSelectionBottomSheet(
                     }
                     is LocationResult.GpsDisabled -> {
                         state = LocationSheetState.GPS_DISABLED
+                    }
+                    is LocationResult.PreciseLocationRequired -> {
+                        errorMessage = result.message
+                        state = LocationSheetState.PERMISSION_DENIED
                     }
                     is LocationResult.PermissionDenied -> {
                         state = LocationSheetState.PERMISSION_DENIED
@@ -96,6 +100,9 @@ fun LocationSelectionBottomSheet(
                     }
                 }
             }
+        } else if (coarseGranted) {
+            errorMessage = "Precise location is required to verify your delivery distance."
+            state = LocationSheetState.ERROR_RETRY
         } else {
             state = LocationSheetState.PERMISSION_DENIED
         }
@@ -398,13 +405,13 @@ fun LocationSelectionBottomSheet(
                             )
                             Spacer(modifier = Modifier.height(14.dp))
                             Text(
-                                text = "Location Permission Required",
+                                text = "Precise Location Required",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Vegito requires location permission to calculate delivery distance and routing. You can grant permission in settings or enter your address manually.",
+                                text = "Precise location is required to verify your delivery distance. Enable Precise Location in app settings or enter your address manually.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
@@ -425,7 +432,7 @@ fun LocationSelectionBottomSheet(
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                             ) {
-                                Text("Open App Settings")
+                                Text("Enable Precise Location")
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))

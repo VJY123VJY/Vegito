@@ -127,18 +127,23 @@ function LoginContent() {
         return;
       }
 
-      // Section 11: Route automatically by authorized role
+      // Section 11: Route automatically by authorized authoritative backend role
       const redirectParam = searchParams?.get("redirect");
       if (tokenRes.role === "CUSTOMER") {
-        router.push(redirectParam || "/customer");
+        if (redirectParam && !redirectParam.startsWith("/seller") && !redirectParam.startsWith("/delivery") && !redirectParam.startsWith("/admin")) {
+          window.location.href = redirectParam;
+        } else {
+          window.location.href = "/customer";
+        }
       } else if (tokenRes.role === "SELLER") {
-        router.push("/seller");
+        window.location.href = "/seller";
       } else if (tokenRes.role === "DELIVERY_PARTNER") {
-        router.push("/delivery");
+        window.location.href = "/delivery";
       } else if (tokenRes.role === "ADMIN" || tokenRes.role === "SUPER_ADMIN") {
-        router.push("/admin");
+        window.location.href = "/admin";
       } else {
-        setError("Your account role could not be determined. Please contact support.");
+        const dest = getRoleRedirectPath(tokenRes.role);
+        window.location.href = dest || "/";
       }
     } catch (err) {
       setError(getErrorMessage(err));
@@ -176,10 +181,14 @@ function LoginContent() {
       }
 
       const redirectParam = searchParams?.get("redirect");
-      if (tokenRes.role === "CUSTOMER" && redirectParam) {
-        router.push(redirectParam);
+      if (tokenRes.role === "CUSTOMER") {
+        if (redirectParam && !redirectParam.startsWith("/seller") && !redirectParam.startsWith("/delivery") && !redirectParam.startsWith("/admin")) {
+          window.location.href = redirectParam;
+        } else {
+          window.location.href = "/customer";
+        }
       } else {
-        router.push(getRoleRedirectPath(tokenRes.role));
+        window.location.href = getRoleRedirectPath(tokenRes.role);
       }
     } catch (err) {
       setError(getErrorMessage(err));
@@ -195,7 +204,7 @@ function LoginContent() {
       if (multiRoleSession?.role !== targetRole) {
         await switchWorkspace(targetRole);
       }
-      router.push(getRoleRedirectPath(targetRole));
+      window.location.href = getRoleRedirectPath(targetRole);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

@@ -109,7 +109,11 @@ export default function SellerAuthPage() {
     try {
       const session = await verifyOtp("seller", cleanPhone, cleanOtp);
       saveSession(session);
-      // Advance to shop info
+      if (!session.is_new_user) {
+        window.location.href = "/seller";
+        return;
+      }
+      // Advance to shop info for new seller onboarding
       setStage("shop_info");
       setError(null);
       setInfoMsg(null);
@@ -173,7 +177,7 @@ export default function SellerAuthPage() {
 
     try {
       // Update seller profile with real GPS coordinates and shop name
-      await api.put("/seller/profile", {
+      await api.patch("/seller/profile", {
         business_name: shopName.trim(),
         address: shopAddress.trim() || undefined,
         latitude: shopLat,
@@ -182,7 +186,7 @@ export default function SellerAuthPage() {
       });
 
       // Seamless redirect to Seller Dashboard
-      router.push("/seller");
+      window.location.href = "/seller";
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

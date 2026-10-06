@@ -22,6 +22,7 @@ def get_seller_profile(
 
 
 @router.patch("/profile", response_model=APIResponse[SellerProfileRead], summary="Update seller profile")
+@router.put("/profile", response_model=APIResponse[SellerProfileRead], summary="Update seller profile")
 def update_seller_profile(
     payload: SellerProfileUpdate,
     current_user: User = Depends(require_seller),

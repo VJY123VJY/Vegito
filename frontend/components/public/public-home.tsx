@@ -1147,7 +1147,7 @@ export function PublicHome() {
                       quantity={cartQty}
                       onChange={(newQty) => handleProductQtyChange(product, newQty)}
                       onAddToCart={handleAddToCartDirect}
-                      onLoginRequired={() => router.push("/auth/login?role=customer")}
+                      onLoginRequired={() => router.push("/auth/login")}
                     />
                   );
                 })}
@@ -1253,7 +1253,7 @@ export function PublicHome() {
                     cartQuantityByProduct={cartQuantityByProduct}
                     onProductQtyChange={handleProductQtyChange}
                     onAddToCart={handleAddToCartDirect}
-                    onLoginRequired={() => router.push("/auth/login?role=customer")}
+                    onLoginRequired={() => router.push("/auth/login")}
                     title="Fresh Near You — Vegetables"
                     subtitle="Harvested daily with live freshness scores from Solapur mandis"
                   />

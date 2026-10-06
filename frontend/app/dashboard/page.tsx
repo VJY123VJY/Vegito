@@ -53,15 +53,19 @@ export default function DashboardDispatcherPage() {
 
         // Single role routing
         if (hasSeller && !hasDelivery) {
-          router.replace("/seller");
+          window.location.href = "/seller";
           return;
         }
         if (hasDelivery && !hasSeller) {
-          router.replace("/delivery");
+          window.location.href = "/delivery";
+          return;
+        }
+        if (roles.includes("ADMIN") || roles.includes("SUPER_ADMIN")) {
+          window.location.href = "/admin";
           return;
         }
         if (roles.includes("CUSTOMER") && !hasSeller && !hasDelivery) {
-          router.replace("/customer");
+          window.location.href = "/customer";
           return;
         }
 
@@ -71,7 +75,7 @@ export default function DashboardDispatcherPage() {
       .catch(() => {
         if (!isMounted) return;
         clearSession();
-        router.replace("/auth/login");
+        window.location.href = "/auth/login";
       });
 
     return () => {
@@ -83,9 +87,9 @@ export default function DashboardDispatcherPage() {
     setSwitching(targetRole);
     try {
       await switchWorkspace(targetRole);
-      router.push(getRoleRedirectPath(targetRole));
+      window.location.href = getRoleRedirectPath(targetRole);
     } catch {
-      router.push(getRoleRedirectPath(targetRole));
+      window.location.href = getRoleRedirectPath(targetRole);
     }
   };
 
