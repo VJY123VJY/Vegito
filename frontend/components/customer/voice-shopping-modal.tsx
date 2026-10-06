@@ -107,7 +107,7 @@ export function VoiceShoppingModal({
 
   const handleAddItems = async () => {
     if (!isLoggedIn()) {
-      router.push("/auth/login?role=customer");
+      router.push("/auth/login");
       return;
     }
     for (const p of matchedProducts) {

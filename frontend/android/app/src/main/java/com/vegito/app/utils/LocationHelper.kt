@@ -10,6 +10,7 @@ import android.location.Location
 import android.location.LocationManager
 import android.os.Build
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -59,10 +60,15 @@ object LocationHelper {
     fun hasCoarseLocationPermission(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-    fun isGpsEnabled(context: Context): Boolean {
+    fun isLocationEnabled(context: Context): Boolean {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
             ?: return false
-        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            locationManager.isLocationEnabled
+        } else {
+            locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        }
     }
 
     /**
@@ -84,8 +90,8 @@ object LocationHelper {
     private fun isLocationFreshAndAccurate(location: Location): Boolean {
         if (!location.hasAccuracy()) return false
         if (location.accuracy > MAX_ACCEPTABLE_ACCURACY_METERS) return false
-        if (location.time == 0L) return false
-        val ageMs = System.currentTimeMillis() - location.time
+        if (location.elapsedRealtimeNanos <= 0L) return false
+        val ageMs = (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000L
         return ageMs >= 0L && ageMs <= MAX_LOCATION_AGE_MS
     }
 
@@ -101,8 +107,8 @@ object LocationHelper {
             }
         }
 
-        if (!isGpsEnabled(context)) {
-            Log.w(TAG, "GPS / Location provider is disabled")
+        if (!isLocationEnabled(context)) {
+            Log.w(TAG, "Android location services are disabled")
             return LocationResult.GpsDisabled()
         }
 
@@ -122,6 +128,8 @@ object LocationHelper {
             } catch (e: SecurityException) {
                 Log.e(TAG, "SecurityException: Location permission missing", e)
                 LocationResult.PermissionDenied()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Exception during location acquisition: ${e.message}", e)
                 LocationResult.Error(e.message ?: "Failed to get location")
@@ -133,6 +141,7 @@ object LocationHelper {
     private suspend fun requestFusedLocation(fusedClient: FusedLocationProviderClient): Location? {
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
             .setMinUpdateIntervalMillis(500L)
+            .setMaxUpdateAgeMillis(0L)
             .setWaitForAccurateLocation(true)
             .build()
 
@@ -144,6 +153,7 @@ object LocationHelper {
                         isLocationFreshAndAccurate(location) &&
                         cont.isActive
                     ) {
+                        fusedClient.removeLocationUpdates(this)
                         cont.resume(location)
                     }
                 }
@@ -161,20 +171,13 @@ object LocationHelper {
         }
     }
 
-    @SuppressLint("MissingPermission")
-    private fun requestLocationManagerFallback(context: Context): Location? {
-        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
-        val gpsLoc = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-        return if (gpsLoc != null && isLocationFreshAndAccurate(gpsLoc)) gpsLoc else null
-    }
-
     suspend fun reverseGeocode(context: Context, lat: Double, lng: Double): LocationResult.Success =
         withContext(Dispatchers.IO) {
-            var addressLine = "Delivery Location ($lat, $lng)"
-            var city = "Solapur"
-            var state = "Maharashtra"
-            var pincode = "413001"
-            var area = "Solapur Central"
+            var addressLine = "Address unavailable"
+            var city = ""
+            var state = ""
+            var pincode = ""
+            var area = ""
 
             try {
                 if (Geocoder.isPresent()) {
@@ -222,7 +225,7 @@ object LocationHelper {
                             bestMatch.getAddressLine(0) ?: parts.joinToString(", ")
                         } else {
                             parts.joinToString(", ")
-                        }
+                        }.ifBlank { "Address unavailable" }
                     }
                 }
             } catch (e: Exception) {

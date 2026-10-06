@@ -1379,7 +1379,7 @@ export function PublicHome() {
                     cartQuantityByProduct={cartQuantityByProduct}
                     onProductQtyChange={handleProductQtyChange}
                     onAddToCart={handleAddToCartDirect}
-                    onLoginRequired={() => router.push("/auth/login?role=customer")}
+                    onLoginRequired={() => router.push("/auth/login")}
                     title="Fresh Fruits &amp; Seasonal Picks"
                     subtitle="Naturally ripened fruits from Solapur orchards"
                   />
@@ -1418,7 +1418,7 @@ export function PublicHome() {
             cartQuantities={cartQuantityByProduct}
             onQtyChange={handleProductQtyChange}
             onAddToCartDirect={handleAddToCartDirect}
-            onLoginRequired={() => router.push("/auth/login?role=customer")}
+            onLoginRequired={() => router.push("/auth/login")}
           />
         )}
 

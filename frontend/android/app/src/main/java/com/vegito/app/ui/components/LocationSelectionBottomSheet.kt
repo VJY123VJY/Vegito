@@ -109,7 +109,7 @@ fun LocationSelectionBottomSheet(
     }
 
     fun startLocationDetection() {
-        if (!LocationHelper.isGpsEnabled(context)) {
+        if (!LocationHelper.isLocationEnabled(context)) {
             state = LocationSheetState.GPS_DISABLED
             return
         }

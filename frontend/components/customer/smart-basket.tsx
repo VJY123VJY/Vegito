@@ -97,7 +97,7 @@ export function SmartBasket({ products, onSuccess }: SmartBasketProps) {
 
   const handleAddAvailableToCart = async () => {
     if (!isLoggedIn()) {
-      router.push("/auth/login?role=customer");
+      router.push("/auth/login");
       return;
     }
     if (availableItems.length === 0) return;

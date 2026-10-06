@@ -208,14 +208,14 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         return try {
             val response = apiService.getCategories()
             if (response.isSuccessful && response.body()?.success == true) {
-                val list = response.body()?.data?.map { it.toDomainCategory() }
-                if (!list.isNullOrEmpty()) list else defaultCategories
+                response.body()?.data?.map { it.toDomainCategory() }.orEmpty()
             } else {
-                defaultCategories
+                Log.w(TAG, "getCategories failed: HTTP ${response.code()}")
+                emptyList()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "getCategories network failed, using default: ${e.message}")
-            defaultCategories
+            Log.e(TAG, "getCategories network failed: ${e.message}", e)
+            emptyList()
         }
     }
 
@@ -227,52 +227,34 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         return try {
             val response = apiService.getProducts(categoryId = categoryId, search = search)
             if (response.isSuccessful && response.body()?.success == true) {
-                val items = response.body()?.data?.items?.map { it.toDomainProduct() }
-                if (!items.isNullOrEmpty()) {
-                    var filtered = items
-                    if (!categoryName.isNullOrEmpty() && categoryName != "All Vegetables" && categoryName != "All Fruits") {
-                        filtered = filtered.filter { it.category.contains(categoryName, ignoreCase = true) }
-                    }
-                    filtered
+                val items = response.body()?.data?.items?.map { it.toDomainProduct() }.orEmpty()
+                if (!categoryName.isNullOrEmpty() && categoryName != "All Vegetables" && categoryName != "All Fruits") {
+                    items.filter { it.category.contains(categoryName, ignoreCase = true) }
                 } else {
-                    filterCatalog(categoryName, search)
+                    items
                 }
             } else {
-                filterCatalog(categoryName, search)
+                Log.w(TAG, "getProducts failed: HTTP ${response.code()}")
+                emptyList()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "getProducts network failed, using fallback: ${e.message}")
-            filterCatalog(categoryName, search)
+            Log.e(TAG, "getProducts network failed: ${e.message}", e)
+            emptyList()
         }
-    }
-
-    private fun filterCatalog(category: String?, search: String?): List<Product> {
-        var list = fullCatalog
-        if (!category.isNullOrEmpty() && category != "All Vegetables" && category != "All Fruits") {
-            val cat = category.trim()
-            list = list.filter { it.category.contains(cat, ignoreCase = true) }
-        }
-        if (!search.isNullOrEmpty()) {
-            val query = search.trim()
-            list = list.filter {
-                it.name.contains(query, ignoreCase = true) || it.category.contains(query, ignoreCase = true)
-            }
-        }
-        return list
     }
 
     suspend fun getActiveOffers(): List<Offer> {
         return try {
             val res = apiService.getActiveOffers()
             if (res.isSuccessful && res.body()?.success == true) {
-                val items = res.body()?.data?.map { it.toDomainOffer() }
-                if (!items.isNullOrEmpty()) items else defaultOffers
+                res.body()?.data?.map { it.toDomainOffer() }.orEmpty()
             } else {
-                defaultOffers
+                Log.w(TAG, "getActiveOffers failed: HTTP ${res.code()}")
+                emptyList()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "getActiveOffers network failed, using fallback: ${e.message}")
-            defaultOffers
+            Log.e(TAG, "getActiveOffers network failed: ${e.message}", e)
+            emptyList()
         }
     }
 

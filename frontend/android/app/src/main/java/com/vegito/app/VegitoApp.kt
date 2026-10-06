@@ -86,7 +86,7 @@ fun VegitoApp() {
     // Load initial data
     LaunchedEffect(token, activeRole) {
         val prods = repository.getProducts()
-        productsList = if (prods.isNotEmpty()) prods else repository.fullCatalog
+        productsList = prods
 
         val offers = repository.getActiveOffers()
         offersList = offers
@@ -507,11 +507,11 @@ fun VegitoApp() {
 
                 // CUSTOMER WORKSPACE
                 composable("customer_home") {
-                    val availableProducts = if (productsList.isNotEmpty()) productsList else repository.fullCatalog
+                    val availableProducts = productsList
                     CustomerHomeScreen(
                         lang = lang,
                         offers = offersList,
-                        categories = if (categoriesList.isNotEmpty()) categoriesList else repository.defaultCategories,
+                        categories = categoriesList,
                         allProducts = availableProducts,
                         cartItemQuantities = cartItems.associate { it.product.id to it.quantity },
                         onCategoryClick = { navController.navigate("customer_search") },
@@ -566,7 +566,7 @@ fun VegitoApp() {
 
                 composable("customer_search") {
                     SearchScreen(
-                        products = if (productsList.isNotEmpty()) productsList else repository.fullCatalog,
+                        products = productsList,
                         onProductClick = {
                             selectedProductForDetail = it
                             navController.navigate("product_detail")
@@ -577,7 +577,7 @@ fun VegitoApp() {
                 }
 
                 composable("customer_favorites") {
-                    val availableProducts = if (productsList.isNotEmpty()) productsList else repository.fullCatalog
+                    val availableProducts = productsList
                     val favProds = availableProducts.filter { favoriteProductIds.contains(it.id) }
                     FavoritesScreen(
                         favoriteProducts = favProds,
@@ -887,7 +887,7 @@ fun VegitoApp() {
 
                 composable("seller_products") {
                     SellerProductsScreen(
-                        products = if (productsList.isNotEmpty()) productsList else repository.fullCatalog,
+                        products = productsList,
                         onBack = {
                             if (!navController.popBackStack()) {
                                 navController.navigate("seller_dashboard")
@@ -921,7 +921,7 @@ fun VegitoApp() {
 
                 composable("seller_inventory") {
                     SellerInventoryScreen(
-                        products = if (productsList.isNotEmpty()) productsList else repository.fullCatalog,
+                        products = productsList,
                         onBack = { navController.popBackStack() },
                         onAdjustStock = { prodId, change, isAdd ->
                             scope.launch {

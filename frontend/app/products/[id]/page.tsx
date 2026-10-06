@@ -59,7 +59,7 @@ function ProductContent({ params }: { params: Promise<{ id: string }> }) {
   const toggleFavoriteMutation = useMutation({
     mutationFn: async () => {
       if (!isLoggedIn()) {
-        router.push("/auth/login?role=customer");
+        router.push("/auth/login");
         return;
       }
       const pId = Number(id);
@@ -77,7 +77,7 @@ function ProductContent({ params }: { params: Promise<{ id: string }> }) {
   const addToCartMutation = useMutation({
     mutationFn: async (sellerProductId: number) => {
       if (!isLoggedIn()) {
-        router.push("/auth/login?role=customer");
+        router.push("/auth/login");
         return;
       }
       return await addCartItem(sellerProductId, quantity);

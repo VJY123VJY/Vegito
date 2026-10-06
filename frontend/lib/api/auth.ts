@@ -340,6 +340,22 @@ export function clearSession() {
     localStorage.removeItem(k);
     sessionStorage.removeItem(k);
   });
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith("vegito.") || k.startsWith("vegito_"))) {
+        localStorage.removeItem(k);
+      }
+    }
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const k = sessionStorage.key(i);
+      if (k && (k.startsWith("vegito.") || k.startsWith("vegito_"))) {
+        sessionStorage.removeItem(k);
+      }
+    }
+  } catch (e) {
+    console.warn("Storage cleanup notice:", e);
+  }
   window.dispatchEvent(new CustomEvent("vegito:auth_state_changed", { detail: { loggedIn: false } }));
 }
 

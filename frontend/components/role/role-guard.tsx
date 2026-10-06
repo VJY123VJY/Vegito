@@ -20,15 +20,7 @@ export function RoleGuard({
     const token = getAuthToken();
     const role = getStoredRole();
     if (!token || !role) {
-      clearSession();
-      const defaultRole = allow.includes("CUSTOMER")
-        ? "customer"
-        : allow.includes("SELLER")
-        ? "seller"
-        : allow.includes("DELIVERY_PARTNER")
-        ? "delivery"
-        : "admin";
-      router.replace(redirectTo ?? `/auth/login?role=${defaultRole}`);
+      router.replace(redirectTo ?? "/auth/login");
       return;
     }
     // In V1, the sole business operator is both SELLER and DELIVERY_PARTNER
