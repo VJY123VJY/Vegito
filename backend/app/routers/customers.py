@@ -126,9 +126,6 @@ def get_nearby_sellers(
     lon: Optional[float] = Query(None, description="Customer longitude"),
     db: Session = Depends(get_db),
 ):
-    c_lat = lat if lat is not None else DEFAULT_SOLAPUR_LAT
-    c_lon = lon if lon is not None else DEFAULT_SOLAPUR_LON
-
     sellers = (
         db.query(SellerProfile)
         .join(User, SellerProfile.user_id == User.id)
@@ -141,9 +138,13 @@ def get_nearby_sellers(
         s_lat, s_lon = LocationService.resolve_seller_coordinates(db, sp.user_id, fallback_to_default=False)
         if s_lat is None or s_lon is None:
             continue
-        dist = LocationService.calculate_distance(c_lat, c_lon, s_lat, s_lon)
-        # 20 KM boundary
-        if dist <= 20.0:
+        if lat is not None and lon is not None:
+            dist = LocationService.calculate_distance(lat, lon, s_lat, s_lon)
+            # 20 KM boundary
+            if dist > 20.0:
+                continue
+        else:
+            dist = 0.0
             prod_count = (
                 db.query(SellerProduct)
                 .filter(SellerProduct.seller_id == sp.user_id, SellerProduct.is_available == True, SellerProduct.stock_quantity > 0)
