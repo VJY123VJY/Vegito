@@ -11,9 +11,11 @@ import {
   AlertCircle,
   Plus,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 import { addSellerProduct, AddProductInput } from "@/lib/api/seller";
 import { getCategories } from "@/lib/api/categories";
+import { getProducts } from "@/lib/api/products";
 import { getErrorMessage } from "@/lib/api/client";
 
 interface AddProductModalProps {
@@ -46,6 +48,7 @@ const FRUIT_CATEGORY_IDS = [2, 56, 57, 58, 59, 60];
 export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalProps) {
   const queryClient = useQueryClient();
 
+  const [selectedCatalogId, setSelectedCatalogId] = useState<number | null>(null);
   const [productType, setProductType] = useState<"VEGETABLE" | "FRUIT">("VEGETABLE");
   const [productName, setProductName] = useState("");
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
@@ -72,6 +75,32 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
     queryKey: ["categories"],
     queryFn: getCategories,
   });
+
+  const masterCatalogQuery = useQuery({
+    queryKey: ["master-catalog-products-modal"],
+    queryFn: () => getProducts({ pageSize: 100 }),
+    enabled: isOpen,
+    staleTime: 60_000,
+  });
+
+  const handleSelectMasterProduce = (productId: number | "") => {
+    if (!productId) {
+      setSelectedCatalogId(null);
+      return;
+    }
+    const found = masterCatalogQuery.data?.items?.find((p) => p.id === Number(productId));
+    if (!found) return;
+    setSelectedCatalogId(found.id);
+    setProductName(found.name);
+    if (found.category_id) setCategoryId(found.category_id);
+    else if (found.category?.id) setCategoryId(found.category.id);
+    setUnit(found.unit || "1 KG");
+    if (found.description) setDescription(found.description);
+    if (found.images?.[0]?.image_url) setImageUrl(found.images[0].image_url);
+    if (found.market_price) {
+      setPrice(String(found.market_price.reference_price));
+    }
+  };
 
   const addMutation = useMutation({
     mutationFn: (payload: AddProductInput) => addSellerProduct(payload),
@@ -177,6 +206,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
     }
 
     addMutation.mutate({
+      product_id: selectedCatalogId || undefined,
       product_name: productName.trim(),
       product_type: productType,
       category_id: effectiveCatId,
@@ -287,6 +317,74 @@ export function AddProductModal({ isOpen, onClose, onSuccess }: AddProductModalP
           )}
 
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+            {/* Quick Select from Master Indian Produce Catalog */}
+            <div
+              style={{
+                padding: "14px",
+                borderRadius: "12px",
+                backgroundColor: "#f0fdf4",
+                border: "1.5px solid #bbf7d0",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                <Sparkles size={16} color="#16a34a" />
+                <span style={{ fontSize: "13px", fontWeight: 800, color: "#166534" }}>
+                  Quick Select from Master Produce Catalog (55 Items)
+                </span>
+              </div>
+              <select
+                value={selectedCatalogId || ""}
+                onChange={(e) => handleSelectMasterProduce(e.target.value ? Number(e.target.value) : "")}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  borderRadius: "8px",
+                  border: "1px solid #86efac",
+                  backgroundColor: "#ffffff",
+                  color: "#063c32",
+                }}
+              >
+                <option value="">-- Choose Master Produce (or enter custom below) --</option>
+                {(masterCatalogQuery.data?.items ?? []).map((prod) => (
+                  <option key={prod.id} value={prod.id}>
+                    {prod.name} ({prod.unit}) {prod.market_price ? `• Mandi Avg ₹${prod.market_price.reference_price}` : ""}
+                  </option>
+                ))}
+              </select>
+
+              {selectedCatalogId && (
+                <div
+                  style={{
+                    marginTop: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: "6px",
+                    fontSize: "11.5px",
+                    fontWeight: 700,
+                    color: "#166534",
+                  }}
+                >
+                  <span>✓ Linked to #{selectedCatalogId}</span>
+                  {masterCatalogQuery.data?.items?.find((p) => p.id === selectedCatalogId)?.market_price && (
+                    <span
+                      style={{
+                        backgroundColor: "#dcfce7",
+                        padding: "2px 6px",
+                        borderRadius: "6px",
+                        border: "1px solid #86efac",
+                      }}
+                    >
+                      Mandi: ₹{masterCatalogQuery.data?.items?.find((p) => p.id === selectedCatalogId)?.market_price?.suggested_range_min} - ₹{masterCatalogQuery.data?.items?.find((p) => p.id === selectedCatalogId)?.market_price?.suggested_range_max}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Image Upload & Preview Section */}
             <div>
               <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#063c32", marginBottom: "6px" }}>

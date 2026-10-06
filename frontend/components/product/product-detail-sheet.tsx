@@ -58,7 +58,7 @@ export function ProductDetailSheet({
     enabled: Boolean(product?.id && isOpen),
     staleTime: 5 * 60 * 1000,
   });
-  const marketPrice = marketPriceQuery.data;
+  const marketPrice = marketPriceQuery.data || product?.market_price;
 
   if (!product) return null;
 
@@ -66,7 +66,7 @@ export function ProductDetailSheet({
   const offer = sellerOffers[selectedSellerIndex] || sellerOffers[0];
   const price = offer?.price != null ? Number(offer.price) : product.min_price != null ? Number(product.min_price) : 0;
   const inStock = product.is_in_stock && (offer?.is_available ?? true);
-  const sellerName = offer?.seller_business_name || "Local seller";
+  const sellerName = offer?.seller_business_name || (marketPrice ? "Solapur APMC Mandi Benchmark" : "Local seller");
   const sellerRating = offer?.seller_rating != null ? Number(offer.seller_rating).toFixed(1) : null;
   const imageUrl = getProductPhoto(product);
   const freshness = offer?.freshness;
@@ -184,10 +184,10 @@ export function ProductDetailSheet({
 
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: "24px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
-                ₹{price}
+                {price > 0 ? `₹${price}` : marketPrice ? `₹${marketPrice.reference_price}` : "Mandi Rate"}
               </div>
               <div style={{ fontSize: "12px", color: "var(--vegito-text-muted, #62746a)" }}>
-                per {product.unit}
+                {price > 0 ? `per ${product.unit}` : `Mandi Rate / ${product.unit}`}
               </div>
             </div>
           </div>

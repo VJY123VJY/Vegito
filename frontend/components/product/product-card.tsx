@@ -85,7 +85,8 @@ export function ProductCard({
   const freshness = offer?.freshness;
   const price = offer?.price != null ? Number(offer.price) : product.min_price != null ? Number(product.min_price) : null;
   const imageUrl = getProductPhoto(product);
-  const sellerName = offer?.seller_business_name || "Seller details unavailable";
+  const marketPrice = product.market_price;
+  const sellerName = offer?.seller_business_name || (marketPrice ? "Solapur APMC Mandi" : "Seller details unavailable");
 
   const handleInitialAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -200,6 +201,10 @@ export function ProductCard({
               <>
                 <span style={{ color: "#34d399" }}>●</span> 95% Very Fresh
               </>
+            ) : marketPrice ? (
+              <>
+                <span style={{ color: "#34d399" }}>●</span> Mandi Benchmark
+              </>
             ) : (
               "Sold Out"
             )}
@@ -302,13 +307,34 @@ export function ProductCard({
           >
             <div>
               {price != null ? (
-                <div style={{ display: "flex", alignItems: "baseline", gap: "2px" }}>
-                  <span style={{ fontSize: "17px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
-                    ₹{price}
-                  </span>
-                  <span style={{ fontSize: "11px", color: "var(--vegito-text-muted, #62746a)", fontWeight: 600 }}>
-                    /{product.unit}
-                  </span>
+                <div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "2px" }}>
+                    <span style={{ fontSize: "17px", fontWeight: 800, color: "var(--vegito-text-main, #063c32)" }}>
+                      ₹{price}
+                    </span>
+                    <span style={{ fontSize: "11px", color: "var(--vegito-text-muted, #62746a)", fontWeight: 600 }}>
+                      /{product.unit}
+                    </span>
+                  </div>
+                  {marketPrice && (
+                    <div style={{ fontSize: "10px", color: "#16835b", fontWeight: 700, marginTop: "1px" }}>
+                      Mandi: ₹{marketPrice.suggested_range_min} - ₹{marketPrice.suggested_range_max}
+                    </div>
+                  )}
+                </div>
+              ) : marketPrice ? (
+                <div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "2px" }}>
+                    <span style={{ fontSize: "15px", fontWeight: 800, color: "#16835b" }}>
+                      ₹{marketPrice.reference_price}
+                    </span>
+                    <span style={{ fontSize: "10.5px", color: "var(--vegito-text-muted, #62746a)", fontWeight: 600 }}>
+                      /{product.unit}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "9.5px", color: "#16835b", fontWeight: 700, marginTop: "1px" }}>
+                    Mandi Benchmark (₹{marketPrice.suggested_range_min} - ₹{marketPrice.suggested_range_max})
+                  </div>
                 </div>
               ) : (
                 <span style={{ fontSize: "12.5px", color: "var(--vegito-text-muted, #62746a)", fontStyle: "italic" }}>

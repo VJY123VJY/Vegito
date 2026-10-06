@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.market_intelligence import MarketIntelligence
 from app.models.product import Product
 from app.schemas.market_intelligence import MarketIntelligenceCreate, MarketIntelligenceUpdate, MarketIntelligenceRead
@@ -12,6 +12,7 @@ class MarketIntelligenceService:
     def get_by_product_id(db: Session, product_id: int) -> Optional[MarketIntelligenceRead]:
         item = (
             db.query(MarketIntelligence)
+            .options(joinedload(MarketIntelligence.product))
             .filter(MarketIntelligence.product_id == product_id)
             .order_by(MarketIntelligence.timestamp.desc())
             .first()
@@ -27,6 +28,7 @@ class MarketIntelligenceService:
     def list_all(db: Session) -> List[MarketIntelligenceRead]:
         items = (
             db.query(MarketIntelligence)
+            .options(joinedload(MarketIntelligence.product))
             .order_by(MarketIntelligence.product_id.asc(), MarketIntelligence.timestamp.desc())
             .all()
         )

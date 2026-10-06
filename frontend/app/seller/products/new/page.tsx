@@ -12,9 +12,12 @@ import {
   AlertCircle,
   Check,
   Trash2,
+  TrendingUp,
+  Sparkles,
 } from "lucide-react";
 import { addSellerProduct, AddProductInput } from "@/lib/api/seller";
 import { getCategories } from "@/lib/api/categories";
+import { getProducts, ApiProduct } from "@/lib/api/products";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { RoleGuard } from "@/components/role/role-guard";
 import { getErrorMessage } from "@/lib/api/client";
@@ -32,6 +35,7 @@ export default function NewSellerProductPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const [selectedCatalogId, setSelectedCatalogId] = useState<number | null>(null);
   const [productName, setProductName] = useState("");
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [unit, setUnit] = useState("1 KG");
@@ -48,6 +52,31 @@ export default function NewSellerProductPage() {
     queryKey: ["categories"],
     queryFn: getCategories,
   });
+
+  const masterCatalogQuery = useQuery({
+    queryKey: ["master-catalog-products-new"],
+    queryFn: () => getProducts({ pageSize: 100 }),
+    staleTime: 60_000,
+  });
+
+  const handleSelectMasterProduce = (productId: number | "") => {
+    if (!productId) {
+      setSelectedCatalogId(null);
+      return;
+    }
+    const found = masterCatalogQuery.data?.items?.find((p) => p.id === Number(productId));
+    if (!found) return;
+    setSelectedCatalogId(found.id);
+    setProductName(found.name);
+    if (found.category_id) setCategoryId(found.category_id);
+    else if (found.category?.id) setCategoryId(found.category.id);
+    setUnit(found.unit || "1 KG");
+    if (found.description) setDescription(found.description);
+    if (found.images?.[0]?.image_url) setImageUrl(found.images[0].image_url);
+    if (found.market_price) {
+      setPrice(String(found.market_price.reference_price));
+    }
+  };
 
   const addMutation = useMutation({
     mutationFn: (payload: AddProductInput) => addSellerProduct(payload),
@@ -95,6 +124,7 @@ export default function NewSellerProductPage() {
     }
 
     addMutation.mutate({
+      product_id: selectedCatalogId || undefined,
       product_name: productName.trim(),
       category_id: categoryId || (categoriesQuery.data?.[0]?.id ?? 1),
       unit: unit,
@@ -176,6 +206,79 @@ export default function NewSellerProductPage() {
             )}
 
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              {/* Quick Select from Master APMC Produce Catalog */}
+              <div
+                style={{
+                  padding: "16px",
+                  borderRadius: "14px",
+                  backgroundColor: "#f0fdf4",
+                  border: "1.5px solid #bbf7d0",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                  <Sparkles size={18} color="#16a34a" />
+                  <span style={{ fontSize: "14px", fontWeight: 800, color: "#166534" }}>
+                    Quick Select from Master Indian Produce Catalog (55 Verified Items)
+                  </span>
+                </div>
+                <p style={{ fontSize: "12px", color: "#15803d", margin: "0 0 10px 0" }}>
+                  Selecting a master produce item automatically loads the verified high-res photo, APMC Mandi benchmark price, unit, and description.
+                </p>
+                <select
+                  value={selectedCatalogId || ""}
+                  onChange={(e) => handleSelectMasterProduce(e.target.value ? Number(e.target.value) : "")}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    fontSize: "13.5px",
+                    fontWeight: 600,
+                    borderRadius: "10px",
+                    border: "1px solid #86efac",
+                    backgroundColor: "#ffffff",
+                    color: "#063c32",
+                  }}
+                >
+                  <option value="">-- Choose from Master Produce Catalog (or type custom below) --</option>
+                  {(masterCatalogQuery.data?.items ?? []).map((prod) => (
+                    <option key={prod.id} value={prod.id}>
+                      {prod.name} ({prod.unit}) {prod.market_price ? `• Mandi Avg ₹${prod.market_price.reference_price}` : ""}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedCatalogId && (
+                  <div
+                    style={{
+                      marginTop: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "8px",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      color: "#166534",
+                    }}
+                  >
+                    <span>
+                      ✓ Linked to Master Produce #{selectedCatalogId}
+                    </span>
+                    {masterCatalogQuery.data?.items?.find((p) => p.id === selectedCatalogId)?.market_price && (
+                      <span
+                        style={{
+                          backgroundColor: "#dcfce7",
+                          padding: "3px 8px",
+                          borderRadius: "6px",
+                          border: "1px solid #86efac",
+                        }}
+                      >
+                        Solapur APMC Rate: ₹{masterCatalogQuery.data?.items?.find((p) => p.id === selectedCatalogId)?.market_price?.suggested_range_min} - ₹{masterCatalogQuery.data?.items?.find((p) => p.id === selectedCatalogId)?.market_price?.suggested_range_max}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Product Photo */}
               <div>
                 <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#063c32", marginBottom: "8px" }}>

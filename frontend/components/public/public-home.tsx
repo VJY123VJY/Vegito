@@ -331,14 +331,17 @@ export function PublicHome() {
 
   const isFruit = (p: ApiProduct) => {
     const categoryName = p.category?.name?.toLowerCase() ?? "";
-    if (categoryName.includes("fruit")) return true;
-    if (/(vegetable|leafy|root|greens)/.test(categoryName)) return false;
+    if (categoryName.includes("fruit vegetable")) return false;
+    if (categoryName.includes("fruit") || categoryName.includes("melon") || categoryName.includes("citrus") || categoryName.includes("berries")) return true;
+    if (/(vegetable|leafy|root|greens|gourds|squash|beans|peas|cruciferous|herbs|specialty)/.test(categoryName)) return false;
 
     const text = `${p.name} ${p.description || ""}`.toLowerCase();
     const fruitKeywords = [
-      "fruit", "apple", "banana", "orange", "grape", "mango", "papaya",
+      "apple", "banana", "orange", "grape", "mango", "papaya",
       "pomegranate", "watermelon", "melon", "guava", "lemon", "citrus",
-      "berries", "strawberry", "chiku", "chikoo", "sapota", "pineapple", "coconut", "anar", "seb", "santre", "kela"
+      "berries", "strawberry", "chiku", "chikoo", "sapota", "pineapple",
+      "anar", "seb", "santra", "santre", "kela", "mosambi", "kiwi",
+      "pitaya", "dragon fruit", "custard apple", "sitaphal", "pears", "nashpati"
     ];
     return fruitKeywords.some((k) => text.includes(k));
   };
