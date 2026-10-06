@@ -32,9 +32,9 @@ fun CheckoutScreen(
     cart: CartSummary,
     selectedAddress: SavedAddress?,
     onBack: () -> Unit,
-    onAddressUpdated: suspend (SavedAddress) -> SavedAddress?,
+    onAddressUpdated: (SavedAddress) -> Unit,
     onCheckDeliveryEligibility: suspend (SavedAddress) -> DeliveryFeeResponse?,
-    onPlaceOrder: suspend (paymentMethod: String, address: SavedAddress) -> Boolean
+    onPlaceOrder: (paymentMethod: String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var currentAddress by remember(selectedAddress) { mutableStateOf(selectedAddress) }
@@ -81,7 +81,7 @@ fun CheckoutScreen(
     }
 
     val isDeliverable = hasValidCoordinates && eligibilityError == null && eligibilityResponse?.isDeliverable == true
-    val calculatedDeliveryFee = eligibilityResponse?.deliveryFee ?: cart.deliveryFee
+    val calculatedDeliveryFee = eligibilityResponse?.deliveryFee ?: 0.0
     val finalGrandTotal = (cart.subtotal + calculatedDeliveryFee - cart.discount).coerceAtLeast(0.0)
     val addressToDisplay = addr
 
@@ -145,10 +145,7 @@ fun CheckoutScreen(
                                 isPlacingOrder = true
                                 orderError = null
                                 try {
-                                    val placed = currentAddress?.let { onPlaceOrder(paymentMethod, it) } ?: false
-                                    if (!placed) {
-                                        orderError = "Your order could not be placed. Please try again."
-                                    }
+                                    onPlaceOrder(paymentMethod)
                                 } catch (e: Exception) {
                                     orderError = "Your order could not be placed. Please try again."
                                 } finally {
@@ -481,17 +478,11 @@ fun CheckoutScreen(
             currentAddress = currentAddress,
             onDismiss = { showLocationSheet = false },
             onAddressConfirmed = { addr ->
-                scope.launch {
-                    val savedAddress = onAddressUpdated(addr)
-                    if (savedAddress != null) {
-                        currentAddress = savedAddress
-                        eligibilityError = null
-                        orderError = null
-                        showLocationSheet = false
-                    } else {
-                        eligibilityError = "Could not save this delivery address. Please try again."
-                    }
-                }
+                onAddressUpdated(addr)
+                currentAddress = addr
+                eligibilityError = null
+                orderError = null
+                showLocationSheet = false
             }
         )
     }

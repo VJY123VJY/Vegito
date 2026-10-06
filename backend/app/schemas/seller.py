@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from app.schemas.common import BaseSchema
 from app.schemas.product import ProductRead
 
@@ -31,6 +31,17 @@ class SellerProfileUpdate(BaseModel):
     longitude: Optional[Decimal] = None
     gst_number: Optional[str] = Field(None, max_length=30)
     is_available: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def validate_location_pair(self):
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Latitude and longitude must be provided together.")
+        if self.latitude is not None and self.longitude is not None:
+            if not (-90 <= self.latitude <= 90 and -180 <= self.longitude <= 180):
+                raise ValueError("Shop coordinates are outside valid latitude/longitude bounds.")
+            if self.latitude == 0 and self.longitude == 0:
+                raise ValueError("Shop coordinates must identify a real location.")
+        return self
 
 
 class SellerAvailabilityUpdate(BaseModel):

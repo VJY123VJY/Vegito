@@ -140,7 +140,6 @@ fun RegisterScreen(
             if (selectedRole == "SELLER" && sellerStep == 2) {
                 Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                     SellerShopLocationPicker(
-                        initialAddress = businessName.text.ifBlank { "Solapur Mandi" },
                         isMandatory = true,
                         title = "🏪 Shop Location Required",
                         subtitle = "Your shop location is compulsory for pickup, delivery eligibility and customer orders. Skip or Later is not permitted.",

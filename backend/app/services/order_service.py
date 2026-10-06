@@ -528,8 +528,16 @@ class OrderService:
         else:
             # Admin / Superadmin
             detail.address = AddressRead.model_validate(order.address) if order.address else None
-            detail.customer_latitude = order.delivery_latitude or (order.address.latitude if order.address else Decimal("17.6860"))
-            detail.customer_longitude = order.delivery_longitude or (order.address.longitude if order.address else Decimal("75.9120"))
+            detail.customer_latitude = (
+                order.delivery_latitude
+                if order.delivery_latitude is not None
+                else (order.address.latitude if order.address else None)
+            )
+            detail.customer_longitude = (
+                order.delivery_longitude
+                if order.delivery_longitude is not None
+                else (order.address.longitude if order.address else None)
+            )
             detail.customer_phone = cust_user.phone if cust_user else None
             detail.pickup_otp = order.pickup_otp
 

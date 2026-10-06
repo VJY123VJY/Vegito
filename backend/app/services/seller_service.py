@@ -41,6 +41,11 @@ class SellerService:
         update_data = profile_in.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(profile, field, value)
+        if profile.is_available and (profile.latitude is None or profile.longitude is None):
+            raise BadRequestException(
+                message="Set a valid shop GPS location before making the seller profile available.",
+                code="SELLER_LOCATION_MISSING",
+            )
         db.commit()
         db.refresh(profile)
         return profile

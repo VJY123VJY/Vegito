@@ -182,7 +182,7 @@ fun VegitoApp() {
 
     fun recalculateCart(items: List<CartItem>): CartSummary {
         val sub = items.sumOf { it.product.price * it.quantity }
-        val fee = if (sub >= 199.0 || items.isEmpty()) 0.0 else 25.0
+        val fee = 0.0
         val disc = if (sub >= 300.0) 20.0 else 0.0
         val grand = (sub + fee - disc).coerceAtLeast(0.0)
         return CartSummary(
@@ -355,9 +355,27 @@ fun VegitoApp() {
                     LocationSetupScreen(
                         onLocationConfirmed = { savedAddress ->
                             sessionManager.saveSelectedAddress(savedAddress)
+                            val saved = repository.saveAddress(
+                                AddressCreateDto(
+                                    addressLine1 = savedAddress.addressLine,
+                                    city = savedAddress.city.ifBlank { "Solapur" },
+                                    state = savedAddress.state.ifBlank { "Maharashtra" },
+                                    pincode = savedAddress.pincode.ifBlank { "413001" },
+                                    latitude = savedAddress.latitude,
+                                    longitude = savedAddress.longitude,
+                                    landmark = savedAddress.landmark,
+                                    isDefault = true
+                                )
+                            )
+                            if (saved != null) {
+                                sessionManager.saveSelectedAddress(saved)
+                                val refreshed = repository.getUserAddresses()
+                                if (refreshed.isNotEmpty()) savedAddressesList = refreshed
+                            }
                             navController.navigate("customer_home") {
                                 popUpTo("onboarding") { inclusive = true }
                             }
+                            saved ?: savedAddress
                         },
                         onSkip = {
                             navController.navigate("customer_home") {
@@ -640,36 +658,38 @@ fun VegitoApp() {
                         selectedAddress = selectedAddress,
                         onBack = { navController.popBackStack() },
                         onAddressUpdated = { updatedAddress ->
-                            val saved = repository.saveAddress(
-                                AddressCreateDto(
-                                    addressLine1 = updatedAddress.addressLine,
-                                    city = updatedAddress.city,
-                                    state = updatedAddress.state,
-                                    pincode = updatedAddress.pincode,
-                                    latitude = updatedAddress.latitude,
-                                    longitude = updatedAddress.longitude,
-                                    landmark = updatedAddress.landmark,
-                                    isDefault = true
+                            sessionManager.saveSelectedAddress(updatedAddress)
+                            scope.launch {
+                                repository.saveAddress(
+                                    AddressCreateDto(
+                                        addressLine1 = updatedAddress.addressLine,
+                                        city = updatedAddress.city,
+                                        state = updatedAddress.state,
+                                        pincode = updatedAddress.pincode,
+                                        latitude = updatedAddress.latitude,
+                                        longitude = updatedAddress.longitude,
+                                        landmark = updatedAddress.landmark,
+                                        isDefault = true
+                                    )
                                 )
-                            )
-                            if (saved != null) {
-                                sessionManager.saveSelectedAddress(saved)
-                                savedAddressesList = repository.getUserAddresses()
+                                val refreshed = repository.getUserAddresses()
+                                if (refreshed.isNotEmpty()) savedAddressesList = refreshed
                             }
-                            saved
                         },
                         onCheckDeliveryEligibility = { addr ->
-                            val addrId = addr.id.toIntOrNull()
-                            if (addrId == null) null else repository.checkDeliveryEligibility(addrId)
+                            val addrId = addr.id.toIntOrNull() ?: 1
+                            repository.checkDeliveryEligibility(addrId)
                         },
                         onPlaceOrder = { method ->
-                            val currentAddr = selectedAddress
-                            if (currentAddr == null || !LocationHelper.isValidCoordinates(currentAddr.latitude, currentAddr.longitude)) {
-                                Log.e("VegitoLocation", "[CHECKOUT] deliveryLatitude: null/invalid, deliveryLongitude: null/invalid")
-                                Log.e("VegitoOrder", "[ORDER] Order placement blocked: Missing or invalid delivery location coordinates")
-                                showGlobalLocationSheet = true
-                                false
-                            } else {
+                            scope.launch {
+                                val currentAddr = selectedAddress
+                                if (currentAddr == null || !LocationHelper.isValidCoordinates(currentAddr.latitude, currentAddr.longitude)) {
+                                    Log.e("VegitoLocation", "[CHECKOUT] deliveryLatitude: null/invalid, deliveryLongitude: null/invalid")
+                                    Log.e("VegitoOrder", "[ORDER] Order placement blocked: Missing or invalid delivery location coordinates")
+                                    showGlobalLocationSheet = true
+                                    return@launch
+                                }
+
                                 Log.i("VegitoLocation", "[LOCATION] latitude: ${currentAddr.latitude}, longitude: ${currentAddr.longitude}")
                                 Log.i("VegitoLocation", "[CHECKOUT] deliveryLocationSource: selected_address_gps")
                                 Log.i("VegitoLocation", "[CHECKOUT] deliveryLatitude: ${currentAddr.latitude}")
@@ -750,20 +770,13 @@ fun VegitoApp() {
                                 navController.navigate("customer_tracking") {
                                     popUpTo("customer_home")
                                 }
-                                true
                             }
                         }
                     )
                 }
 
                 composable("customer_orders") {
-                    val ordersToShow = if (customerOrdersList.isNotEmpty()) customerOrdersList
-                    else listOfNotNull(activeOrder).ifEmpty {
-                        listOf(
-                            Order(id = "o1", orderNumber = "VEG-8821", status = "OUT_FOR_DELIVERY", totalAmount = 111.0, customerOtp = "4829"),
-                            Order(id = "o2", orderNumber = "VEG-8815", status = "DELIVERED", totalAmount = 240.0)
-                        )
-                    }
+                    val ordersToShow = customerOrdersList.ifEmpty { listOfNotNull(activeOrder) }
 
                     CustomerOrdersScreen(
                         orders = ordersToShow,
@@ -814,14 +827,12 @@ fun VegitoApp() {
                 }
 
                 composable("customer_tracking") {
-                    val ordToTrack = activeOrder ?: customerOrdersList.firstOrNull() ?: Order(
-                        id = "ord_sample",
-                        orderNumber = "VEG-8821",
-                        status = "OUT_FOR_DELIVERY",
-                        totalAmount = 111.0,
-                        customerOtp = "4829"
-                    )
-                    OrderTrackingScreen(
+                    val ordToTrack = activeOrder ?: customerOrdersList.firstOrNull()
+                    if (ordToTrack == null) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("No genuine order is available to track.")
+                        }
+                    } else OrderTrackingScreen(
                         order = ordToTrack,
                         onSubmitReview = { rating, comment ->
                             val ordId = ordToTrack.id.toIntOrNull() ?: 1
@@ -1143,21 +1154,8 @@ fun VegitoApp() {
                 }
 
                 composable("delivery_tasks") {
-                    val displayedTasks = if (deliveryTasksList.isNotEmpty()) deliveryTasksList else listOf(
-                        DeliveryTask(
-                            id = "dt1",
-                            orderId = "so3",
-                            orderNumber = "VEG-8823",
-                            sellerName = "Solapur Veggie Mandi",
-                            sellerAddress = "Shop 12, Main Mandi",
-                            customerArea = "Solapur West",
-                            distanceKm = 3.2,
-                            status = "ACCEPTED",
-                            isPickupVerified = false
-                        )
-                    )
                     DeliveryTaskScreen(
-                        tasks = displayedTasks,
+                        tasks = deliveryTasksList,
                         onAcceptTask = { taskId ->
                             scope.launch {
                                 repository.acceptDeliveryTask(taskId)
@@ -1180,7 +1178,7 @@ fun VegitoApp() {
                             }
                         },
                         onNavigateMap = { taskId ->
-                            activeDeliveryTaskForMap = displayedTasks.find { it.id == taskId }
+                            activeDeliveryTaskForMap = deliveryTasksList.find { it.id == taskId }
                             navController.navigate("delivery_map")
                         }
                     )

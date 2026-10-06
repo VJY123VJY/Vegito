@@ -119,12 +119,12 @@ fun SellerProfileScreen(
                         Text(
                             text = sellerProfile?.businessName?.ifBlank { null }
                                 ?: user?.name
-                                ?: "Solapur Mandi Store",
+                                ?: "Seller account",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold
                         )
                         Text(
-                            text = user?.phone ?: sellerProfile?.phone ?: "+91 Mandi Registered",
+                            text = user?.phone ?: sellerProfile?.phone.orEmpty(),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -159,7 +159,7 @@ fun SellerProfileScreen(
                         Column {
                             Text("Shop Address", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                text = sellerProfile?.address ?: "Shop #12, Wholesale APMC Market, Solapur 413001",
+                                text = sellerProfile?.address?.ifBlank { null } ?: "Shop address not set",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium
                             )
