@@ -322,14 +322,14 @@ class OrderService:
                     "customer_name": user.name or "Customer",
                     "items": items_summary,
                     "total_amount": float(order.total_amount),
-                    "delivery_area": address.city if address else "Solapur",
+                    "delivery_area": (address.landmark or address.address_line1 or address.city) if address else "Local Area",
                     "created_at": order.placed_at.isoformat() if order.placed_at else datetime.datetime.now(datetime.timezone.utc).isoformat(),
                     "message": f"New Order #{order.order_number} received!",
                 }
                 dispatch_seller_new_order_notification(seller_payload, seller_id=order.seller_id)
                 if sp_prof and sp_prof.id != order.seller_id:
                     dispatch_seller_new_order_notification(seller_payload, seller_id=sp_prof.id)
-                for f in fulfillments:
+                for f in (order.seller_fulfillments or []):
                     if f.seller_id not in [order.seller_id, getattr(sp_prof, "id", None)]:
                         dispatch_seller_new_order_notification(seller_payload, seller_id=f.seller_id)
             except Exception as notify_err:
