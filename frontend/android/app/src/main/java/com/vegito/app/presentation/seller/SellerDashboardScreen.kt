@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vegito.app.data.model.SellerDashboardStats
+import com.vegito.app.data.model.SellerProfileDto
 import com.vegito.app.ui.theme.VegitoPrimary
 import com.vegito.app.ui.theme.VegitoSecondary
 import com.vegito.app.ui.theme.bounceClick
@@ -31,6 +32,7 @@ import com.vegito.app.ui.theme.bounceClick
 fun SellerDashboardScreen(
     stats: SellerDashboardStats,
     storeName: String = "Solapur Mandi Store",
+    sellerProfile: SellerProfileDto? = null,
     onToggleOnline: (Boolean) -> Unit,
     onNavigateOrders: () -> Unit,
     onNavigateProducts: () -> Unit,
@@ -159,6 +161,52 @@ fun SellerDashboardScreen(
                             onToggleOnline(it)
                         }
                     )
+                }
+            }
+
+            // Shop Pickup Location Status Banner
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .clickable { onNavigateSettings() },
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (sellerProfile?.address.isNullOrBlank()) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Icon(
+                            if (sellerProfile?.address.isNullOrBlank()) Icons.Default.Warning else Icons.Default.Storefront,
+                            contentDescription = "Shop Location",
+                            tint = if (sellerProfile?.address.isNullOrBlank()) MaterialTheme.colorScheme.error else VegitoPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = if (sellerProfile?.address.isNullOrBlank()) "⚠ Shop Location Required" else "✓ Shop Location Set",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = if (sellerProfile?.address.isNullOrBlank()) MaterialTheme.colorScheme.error else VegitoPrimary
+                            )
+                            Text(
+                                text = sellerProfile?.address?.ifBlank { null } ?: "Tap to configure mandatory shop operating location",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                    Text("Change →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = VegitoPrimary)
                 }
             }
 

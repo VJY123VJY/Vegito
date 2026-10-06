@@ -1,7 +1,7 @@
 package com.vegito.app.presentation.auth
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vegito.app.R
 import com.vegito.app.ui.theme.VegitoPrimary
+import com.vegito.app.ui.theme.bounceClick
 
 @Composable
 fun LoginScreen(
@@ -51,6 +53,18 @@ fun LoginScreen(
     var authMode by remember { mutableStateOf("OTP") } // "OTP" or "PASSWORD"
     var localError by remember { mutableStateOf<String?>(null) }
     var showRoleHelpDialog by remember { mutableStateOf(false) }
+
+    // Entrance Animation State
+    var animateEntrance by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        animateEntrance = true
+    }
+
+    val logoScale by animateFloatAsState(
+        targetValue = if (animateEntrance) 1.0f else 0.92f,
+        animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
+        label = "logoScale"
+    )
 
     // Role Explanation Dialog
     if (showRoleHelpDialog) {
@@ -93,16 +107,17 @@ fun LoginScreen(
             .navigationBarsPadding()
             .imePadding()
     ) {
-        // Subtle top gradient backdrop
+        // Gradient Hero Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp)
+                .height(200.dp)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFFE8F5E9).copy(alpha = 0.7f),
-                            Color(0xFFF7FAF8)
+                            Color(0xFF0A4D3C),
+                            Color(0xFF1B6B52),
+                            Color(0xFF2E7D32)
                         )
                     )
                 )
@@ -114,21 +129,23 @@ fun LoginScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Logo with subtle glow & elevation
+            // Animated Entrance Logo
             Surface(
                 shape = CircleShape,
                 color = Color.White,
-                shadowElevation = 6.dp,
+                shadowElevation = 8.dp,
                 border = BorderStroke(1.5.dp, Color(0xFFC8E6C9)),
-                modifier = Modifier.size(68.dp)
+                modifier = Modifier
+                    .size(72.dp)
+                    .scale(logoScale)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Image(
                         painter = painterResource(id = R.drawable.ic_vegito_logo),
                         contentDescription = "Vegito Logo",
-                        modifier = Modifier.size(52.dp)
+                        modifier = Modifier.size(56.dp)
                     )
                 }
             }
@@ -137,42 +154,41 @@ fun LoginScreen(
 
             Text(
                 text = "VEGITO",
-                fontSize = 22.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 2.sp,
-                color = Color(0xFF0F4D3A)
+                color = Color.White
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
             Text(
                 text = "Welcome Back 👋",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF1E293B)
+                color = Color.White
             )
 
             Text(
-                text = "Farm-fresh groceries delivered to your door",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFF64748B)
+                text = "Fresh groceries are waiting for you",
+                fontSize = 13.sp,
+                color = Color.White.copy(alpha = 0.88f)
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Main Input & Auth Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                    .shadow(8.dp, RoundedCornerShape(22.dp)),
-                shape = RoundedCornerShape(22.dp),
+                    .shadow(12.dp, RoundedCornerShape(24.dp)),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 border = BorderStroke(1.dp, Color(0xFFE2ECE5))
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp)
+                    modifier = Modifier.padding(22.dp)
                 ) {
                     // Segmented Role Selector
                     Row(
@@ -181,7 +197,7 @@ fun LoginScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Login As",
+                            text = "Select Account Role:",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF063C32)
@@ -210,7 +226,7 @@ fun LoginScreen(
                         RoleTabItem("⚙️ Admin", selectedRole == "admin", Modifier.weight(1f)) { selectedRole = "admin" }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     // Auth Method Tabs (OTP vs Password)
                     Row(
@@ -224,12 +240,12 @@ fun LoginScreen(
                         AuthMethodTab("🔑 Password", authMode == "PASSWORD", Modifier.weight(1f)) { authMode = "PASSWORD" }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
-                    // Mobile Number Input Field with +91 badge
+                    // Mobile Number Input Field with 🇮🇳 +91 Badge
                     Text(
                         text = "Mobile Number",
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF334155)
                     )
@@ -239,21 +255,21 @@ fun LoginScreen(
                     OutlinedTextField(
                         value = phone,
                         onValueChange = { if (it.text.length <= 10) phone = it },
-                        placeholder = { Text("98765 43210", color = Color(0xFF94A3B8), fontSize = 14.sp) },
+                        placeholder = { Text("Enter 10-digit mobile number", color = Color(0xFF94A3B8), fontSize = 15.sp) },
                         prefix = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("+91", fontWeight = FontWeight.Bold, color = VegitoPrimary, fontSize = 14.sp)
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("🇮🇳 +91", fontWeight = FontWeight.Bold, color = VegitoPrimary, fontSize = 15.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Box(
                                     modifier = Modifier
-                                        .height(16.dp)
+                                        .height(18.dp)
                                         .width(1.dp)
                                         .background(Color.Gray.copy(alpha = 0.4f))
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                             }
                         },
-                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "Phone", tint = VegitoPrimary, modifier = Modifier.size(18.dp)) },
+                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = "Phone", tint = VegitoPrimary, modifier = Modifier.size(20.dp)) },
                         trailingIcon = {
                             if (phone.text.isNotEmpty()) {
                                 IconButton(onClick = { phone = TextFieldValue("") }) {
@@ -263,7 +279,9 @@ fun LoginScreen(
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = VegitoPrimary,
@@ -281,7 +299,7 @@ fun LoginScreen(
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "Password",
-                                fontSize = 12.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFF334155)
                             )
@@ -289,8 +307,8 @@ fun LoginScreen(
                             OutlinedTextField(
                                 value = password,
                                 onValueChange = { password = it },
-                                placeholder = { Text("Enter your password", color = Color(0xFF94A3B8), fontSize = 14.sp) },
-                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Password", tint = VegitoPrimary, modifier = Modifier.size(18.dp)) },
+                                placeholder = { Text("Enter your password", color = Color(0xFF94A3B8), fontSize = 15.sp) },
+                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Password", tint = VegitoPrimary, modifier = Modifier.size(20.dp)) },
                                 trailingIcon = {
                                     IconButton(onClick = { showPassword = !showPassword }) {
                                         Icon(
@@ -303,7 +321,9 @@ fun LoginScreen(
                                 visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                                 singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 52.dp),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = VegitoPrimary,
@@ -325,9 +345,9 @@ fun LoginScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
-                    // Primary Action Button [ Continue / Get OTP ]
+                    // Primary Action Button [ Continue with OTP / Sign In ]
                     Button(
                         onClick = {
                             val cleanPhone = phone.text.trim()
@@ -350,7 +370,8 @@ fun LoginScreen(
                         enabled = !isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp),
+                            .height(52.dp)
+                            .bounceClick(scaleDown = 0.96f) { },
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                     ) {
@@ -364,18 +385,18 @@ fun LoginScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = if (authMode == "OTP") "Continue with OTP" else "Sign In",
-                                    fontSize = 15.sp,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    // 1-Tap Demo Logins Section
+                    // 1-Tap Demo Quick Fill Section
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -441,7 +462,7 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Divider: New to Vegito?
             Row(
@@ -462,70 +483,24 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // [ Start Shopping ] Button
+            // [ Create Account ] Button
             OutlinedButton(
                 onClick = onNavigateRegister,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                    .height(46.dp),
+                    .height(48.dp)
+                    .bounceClick(scaleDown = 0.96f) { onNavigateRegister() },
                 shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(1.2.dp, VegitoPrimary),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = VegitoPrimary)
             ) {
-                Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Start Shopping / Register", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Create Account / Register", fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Partner Access Section
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Join as partner: ",
-                    fontSize = 12.sp,
-                    color = Color(0xFF64748B)
-                )
-                Text(
-                    text = "Sell on Vegito",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = VegitoPrimary,
-                    modifier = Modifier
-                        .clickable {
-                            selectedRole = "seller"
-                            onNavigateRegister()
-                        }
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                )
-                Text(
-                    text = "•",
-                    fontSize = 12.sp,
-                    color = Color(0xFF94A3B8),
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
-                Text(
-                    text = "Deliver with Vegito",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = VegitoPrimary,
-                    modifier = Modifier
-                        .clickable {
-                            selectedRole = "delivery_partner"
-                            onNavigateRegister()
-                        }
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }

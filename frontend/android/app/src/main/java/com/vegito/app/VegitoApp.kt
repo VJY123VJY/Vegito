@@ -376,13 +376,16 @@ fun VegitoApp() {
                             authErrorMessage = null
                             isAuthLoading = true
                             scope.launch {
-                                val res = repository.sendOtp(phone = phone, role = role)
-                                isAuthLoading = false
-                                if (res != null) {
-                                    authDevOtp = res.devOtp
-                                    navController.navigate("otp")
-                                } else {
-                                    authErrorMessage = "Could not send verification code. Check your connection and try again."
+                                when (val res = repository.sendOtp(phone = phone, role = role)) {
+                                    is VegitoRepository.AuthResult.Success -> {
+                                        isAuthLoading = false
+                                        authDevOtp = res.data.devOtp
+                                        navController.navigate("otp")
+                                    }
+                                    is VegitoRepository.AuthResult.Failure -> {
+                                        isAuthLoading = false
+                                        authErrorMessage = res.message
+                                    }
                                 }
                             }
                         },
@@ -390,21 +393,25 @@ fun VegitoApp() {
                             isAuthLoading = true
                             authErrorMessage = null
                             scope.launch {
-                                val tokenRes = repository.loginWithPassword(phone = phone, pass = pass, role = role)
-                                isAuthLoading = false
-                                if (tokenRes != null) {
-                                    sessionManager.saveTokenResponse(tokenRes)
-                                    val target = when (tokenRes.role.lowercase()) {
-                                        "seller" -> "seller_dashboard"
-                                        "delivery_partner" -> "delivery_dashboard"
-                                        "admin" -> "admin_dashboard"
-                                        else -> "customer_home"
+                                when (val res = repository.loginWithPassword(phone = phone, pass = pass, role = role)) {
+                                    is VegitoRepository.AuthResult.Success -> {
+                                        isAuthLoading = false
+                                        val tokenRes = res.data
+                                        sessionManager.saveTokenResponse(tokenRes)
+                                        val target = when (tokenRes.role.lowercase()) {
+                                            "seller" -> "seller_dashboard"
+                                            "delivery_partner" -> "delivery_dashboard"
+                                            "admin" -> "admin_dashboard"
+                                            else -> "customer_home"
+                                        }
+                                        navController.navigate(target) {
+                                            popUpTo("onboarding") { inclusive = true }
+                                        }
                                     }
-                                    navController.navigate(target) {
-                                        popUpTo("onboarding") { inclusive = true }
+                                    is VegitoRepository.AuthResult.Failure -> {
+                                        isAuthLoading = false
+                                        authErrorMessage = res.message
                                     }
-                                } else {
-                                    authErrorMessage = "Invalid mobile number or password"
                                 }
                             }
                         },
@@ -423,21 +430,25 @@ fun VegitoApp() {
                             isAuthLoading = true
                             authErrorMessage = null
                             scope.launch {
-                                val regRes = repository.registerUser(reqDto)
-                                isAuthLoading = false
-                                if (regRes != null) {
-                                    pendingPhoneForOtp = reqDto.phone
-                                    pendingRoleForOtp = reqDto.role.lowercase()
-                                    val otpRes = repository.sendOtp(reqDto.phone, reqDto.role.lowercase())
-                                    if (otpRes != null) {
-                                        authDevOtp = otpRes.devOtp
-                                    } else {
-                                        authDevOtp = null
-                                        authErrorMessage = "Registration succeeded, but the verification code could not be sent. Try logging in or resend the code."
+                                when (val regRes = repository.registerUser(reqDto)) {
+                                    is VegitoRepository.AuthResult.Success -> {
+                                        pendingPhoneForOtp = reqDto.phone
+                                        pendingRoleForOtp = reqDto.role.lowercase()
+                                        when (val otpRes = repository.sendOtp(reqDto.phone, reqDto.role.lowercase())) {
+                                            is VegitoRepository.AuthResult.Success -> {
+                                                authDevOtp = otpRes.data.devOtp
+                                            }
+                                            is VegitoRepository.AuthResult.Failure -> {
+                                                authDevOtp = null
+                                            }
+                                        }
+                                        isAuthLoading = false
+                                        navController.navigate("otp")
                                     }
-                                    navController.navigate("otp")
-                                } else {
-                                    authErrorMessage = "Registration failed. Mobile may already be registered."
+                                    is VegitoRepository.AuthResult.Failure -> {
+                                        isAuthLoading = false
+                                        authErrorMessage = regRes.message
+                                    }
                                 }
                             }
                         },
@@ -451,7 +462,6 @@ fun VegitoApp() {
                     OtpScreen(
                         phone = pendingPhoneForOtp,
                         role = pendingRoleForOtp,
-                        devOtp = authDevOtp,
                         isLoading = isAuthLoading,
                         errorMessage = authErrorMessage,
                         onResendOtp = {
@@ -459,12 +469,15 @@ fun VegitoApp() {
                             authErrorMessage = null
                             authDevOtp = null
                             scope.launch {
-                                val res = repository.sendOtp(phone = pendingPhoneForOtp, role = pendingRoleForOtp)
-                                isAuthLoading = false
-                                if (res != null) {
-                                    authDevOtp = res.devOtp
-                                } else {
-                                    authErrorMessage = "Could not resend verification code. Check your connection and try again."
+                                when (val res = repository.sendOtp(phone = pendingPhoneForOtp, role = pendingRoleForOtp)) {
+                                    is VegitoRepository.AuthResult.Success -> {
+                                        isAuthLoading = false
+                                        authDevOtp = res.data.devOtp
+                                    }
+                                    is VegitoRepository.AuthResult.Failure -> {
+                                        isAuthLoading = false
+                                        authErrorMessage = res.message
+                                    }
                                 }
                             }
                         },
@@ -472,35 +485,35 @@ fun VegitoApp() {
                             isAuthLoading = true
                             authErrorMessage = null
                             scope.launch {
-                                val tokenRes = repository.verifyOtp(
-                                    phone = pendingPhoneForOtp,
-                                    otp = otp,
-                                    role = pendingRoleForOtp
-                                )
-                                isAuthLoading = false
-                                if (tokenRes != null) {
-                                    sessionManager.saveTokenResponse(tokenRes)
-                                    val resolvedRole = tokenRes.role.lowercase()
-                                    if (pendingProductForCart != null) {
-                                        addProductToCart(pendingProductForCart!!, pendingQuantityForCart)
-                                        pendingProductForCart = null
-                                        pendingQuantityForCart = 1.0
-                                        navController.navigate("customer_cart") {
-                                            popUpTo("onboarding") { inclusive = true }
-                                        }
-                                    } else {
-                                        val target = when (resolvedRole) {
-                                            "seller" -> "seller_dashboard"
-                                            "delivery_partner" -> "delivery_dashboard"
-                                            "admin" -> "admin_dashboard"
-                                            else -> "customer_home"
-                                        }
-                                        navController.navigate(target) {
-                                            popUpTo("onboarding") { inclusive = true }
+                                when (val res = repository.verifyOtp(phone = pendingPhoneForOtp, otp = otp, role = pendingRoleForOtp)) {
+                                    is VegitoRepository.AuthResult.Success -> {
+                                        isAuthLoading = false
+                                        val tokenData = res.data
+                                        sessionManager.saveTokenResponse(tokenData)
+                                        val resolvedRole = tokenData.role.lowercase()
+                                        if (pendingProductForCart != null) {
+                                            addProductToCart(pendingProductForCart!!, pendingQuantityForCart)
+                                            pendingProductForCart = null
+                                            pendingQuantityForCart = 1.0
+                                            navController.navigate("customer_cart") {
+                                                popUpTo("onboarding") { inclusive = true }
+                                            }
+                                        } else {
+                                            val target = when (resolvedRole) {
+                                                "seller" -> "seller_dashboard"
+                                                "delivery_partner" -> "delivery_dashboard"
+                                                "admin" -> "admin_dashboard"
+                                                else -> "customer_home"
+                                            }
+                                            navController.navigate(target) {
+                                                popUpTo("onboarding") { inclusive = true }
+                                            }
                                         }
                                     }
-                                } else {
-                                    authErrorMessage = "Verification failed. Check the code and try again."
+                                    is VegitoRepository.AuthResult.Failure -> {
+                                        isAuthLoading = false
+                                        authErrorMessage = res.message
+                                    }
                                 }
                             }
                         }
@@ -823,6 +836,7 @@ fun VegitoApp() {
                     SellerDashboardScreen(
                         stats = sellerStats,
                         storeName = sellerProfile?.businessName ?: "Solapur Mandi Store",
+                        sellerProfile = sellerProfile,
                         onToggleOnline = { isOnline ->
                             sellerStats = sellerStats.copy(isOnline = isOnline)
                             scope.launch { repository.setSellerAvailability(isOnline) }
@@ -1005,6 +1019,7 @@ fun VegitoApp() {
 
                 composable("seller_settings") {
                     SellerSettingsScreen(
+                        sellerProfile = sellerProfile,
                         currentLang = lang,
                         currentTheme = themeMode,
                         isStoreOnline = sellerStats.isOnline,
@@ -1021,6 +1036,30 @@ fun VegitoApp() {
                         onToggleOnline = { isOnline: Boolean ->
                             sellerStats = sellerStats.copy(isOnline = isOnline)
                             scope.launch { repository.setSellerAvailability(isOnline) }
+                        },
+                        onUpdateShopLocation = { address, city, pincode, lat, lng ->
+                            scope.launch {
+                                val updatedDto = repository.updateSellerProfile(
+                                    SellerProfileUpdateDto(
+                                        address = address,
+                                        city = city,
+                                        pincode = pincode,
+                                        latitude = lat,
+                                        longitude = lng
+                                    )
+                                )
+                                if (updatedDto != null) {
+                                    sellerProfile = updatedDto
+                                } else {
+                                    sellerProfile = (sellerProfile ?: SellerProfileDto()).copy(
+                                        address = address,
+                                        city = city,
+                                        pincode = pincode,
+                                        latitude = lat,
+                                        longitude = lng
+                                    )
+                                }
+                            }
                         },
                         onLogout = {
                             sessionManager.clearSession()

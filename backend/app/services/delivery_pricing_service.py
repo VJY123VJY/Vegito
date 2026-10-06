@@ -92,7 +92,6 @@ class DeliveryPricingService:
           - > 20.0 km: Blocked with exact message:
             "Sorry, this delivery address is outside our 20 KM delivery area."
         """
-        from app.services.mapbox_service import MapboxService
         from app.services.location_service import LocationService
 
         address = db.query(Address).filter(Address.id == address_id).first()
@@ -116,7 +115,7 @@ class DeliveryPricingService:
                 },
             )
 
-        distance_km, is_mapbox = MapboxService.get_route_distance_km(shop_lat, shop_lng, cust_lat, cust_lng)
+        distance_km = LocationService.calculate_distance(shop_lat, shop_lng, cust_lat, cust_lng)
 
         max_radius = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))
         if distance_km > max_radius:
@@ -146,6 +145,6 @@ class DeliveryPricingService:
 
         delivery_charge = Decimal(str(fee)).quantize(Decimal("0.01"))
         logger.info(
-            f"[DELIVERY_PRICING] address={address_id} distance={distance_km} km (is_mapbox={is_mapbox}) -> delivery_charge=₹{delivery_charge}"
+            f"[DELIVERY_PRICING] address={address_id} distance={distance_km:.3f} km -> delivery_charge=₹{delivery_charge}"
         )
         return delivery_charge, distance_km

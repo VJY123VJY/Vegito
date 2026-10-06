@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 from twilio.base.exceptions import TwilioRestException
 
-from app.core.exceptions import BadRequestException
+from app.core.exceptions import BadRequestException, ServiceUnavailableException
 from app.services.otp_service import OtpService
 from app.config import settings
 
@@ -45,10 +45,8 @@ def test_twilio_send_uses_e164_and_does_not_return_plaintext(monkeypatch):
     monkeypatch.setattr(OtpService, "is_twilio_configured", staticmethod(lambda: True))
     monkeypatch.setattr(OtpService, "_twilio_client", staticmethod(lambda: SimpleNamespace(verify=fake_service)))
 
-    record, otp = OtpService.send_otp(None, "9876543210")
+    OtpService.send_otp("9876543210")
 
-    assert record is None
-    assert otp is None
     assert fake_service.verifications.calls == [{"to": "+919876543210", "channel": "sms"}]
 
 
@@ -57,7 +55,7 @@ def test_twilio_verify_accepts_only_approved(monkeypatch):
     monkeypatch.setattr(OtpService, "is_twilio_configured", staticmethod(lambda: True))
     monkeypatch.setattr(OtpService, "_twilio_client", staticmethod(lambda: SimpleNamespace(verify=fake_service)))
 
-    assert OtpService.verify_otp(None, "9876543210", "123456") is True
+    assert OtpService.verify_otp("9876543210", "123456") is True
     assert fake_service.verification_checks.calls == [{"to": "+919876543210", "code": "123456"}]
 
 
@@ -67,7 +65,7 @@ def test_twilio_verify_rejects_non_approved(monkeypatch):
     monkeypatch.setattr(OtpService, "_twilio_client", staticmethod(lambda: SimpleNamespace(verify=fake_service)))
 
     with pytest.raises(BadRequestException, match="Invalid or expired OTP"):
-        OtpService.verify_otp(None, "9876543210", "123456")
+        OtpService.verify_otp("9876543210", "123456")
 
 
 def test_twilio_send_returns_safe_provider_diagnostic(monkeypatch):
@@ -82,5 +80,17 @@ def test_twilio_send_returns_safe_provider_diagnostic(monkeypatch):
     monkeypatch.setattr(OtpService, "is_twilio_configured", staticmethod(lambda: True))
     monkeypatch.setattr(OtpService, "_twilio_client", staticmethod(lambda: SimpleNamespace(verify=fake_service)))
 
-    with pytest.raises(BadRequestException, match="Twilio error 21608"):
-        OtpService.send_otp(None, "9876543210")
+    with pytest.raises(ServiceUnavailableException, match="temporarily unavailable"):
+        OtpService.send_otp("9876543210")
+
+
+def test_auth_otp_fails_closed_when_provider_is_not_configured(monkeypatch):
+    monkeypatch.setattr(OtpService, "is_twilio_configured", staticmethod(lambda: False))
+    monkeypatch.setattr(settings, "OTP_TEST_MODE", True)
+    monkeypatch.setattr(settings, "OTP_DEV_MODE", True)
+
+    with pytest.raises(ServiceUnavailableException):
+        OtpService.send_otp("9876543210")
+
+    with pytest.raises(ServiceUnavailableException):
+        OtpService.verify_otp("9876543210", "123456")

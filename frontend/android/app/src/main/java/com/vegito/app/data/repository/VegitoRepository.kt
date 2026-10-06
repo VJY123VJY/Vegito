@@ -1,42 +1,96 @@
 package com.vegito.app.data.repository
 
 import android.util.Log
+import com.google.gson.JsonParseException
+import com.google.gson.JsonParser
 import com.vegito.app.data.model.*
 import com.vegito.app.data.remote.VegitoApiService
+import java.io.IOException
+import retrofit2.Response
 
 class VegitoRepository(private val apiService: VegitoApiService) {
     companion object {
         private const val TAG = "VegitoRepository"
     }
 
-    // AUTHENTICATION
-    suspend fun sendOtp(phone: String, role: String? = null): SendOtpResponseDto? {
+    sealed interface AuthResult<out T> {
+        data class Success<T>(val data: T) : AuthResult<T>
+        data class Failure(val message: String) : AuthResult<Nothing>
+    }
+
+    private suspend fun <T : Any> authRequest(
+        call: suspend () -> Response<ApiResponse<T>>
+    ): AuthResult<T> {
         return try {
-            val response = apiService.sendOtp(OtpRequest(phone = phone, role = role))
-            if (response.isSuccessful && response.body()?.success == true) {
-                response.body()?.data
+            val response = call()
+            val body = response.body()
+            if (response.isSuccessful && body?.success == true) {
+                body.data?.let { AuthResult.Success(it) }
+                    ?: AuthResult.Failure("Authentication service returned an invalid response.")
+            } else {
+                val errorBody = response.errorBody()?.string()
+                AuthResult.Failure(authErrorMessage(response.code(), errorBody))
+            }
+        } catch (error: IOException) {
+            Log.w(TAG, "Authentication request failed (${error.javaClass.simpleName})")
+            AuthResult.Failure("Unable to reach Vegito. Check your internet connection.")
+        } catch (error: JsonParseException) {
+            Log.e(TAG, "Authentication response parsing failed (${error.javaClass.simpleName})")
+            AuthResult.Failure("Vegito returned an unexpected response. Please try again.")
+        }
+    }
+
+    private fun authErrorMessage(statusCode: Int, responseBody: String?): String {
+        val backendMessage = parseBackendMessage(responseBody)
+        return when (statusCode) {
+            400, 422 -> backendMessage ?: "Please check the information and try again."
+            401 -> "Your authentication request was not accepted. Please try again."
+            403 -> backendMessage ?: "You are not authorized to use this account."
+            404 -> "Authentication service unavailable."
+            409 -> backendMessage ?: "This mobile number is already registered. Please sign in."
+            429 -> "Too many attempts. Please wait before requesting another code."
+            503 -> "Verification service is temporarily unavailable. Please try again."
+            in 500..599 -> "Vegito server is temporarily unavailable. Please try again."
+            else -> backendMessage ?: "Request failed (HTTP $statusCode). Please try again."
+        }
+    }
+
+    private fun parseBackendMessage(responseBody: String?): String? {
+        if (responseBody.isNullOrBlank()) return null
+        return try {
+            val root = JsonParser.parseString(responseBody)
+            if (!root.isJsonObject) return null
+            val json = root.asJsonObject
+            val error = json.get("error")
+            if (error?.isJsonObject == true) {
+                val message = error.asJsonObject.get("message")
+                if (message?.isJsonPrimitive == true && message.asJsonPrimitive.isString) {
+                    return message.asString
+                }
+            }
+            val detail = json.get("detail")
+            if (detail?.isJsonPrimitive == true && detail.asJsonPrimitive.isString) {
+                detail.asString
             } else {
                 null
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "sendOtp error: ${e.message}")
+        } catch (error: JsonParseException) {
+            Log.w(TAG, "Authentication error response parsing failed (${error.javaClass.simpleName})")
             null
         }
     }
 
-    suspend fun verifyOtp(phone: String, otp: String, role: String? = null, name: String? = null): TokenResponseDto? {
-        return try {
-            val response = apiService.verifyOtp(OtpVerifyRequest(phone = phone, otp = otp, role = role, name = name))
-            if (response.isSuccessful && response.body()?.success == true) {
-                response.body()?.data
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "verifyOtp error: ${e.message}")
-            null
-        }
-    }
+    // AUTHENTICATION
+    suspend fun sendOtp(phone: String, role: String? = null): AuthResult<SendOtpResponseDto> =
+        authRequest { apiService.sendOtp(OtpRequest(phone = phone, role = role)) }
+
+    suspend fun verifyOtp(
+        phone: String,
+        otp: String,
+        role: String? = null,
+        name: String? = null
+    ): AuthResult<TokenResponseDto> =
+        authRequest { apiService.verifyOtp(OtpVerifyRequest(phone = phone, otp = otp, role = role, name = name)) }
 
     suspend fun switchWorkspace(targetRole: String): TokenResponseDto? {
         return try {
@@ -52,33 +106,15 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         }
     }
 
-    suspend fun registerUser(dto: UnifiedRegisterRequestDto): RegisterResponseDto? {
-        return try {
-            val response = apiService.registerUser(dto)
-            if (response.isSuccessful && response.body()?.success == true) {
-                response.body()?.data
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "registerUser error: ${e.message}")
-            null
-        }
-    }
+    suspend fun registerUser(dto: UnifiedRegisterRequestDto): AuthResult<RegisterResponseDto> =
+        authRequest { apiService.registerUser(dto) }
 
-    suspend fun loginWithPassword(phone: String, pass: String, role: String? = null): TokenResponseDto? {
-        return try {
-            val response = apiService.loginWithPassword(PasswordLoginRequestDto(phone = phone, password = pass, role = role))
-            if (response.isSuccessful && response.body()?.success == true) {
-                response.body()?.data
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "loginWithPassword error: ${e.message}")
-            null
-        }
-    }
+    suspend fun loginWithPassword(
+        phone: String,
+        pass: String,
+        role: String? = null
+    ): AuthResult<TokenResponseDto> =
+        authRequest { apiService.loginWithPassword(PasswordLoginRequestDto(phone = phone, password = pass, role = role)) }
 
     suspend fun getFavorites(): List<Int> {
         return try {

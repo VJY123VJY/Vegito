@@ -44,3 +44,8 @@ class ConflictException(VegitoException):
 class ValidationException(VegitoException):
     def __init__(self, message: str = "Validation failed", details: Optional[Any] = None):
         super().__init__(message=message, status_code=422, code="UNPROCESSABLE_ENTITY", details=details)
+
+
+class ServiceUnavailableException(VegitoException):
+    def __init__(self, message: str = "Service temporarily unavailable", details: Optional[Any] = None):
+        super().__init__(message=message, status_code=503, code="SERVICE_UNAVAILABLE", details=details)

@@ -1,5 +1,5 @@
 from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from app.schemas.common import BaseSchema
 
 
@@ -10,7 +10,6 @@ class SendOtpRequest(BaseModel):
 class SendOtpResponse(BaseModel):
     message: str
     phone: str
-    dev_otp: Optional[str] = None  # Populated only if OTP_DEV_MODE is True
 
 
 class VerifyOtpRequest(BaseModel):
@@ -62,10 +61,22 @@ class SellerRegisterRequest(BaseModel):
     email: Optional[str] = None
     business_name: str = Field(..., min_length=2, max_length=150)
     business_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     city: Optional[str] = "Solapur"
     pincode: Optional[str] = "413001"
     gst_number: Optional[str] = None
     description: Optional[str] = None
+
+    @model_validator(mode="after")
+    def require_valid_shop_location(self):
+        if self.latitude is None or self.longitude is None:
+            raise ValueError("A real shop latitude and longitude are required to register a seller.")
+        if not (-90 <= self.latitude <= 90 and -180 <= self.longitude <= 180):
+            raise ValueError("Shop coordinates are outside valid latitude/longitude bounds.")
+        if self.latitude == 0 and self.longitude == 0:
+            raise ValueError("Shop coordinates must identify a real location.")
+        return self
 
 
 class DeliveryPartnerRegisterRequest(BaseModel):
@@ -76,6 +87,8 @@ class DeliveryPartnerRegisterRequest(BaseModel):
     address: Optional[str] = None
     city: Optional[str] = "Solapur"
     pincode: Optional[str] = "413001"
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     vehicle_type: Optional[str] = "Motorcycle"
     vehicle_number: Optional[str] = None
 

@@ -33,13 +33,21 @@ data class SellerProfileDto(
     val email: String? = null,
     val address: String? = null,
     val city: String? = "Solapur",
-    val pincode: String? = "413001"
+    val pincode: String? = "413001",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    @SerializedName("updated_at") val updatedAt: String? = null
 )
 
 data class SellerProfileUpdateDto(
     @SerializedName("business_name") val businessName: String? = null,
     val description: String? = null,
-    @SerializedName("is_available") val isAvailable: Boolean? = null
+    @SerializedName("is_available") val isAvailable: Boolean? = null,
+    val address: String? = null,
+    val city: String? = null,
+    val pincode: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )
 
 data class SendOtpResponseDto(
@@ -85,6 +93,8 @@ data class UnifiedRegisterRequestDto(
     val address: String? = null,
     val city: String = "Solapur",
     val pincode: String = "413001",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     @SerializedName("business_name") val businessName: String? = null,
     @SerializedName("business_address") val businessAddress: String? = null,
     @SerializedName("gst_number") val gstNumber: String? = null,
@@ -215,12 +225,12 @@ data class SavedAddress(
     val title: String = "Home",
     val addressLine: String = "",
     val landmark: String? = null,
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     val isDefault: Boolean = false,
-    val city: String = "Solapur",
-    val pincode: String = "413001",
-    val state: String = "Maharashtra"
+    val city: String = "",
+    val pincode: String = "",
+    val state: String = ""
 )
 
 enum class OrderStatus {
@@ -238,8 +248,8 @@ data class Order(
     val deliveryAddress: SavedAddress = SavedAddress(),
     val sellerName: String = "Vegito Hub",
     val sellerPhone: String = "",
-    val sellerLat: Double = 17.6599,
-    val sellerLng: Double = 75.9064,
+    val sellerLat: Double? = null,
+    val sellerLng: Double? = null,
     val customerOtp: String? = null,
     val pickupOtp: String? = null,
     val deliveryPartnerName: String? = null,
@@ -286,13 +296,13 @@ data class DeliveryTask(
     val orderNumber: String = "",
     val sellerName: String = "",
     val sellerAddress: String = "",
-    val sellerLat: Double = 17.6599,
-    val sellerLng: Double = 75.9064,
+    val sellerLat: Double? = null,
+    val sellerLng: Double? = null,
     val customerArea: String = "",
     val customerLat: Double? = null, // Hidden until pickup OTP verified!
     val customerLng: Double? = null, // Hidden until pickup OTP verified!
     val customerAddress: String? = null, // Hidden until pickup OTP verified!
-    val distanceKm: Double = 2.5,
+    val distanceKm: Double? = null,
     val status: String = "PENDING", // PENDING, ACCEPTED, PICKED_UP, DELIVERED
     val isUrgent: Boolean = false,
     val isPickupVerified: Boolean = false,
@@ -375,12 +385,12 @@ data class AddressDto(
             title = addressType ?: "Home",
             addressLine = fullLine.ifBlank { addressLine1 },
             landmark = landmark,
-            latitude = latitude ?: 0.0,
-            longitude = longitude ?: 0.0,
+            latitude = latitude,
+            longitude = longitude,
             isDefault = isDefault,
-            city = city.ifBlank { "Solapur" },
-            pincode = pincode.ifBlank { "413001" },
-            state = state.ifBlank { "Maharashtra" }
+            city = city,
+            pincode = pincode,
+            state = state
         )
     }
 }
@@ -389,9 +399,9 @@ data class DeliveryFeeResponse(
     @SerializedName("address_id") val addressId: Int = 0,
     @SerializedName("distance_km") val distanceKm: Double = 0.0,
     @SerializedName("delivery_fee") val deliveryFee: Double = 0.0,
-    @SerializedName("max_allowed_km") val maxAllowedKm: Double = 15.0,
+    @SerializedName("max_allowed_km") val maxAllowedKm: Double = 20.0,
     @SerializedName("seller_online") val sellerOnline: Boolean = true,
-    @SerializedName("is_deliverable") val isDeliverable: Boolean = true
+    @SerializedName("is_deliverable") val isDeliverable: Boolean = false
 )
 
 data class OrderCreateRequest(
@@ -755,21 +765,20 @@ data class DeliveryTaskBackendDto(
             deliveryAddress?.addressLine1,
             deliveryAddress?.city,
             deliveryAddress?.pincode
-        ).joinToString(", ").ifBlank { "Solapur West" }
+        ).filter { it.isNotBlank() }.joinToString(", ")
 
         return DeliveryTask(
             id = id.toString(),
             orderId = orderId.toString(),
             orderNumber = orderNumber ?: "VEG-$orderId",
-            sellerName = shopName ?: "Solapur Mandi",
-            sellerAddress = shopAddress ?: "Main Market Depot",
-            sellerLat = shopLatitude ?: 17.6599,
-            sellerLng = shopLongitude ?: 75.9064,
-            customerArea = deliveryAddress?.city ?: "Solapur",
+            sellerName = shopName.orEmpty(),
+            sellerAddress = shopAddress.orEmpty(),
+            sellerLat = shopLatitude,
+            sellerLng = shopLongitude,
+            customerArea = deliveryAddress?.city.orEmpty(),
             customerAddress = if (pickupVerified) addrStr else null,
             customerLat = if (pickupVerified) (customerLatitude ?: deliveryAddress?.latitude) else null,
             customerLng = if (pickupVerified) (customerLongitude ?: deliveryAddress?.longitude) else null,
-            distanceKm = 2.8,
             status = status,
             isUrgent = isUrgent,
             isPickupVerified = pickupVerified,
@@ -817,5 +826,3 @@ data class AdminDeliveryPartnerItemDto(
     val rating: Double = 5.0,
     @SerializedName("total_deliveries") val totalDeliveries: Int = 0
 )
-
-

@@ -279,12 +279,13 @@ def get_dashboard_summary(current_user: User = Depends(require_seller), db: Sess
     week_start = now - timedelta(days=7)
     month_start = now - timedelta(days=30)
     profile = db.query(SellerProfile).filter(SellerProfile.user_id == current_user.id).first()
-    seller_ids = [current_user.id]
-    if profile and profile.id not in seller_ids:
-        seller_ids.append(profile.id)
-
     from sqlalchemy import or_
-    orders = db.query(Order).filter(or_(Order.seller_id.in_(seller_ids), Order.shop_id.in_(seller_ids))).all()
+    orders = db.query(Order).filter(
+        or_(
+            Order.seller_id == current_user.id,
+            Order.shop_id == profile.id if profile else False,
+        )
+    ).all()
     
     live_orders = pending_orders = ready_orders = today_orders = 0
     delivered_today = cancelled_today = out_for_delivery_today = 0
@@ -529,12 +530,13 @@ def get_orders_queue(status: str = None, current_user: User = Depends(require_se
     from datetime import datetime, timezone
     
     profile = db.query(SellerProfile).filter(SellerProfile.user_id == current_user.id).first()
-    seller_ids = [current_user.id]
-    if profile and profile.id not in seller_ids:
-        seller_ids.append(profile.id)
-
     from sqlalchemy import or_
-    q = db.query(Order).filter(or_(Order.seller_id.in_(seller_ids), Order.shop_id.in_(seller_ids)))
+    q = db.query(Order).filter(
+        or_(
+            Order.seller_id == current_user.id,
+            Order.shop_id == profile.id if profile else False,
+        )
+    )
     if status: q = q.filter(Order.status == status)
     orders = q.all()
     
@@ -728,4 +730,3 @@ def download_sales_report(range: str = "30d", current_user: User = Depends(requi
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=sales_report_{now.strftime('%Y-%m-%d')}.csv"}
     )
-

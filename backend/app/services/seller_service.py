@@ -292,21 +292,6 @@ class SellerService:
         profile = db.query(SellerProfile).filter(SellerProfile.user_id == user.id).first()
         profile_id = profile.id if profile else None
 
-        seller_ids = [user.id]
-        if profile_id and profile_id not in seller_ids:
-            seller_ids.append(profile_id)
-
-        # In single-seller V1, if current user is the primary active seller, include legacy seed seller IDs
-        primary_seller = (
-            db.query(SellerProfile)
-            .join(User, SellerProfile.user_id == User.id)
-            .filter(User.is_active == True, SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None))
-            .order_by(SellerProfile.id.desc())
-            .first()
-        )
-        if primary_seller and primary_seller.user_id == user.id:
-            seller_ids.extend([6, 1])
-
         query = (
             db.query(Order)
             .options(
@@ -319,10 +304,10 @@ class SellerService:
             .outerjoin(SellerOrderFulfillment, Order.id == SellerOrderFulfillment.order_id)
             .filter(
                 or_(
-                    Order.seller_id.in_(seller_ids),
-                    Order.shop_id.in_(seller_ids),
-                    SellerProduct.seller_id.in_(seller_ids),
-                    SellerOrderFulfillment.seller_id.in_(seller_ids),
+                    Order.seller_id == user.id,
+                    Order.shop_id == profile_id if profile_id is not None else False,
+                    SellerProduct.seller_id == user.id,
+                    SellerOrderFulfillment.seller_id == user.id,
                 )
             )
             .distinct()

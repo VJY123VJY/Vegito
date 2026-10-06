@@ -78,13 +78,11 @@ class AuthService:
                     f"This phone number is already registered under the {user_role_name} role. Please use the {user_role_name} portal."
                 )
 
-        _, otp_code = OtpService.send_otp(db, phone)
-        dev_otp = otp_code if settings.OTP_DEV_MODE and not OtpService.is_twilio_configured() else None
+        OtpService.send_otp(phone)
 
         return SendOtpResponse(
             message=f"OTP sent successfully to {OtpService.to_e164(phone)}",
             phone=OtpService.to_e164(phone),
-            dev_otp=dev_otp,
         )
 
     @staticmethod
@@ -92,7 +90,7 @@ class AuthService:
         db: Session, raw_phone: str, otp_code: str, role_enum: RoleEnum, name: Optional[str] = None
     ) -> TokenResponse:
         phone = validate_phone_number(raw_phone)
-        OtpService.verify_otp(db, phone, otp_code)
+        OtpService.verify_otp(phone, otp_code)
 
         user = db.query(User).filter(User.phone == phone).first()
         is_new_user = False
@@ -125,8 +123,6 @@ class AuthService:
                     is_available=True,
                 )
                 db.add(seller_profile)
-                from app.models.seller_product import SellerProduct
-                db.query(SellerProduct).filter(SellerProduct.seller_id == 20).update({"seller_id": user.id})
             elif role_enum == RoleEnum.DELIVERY_PARTNER:
                 delivery_partner = DeliveryPartner(user_id=user.id)
                 db.add(delivery_partner)
@@ -172,14 +168,11 @@ class AuthService:
         if not user.is_active:
             raise ForbiddenException("Your account is deactivated. Please contact support.")
 
-        _, otp_code = OtpService.send_otp(db, phone)
-        is_test_mode = getattr(settings, "OTP_TEST_MODE", False) or getattr(settings, "OTP_DEV_MODE", False)
-        dev_otp = otp_code if is_test_mode else None
+        OtpService.send_otp(phone)
 
         return SendOtpResponse(
             message=f"OTP sent successfully to {OtpService.to_e164(phone)}",
             phone=OtpService.to_e164(phone),
-            dev_otp=dev_otp,
         )
 
     @staticmethod
@@ -191,7 +184,7 @@ class AuthService:
         if not user.is_active:
             raise ForbiddenException("Your account is deactivated. Please contact support.")
 
-        OtpService.verify_otp(db, phone, otp_code)
+        OtpService.verify_otp(phone, otp_code)
 
         if not user.is_verified:
             user.is_verified = True
@@ -382,6 +375,8 @@ class AuthService:
                 city=payload.city or "Solapur",
                 state="Maharashtra",
                 pincode=payload.pincode or "413001",
+                latitude=Decimal(str(payload.latitude)),
+                longitude=Decimal(str(payload.longitude)),
                 is_default=True,
                 address_type="WORK",
             )
@@ -395,13 +390,14 @@ class AuthService:
             description=payload.description,
             gst_number=payload.gst_number,
             address_id=addr_id,
+            address=payload.business_address,
+            latitude=Decimal(str(payload.latitude)),
+            longitude=Decimal(str(payload.longitude)),
             is_verified=True,
             rating=4.8,
             is_available=True,
         )
         db.add(seller_profile)
-        from app.models.seller_product import SellerProduct
-        db.query(SellerProduct).filter(SellerProduct.seller_id == 20).update({"seller_id": user.id})
         db.commit()
         db.refresh(user)
 
@@ -492,6 +488,8 @@ class AuthService:
                     email=payload.email,
                     business_name=payload.business_name or f"{payload.name}'s Farm",
                     business_address=payload.business_address or payload.address,
+                    latitude=payload.latitude,
+                    longitude=payload.longitude,
                     city=payload.city,
                     pincode=payload.pincode,
                     gst_number=payload.gst_number,

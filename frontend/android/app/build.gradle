@@ -2,6 +2,14 @@ apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
+def vegitoApiBaseUrl = findProperty("vegitoApiBaseUrl") ?: System.getenv("VEGITO_API_BASE_URL")
+if (!vegitoApiBaseUrl) {
+    vegitoApiBaseUrl = "https://vegito-git-main-vijaydhavan04-1868s-projects.vercel.app/"
+}
+if (!vegitoApiBaseUrl.endsWith("/")) {
+    vegitoApiBaseUrl += "/"
+}
+
 android {
     namespace = "com.vegito.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -11,6 +19,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        buildConfigField "String", "VEGITO_API_BASE_URL", "\"${vegitoApiBaseUrl}\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
@@ -19,6 +28,7 @@ android {
 
     buildFeatures {
         compose true
+        buildConfig true
     }
 
     compileOptions {

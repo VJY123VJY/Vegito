@@ -12,19 +12,21 @@ import android.os.Build
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
+import kotlin.time.Duration.Companion.milliseconds
 
 sealed class LocationResult {
     data class Success(
@@ -34,7 +36,9 @@ sealed class LocationResult {
         val city: String,
         val state: String,
         val pincode: String,
-        val area: String
+        val area: String,
+        val accuracyMeters: Float?,
+        val capturedAtEpochMillis: Long,
     ) : LocationResult()
 
     data class GpsDisabled(val message: String = "Location services (GPS) are turned off.") : LocationResult()
@@ -43,16 +47,16 @@ sealed class LocationResult {
     ) : LocationResult()
     data class PermissionDenied(val isPermanentlyDenied: Boolean = false) : LocationResult()
     data class Timeout(
-        val message: String = "GPS did not get a precise fix in time. Turn on Precise Location, move to an open area, and try again."
+        val message: String = "GPS fix took too long. Please try again or choose your location on map."
     ) : LocationResult()
     data class Error(val message: String) : LocationResult()
 }
 
 object LocationHelper {
     private const val TAG = "VegitoLocation"
-    private const val TIMEOUT_MS = 45000L
-    private const val MAX_ACCEPTABLE_ACCURACY_METERS = 100.0f
-    private const val MAX_LOCATION_AGE_MS = 45_000L
+    private const val TIMEOUT_MS = 30_000L
+    private const val MAX_ACCEPTABLE_ACCURACY_METERS = 150.0f
+    private const val MAX_LOCATION_AGE_MS = 15_000L
 
     fun hasFineLocationPermission(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -61,7 +65,7 @@ object LocationHelper {
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     fun isLocationEnabled(context: Context): Boolean {
-        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        val locationManager = (context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager)
             ?: return false
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             locationManager.isLocationEnabled
@@ -83,16 +87,23 @@ object LocationHelper {
         if (lat.isInfinite() || lng.isInfinite()) return false
         if (lat == 0.0 && lng == 0.0) return false
         if (lat < -90.0 || lat > 90.0) return false
-        if (lng < -180.0 || lng > 180.0) return false
-        return true
+        return !(lng < -180.0 || lng > 180.0)
     }
 
-    private fun isLocationFreshAndAccurate(location: Location): Boolean {
-        if (!location.hasAccuracy()) return false
-        if (location.accuracy > MAX_ACCEPTABLE_ACCURACY_METERS) return false
-        if (location.elapsedRealtimeNanos <= 0L) return false
-        val ageMs = (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000L
-        return ageMs >= 0L && ageMs <= MAX_LOCATION_AGE_MS
+    private fun getAgeMs(location: Location): Long {
+        return if (location.elapsedRealtimeNanos > 0L) {
+            (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000L
+        } else {
+            System.currentTimeMillis() - location.time
+        }
+    }
+
+    private fun isFreshAccurateFix(location: Location): Boolean {
+        if (!isValidCoordinates(location.latitude, location.longitude) || !location.hasAccuracy()) return false
+        val ageMs = getAgeMs(location)
+        return ageMs in 0..MAX_LOCATION_AGE_MS &&
+            location.accuracy.isFinite() &&
+            location.accuracy <= MAX_ACCEPTABLE_ACCURACY_METERS
     }
 
     @SuppressLint("MissingPermission")
@@ -112,33 +123,39 @@ object LocationHelper {
             return LocationResult.GpsDisabled()
         }
 
-        return withTimeoutOrNull(TIMEOUT_MS) {
-            try {
+        val location = try {
+            withTimeoutOrNull(TIMEOUT_MS.milliseconds) {
                 val fusedClient = LocationServices.getFusedLocationProviderClient(context)
-                val location = requestFusedLocation(fusedClient)
-
-                if (location != null && isLocationFreshAndAccurate(location)) {
-                    Log.i(TAG, "Acquired fresh GPS fix: lat=${location.latitude}, lng=${location.longitude}, acc=${location.accuracy}m, ageMs=${System.currentTimeMillis() - location.time}")
-                    reverseGeocode(context, location.latitude, location.longitude)
-                } else {
-                    val msg = "Precise location is required to verify your delivery distance. Move to an open area and try again."
-                    Log.w(TAG, "Rejected stale or low-accuracy GPS fix: ${location?.accuracy ?: "unknown"}m")
-                    LocationResult.Error(msg)
-                }
-            } catch (e: SecurityException) {
-                Log.e(TAG, "SecurityException: Location permission missing", e)
-                LocationResult.PermissionDenied()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Exception during location acquisition: ${e.message}", e)
-                LocationResult.Error(e.message ?: "Failed to get location")
+                requestFusedLocationUpdates(fusedClient)
             }
-        } ?: LocationResult.Timeout()
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Location permission was revoked during the request", e)
+            return LocationResult.PermissionDenied()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Fresh location request failed", e)
+            return LocationResult.Error("Unable to get a fresh location. Please try again.")
+        }
+
+        if (location == null) {
+            Log.w(TAG, "No accurate fresh location fix within ${TIMEOUT_MS}ms")
+            return LocationResult.Timeout("Unable to get a fresh location. Please try again.")
+        }
+
+        val ageMs = getAgeMs(location)
+        Log.i(TAG, "Fresh location acquired: accuracy=${location.accuracy}m, ageMs=$ageMs")
+        return reverseGeocode(
+            context = context,
+            lat = location.latitude,
+            lng = location.longitude,
+            accuracyMeters = location.accuracy,
+            capturedAtEpochMillis = location.time,
+        )
     }
 
     @SuppressLint("MissingPermission")
-    private suspend fun requestFusedLocation(fusedClient: FusedLocationProviderClient): Location? {
+    private suspend fun requestFusedLocationUpdates(fusedClient: FusedLocationProviderClient): Location? {
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
             .setMinUpdateIntervalMillis(500L)
             .setMaxUpdateAgeMillis(0L)
@@ -149,10 +166,7 @@ object LocationHelper {
             val callback = object : LocationCallback() {
                 override fun onLocationResult(result: com.google.android.gms.location.LocationResult) {
                     val location = result.lastLocation ?: return
-                    if (isValidCoordinates(location.latitude, location.longitude) &&
-                        isLocationFreshAndAccurate(location) &&
-                        cont.isActive
-                    ) {
+                    if (cont.isActive && isFreshAccurateFix(location)) {
                         fusedClient.removeLocationUpdates(this)
                         cont.resume(location)
                     }
@@ -166,70 +180,71 @@ object LocationHelper {
             fusedClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
                 .addOnFailureListener { error ->
                     fusedClient.removeLocationUpdates(callback)
-                    if (cont.isActive) cont.resumeWithException(error)
+                    if (cont.isActive) cont.resumeWith(Result.failure(error))
                 }
         }
     }
 
-    suspend fun reverseGeocode(context: Context, lat: Double, lng: Double): LocationResult.Success =
+    suspend fun reverseGeocode(
+        context: Context,
+        lat: Double,
+        lng: Double,
+        accuracyMeters: Float? = null,
+        capturedAtEpochMillis: Long = System.currentTimeMillis(),
+    ): LocationResult.Success =
         withContext(Dispatchers.IO) {
-            var addressLine = "Address unavailable"
+            var addressLine = "Current Location (${String.format(Locale.US, "%.4f, %.4f", lat, lng)})"
             var city = ""
             var state = ""
             var pincode = ""
             var area = ""
 
             try {
-                if (Geocoder.isPresent()) {
-                    val geocoder = Geocoder(context, Locale.getDefault())
-                    val addresses: List<Address>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        suspendCancellableCoroutine { cont ->
-                            geocoder.getFromLocation(lat, lng, 1, object : Geocoder.GeocodeListener {
-                                override fun onGeocode(results: MutableList<Address>) {
-                                    cont.resume(results)
-                                }
-                                override fun onError(errorMessage: String?) {
-                                    cont.resume(null)
-                                }
-                            })
-                        }
-                    } else {
-                        @Suppress("DEPRECATION")
-                        geocoder.getFromLocation(lat, lng, 1)
-                    }
-
-                    val bestMatch = addresses?.firstOrNull()
-                    if (bestMatch != null) {
-                        val thoroughfare = bestMatch.thoroughfare ?: ""
-                        val subThoroughfare = bestMatch.subThoroughfare ?: ""
-                        val subLoc = bestMatch.subLocality ?: ""
-                        val loc = bestMatch.locality ?: bestMatch.subAdminArea ?: ""
-                        val admin = bestMatch.adminArea ?: ""
-                        val postal = bestMatch.postalCode ?: ""
-
-                        if (loc.isNotBlank()) city = loc
-                        if (admin.isNotBlank()) state = admin
-                        if (postal.isNotBlank()) pincode = postal
-                        if (subLoc.isNotBlank()) area = subLoc
-
-                        val streetPart = listOf(subThoroughfare, thoroughfare).filter { it.isNotBlank() }.joinToString(" ")
-                        val parts = listOfNotNull(
-                            streetPart.ifBlank { null },
-                            subLoc.ifBlank { null },
-                            city.ifBlank { null },
-                            admin.ifBlank { null },
-                            postal.ifBlank { null }
-                        )
-
-                        addressLine = if (bestMatch.maxAddressLineIndex >= 0) {
-                            bestMatch.getAddressLine(0) ?: parts.joinToString(", ")
+                withTimeoutOrNull(3500L.milliseconds) {
+                    if (Geocoder.isPresent()) {
+                        val geocoder = Geocoder(context, Locale.getDefault())
+                        val addresses: List<Address>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            getFromLocationTiramisu(geocoder, lat, lng)
                         } else {
-                            parts.joinToString(", ")
-                        }.ifBlank { "Address unavailable" }
+                            @Suppress("DEPRECATION")
+                            geocoder.getFromLocation(lat, lng, 1)
+                        }
+
+                        val bestMatch = addresses?.firstOrNull()
+                        if (bestMatch != null) {
+                            val thoroughfare = bestMatch.thoroughfare ?: ""
+                            val subThoroughfare = bestMatch.subThoroughfare ?: ""
+                            val subLoc = bestMatch.subLocality ?: ""
+                            val loc = bestMatch.locality ?: bestMatch.subAdminArea ?: ""
+                            val admin = bestMatch.adminArea ?: ""
+                            val postal = bestMatch.postalCode ?: ""
+
+                            if (loc.isNotBlank()) city = loc
+                            if (admin.isNotBlank()) state = admin
+                            if (postal.isNotBlank()) pincode = postal
+                            if (subLoc.isNotBlank()) area = subLoc
+
+                            val streetPart = sequenceOf(subThoroughfare, thoroughfare)
+                                .filter { it.isNotBlank() }
+                                .joinToString(" ")
+                            val parts = listOfNotNull(
+                                streetPart.ifBlank { null },
+                                subLoc.ifBlank { null },
+                                city.ifBlank { null },
+                                admin.ifBlank { null },
+                                postal.ifBlank { null }
+                            )
+
+                            addressLine = if (bestMatch.maxAddressLineIndex >= 0) {
+                                bestMatch.getAddressLine(0) ?: parts.joinToString(", ")
+                            } else {
+                                parts.joinToString(", ")
+                            }.ifBlank { addressLine }
+                        }
                     }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Geocoder reverse-lookup failed: ${e.message}")
+                Log.w(TAG, "Geocoder reverse-lookup failed (${e.javaClass.simpleName})")
             }
 
             LocationResult.Success(
@@ -239,7 +254,30 @@ object LocationHelper {
                 city = city,
                 state = state,
                 pincode = pincode,
-                area = area
+                area = area,
+                accuracyMeters = accuracyMeters,
+                capturedAtEpochMillis = capturedAtEpochMillis,
             )
         }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private suspend fun getFromLocationTiramisu(
+        geocoder: Geocoder,
+        lat: Double,
+        lng: Double
+    ): List<Address>? = suspendCancellableCoroutine { cont ->
+        geocoder.getFromLocation(
+            lat,
+            lng,
+            1,
+            object : Geocoder.GeocodeListener {
+                override fun onGeocode(addresses: MutableList<Address>) {
+                    if (cont.isActive) cont.resume(addresses)
+                }
+                override fun onError(errorMessage: String?) {
+                    if (cont.isActive) cont.resume(null)
+                }
+            }
+        )
+    }
 }

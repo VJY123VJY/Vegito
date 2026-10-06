@@ -59,12 +59,11 @@ fun LocationSelectionBottomSheet(
     // Manual Entry Fields
     var manualAddressLine by remember { mutableStateOf(currentAddress?.addressLine ?: "") }
     var manualLandmark by remember { mutableStateOf(currentAddress?.landmark ?: "") }
-    var manualCity by remember { mutableStateOf(currentAddress?.city ?: "Solapur") }
-    var manualPincode by remember { mutableStateOf(currentAddress?.pincode ?: "413001") }
+    var manualCity by remember { mutableStateOf(currentAddress?.city.orEmpty()) }
+    var manualPincode by remember { mutableStateOf(currentAddress?.pincode.orEmpty()) }
 
-    // Map Coordinates (default to Solapur Central Market if none)
-    var mapLat by remember { mutableDoubleStateOf(if (currentAddress?.latitude != 0.0) currentAddress?.latitude ?: 17.6805 else 17.6805) }
-    var mapLng by remember { mutableDoubleStateOf(if (currentAddress?.longitude != 0.0) currentAddress?.longitude ?: 75.9064 else 75.9064) }
+    var mapLat by remember { mutableDoubleStateOf(currentAddress?.latitude ?: 0.0) }
+    var mapLng by remember { mutableDoubleStateOf(currentAddress?.longitude ?: 0.0) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -571,18 +570,15 @@ fun LocationSelectionBottomSheet(
                             Button(
                                 onClick = {
                                     if (manualAddressLine.isNotBlank()) {
-                                        // Use Solapur coordinates if not pinned
-                                        val finalLat = if (mapLat != 0.0) mapLat else 17.6805
-                                        val finalLng = if (mapLng != 0.0) mapLng else 75.9064
                                         val addr = SavedAddress(
                                             id = "man_${System.currentTimeMillis()}",
                                             title = "Home",
                                             addressLine = listOfNotNull(manualAddressLine, manualLandmark, manualCity, manualPincode).filter { it.isNotBlank() }.joinToString(", "),
                                             landmark = manualLandmark.ifBlank { null },
-                                            latitude = finalLat,
-                                            longitude = finalLng,
-                                            city = manualCity.ifBlank { "Solapur" },
-                                            pincode = manualPincode.ifBlank { "413001" },
+                                            latitude = null,
+                                            longitude = null,
+                                            city = manualCity,
+                                            pincode = manualPincode,
                                             state = "Maharashtra",
                                             isDefault = true
                                         )

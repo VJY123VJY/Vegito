@@ -30,21 +30,22 @@ logger = logging.getLogger(__name__)
 
 # Configurable bounds
 MIN_DELIVERY_DISTANCE_KM: float = getattr(settings, "MIN_DELIVERY_DISTANCE_KM", 1.0)
-MAX_DELIVERY_DISTANCE_KM: float = getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 15.0)
+MAX_DELIVERY_DISTANCE_KM: float = getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0)
 ALLOW_SAME_BUILDING_DELIVERY: bool = getattr(settings, "ALLOW_SAME_BUILDING_DELIVERY", True)
-
-
-# Default reference center for Vegito operations (Solapur Central Market)
-DEFAULT_SOLAPUR_LAT = 17.6805
-DEFAULT_SOLAPUR_LON = 75.9064
-
 
 def calculate_haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """
     Calculates great-circle distance between two geographic coordinates in kilometers
     using the Haversine formula.
     """
-    R = 6371.0  # Earth radius in kilometers
+    if not all(math.isfinite(value) for value in (lat1, lon1, lat2, lon2)):
+        raise ValueError("Coordinates must be finite numbers.")
+    if not (-90 <= lat1 <= 90 and -90 <= lat2 <= 90):
+        raise ValueError("Latitude is outside valid bounds.")
+    if not (-180 <= lon1 <= 180 and -180 <= lon2 <= 180):
+        raise ValueError("Longitude is outside valid bounds.")
+
+    R = 6371.0
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
     delta_phi = math.radians(lat2 - lat1)
@@ -55,7 +56,7 @@ def calculate_haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2:
         + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0) ** 2
     )
     c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
-    return round(R * c, 2)
+    return R * c
 
 
 class LocationService:
@@ -326,8 +327,11 @@ class LocationService:
                 p_lon = float(loc.longitude)
                 dist = calculate_haversine_distance_km(p_lat, p_lon, seller_lat, seller_lon)
             else:
-                # No GPS record yet: fresh partner, assume Solapur central depot
-                dist = calculate_haversine_distance_km(DEFAULT_SOLAPUR_LAT, DEFAULT_SOLAPUR_LON, seller_lat, seller_lon)
+                logger.info(
+                    "Skipping delivery partner %s because no current GPS location is available.",
+                    partner.id,
+                )
+                continue
 
             is_valid, _ = LocationService.is_within_delivery_bounds(dist, max_km=max_distance_km)
             if is_valid:
