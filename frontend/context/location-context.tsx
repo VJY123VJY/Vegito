@@ -8,6 +8,8 @@ import {
   type GpsCoordinates,
 } from "@/lib/api/location-helper";
 import { getDeliveryEligibility, type DeliveryEligibilityData } from "@/lib/api/customers";
+import { saveStoredLocation } from "@/components/location/location-modal";
+import { getStoredRole } from "@/lib/api/auth";
 
 export type LocationStatus =
   | "IDLE"
@@ -100,6 +102,18 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
       setStatus("ADDRESS_READY");
       setMessage("Address detected. Validating 20 KM delivery availability...");
 
+      // Sync customer stored location
+      const activeRole = getStoredRole();
+      if (!activeRole || activeRole === "CUSTOMER") {
+        saveStoredLocation({
+          address: parsedAddress.place_name || parsedAddress.address_line1,
+          city: parsedAddress.city,
+          pincode: parsedAddress.pincode,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        });
+      }
+
       setStatus("CHECKING_DELIVERY");
       try {
         const elig = await getDeliveryEligibility(coords.latitude, coords.longitude);
@@ -144,6 +158,14 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (hasInitializedRef.current) return;
     hasInitializedRef.current = true;
+
+    // Strict Operator Isolation: Sellers, delivery partners, and admins manage their own locations
+    const currentRole = getStoredRole();
+    if (currentRole && ["SELLER", "DELIVERY_PARTNER", "ADMIN", "SUPER_ADMIN"].includes(currentRole)) {
+      setPermissionState("unknown");
+      setStatus("IDLE");
+      return;
+    }
 
     if (typeof window === "undefined" || !navigator.geolocation) {
       setPermissionState("unknown");

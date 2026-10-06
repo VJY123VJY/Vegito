@@ -30,6 +30,8 @@ export interface SelectedLocationData {
   pincode?: string;
   latitude?: number;
   longitude?: number;
+  userId?: number;
+  role?: string;
 }
 
 const STORAGE_KEY = "vegito.selected_location";
@@ -39,22 +41,46 @@ export function getStoredLocation(): SelectedLocationData | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      return JSON.parse(raw);
+    if (!raw) return null;
+    const loc: SelectedLocationData = JSON.parse(raw);
+
+    // Strict Role Isolation: Sellers, delivery partners, and admins do not use customer delivery location
+    const currentRole = localStorage.getItem("vegito.user-role");
+    if (currentRole && ["SELLER", "DELIVERY_PARTNER", "ADMIN", "SUPER_ADMIN"].includes(currentRole)) {
+      return null;
     }
+
+    // Strict Account Isolation: If stored location belongs to a different customer ID, ignore and clear
+    const currentUserId = localStorage.getItem("vegito.user-id");
+    if (currentUserId && loc.userId && loc.userId !== Number(currentUserId)) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+
+    return loc;
   } catch {
     return null;
   }
-  return null;
 }
 
 export function saveStoredLocation(loc: SelectedLocationData) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(loc));
+    const currentRole = localStorage.getItem("vegito.user-role");
+    // Never save customer delivery location if logged in as seller, delivery partner, or admin
+    if (currentRole && ["SELLER", "DELIVERY_PARTNER", "ADMIN", "SUPER_ADMIN"].includes(currentRole)) {
+      return;
+    }
+    const currentUserId = localStorage.getItem("vegito.user-id");
+    const payload: SelectedLocationData = {
+      ...loc,
+      userId: currentUserId ? Number(currentUserId) : undefined,
+      role: "CUSTOMER",
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     localStorage.setItem(STORAGE_FLAG, "true");
     window.dispatchEvent(
-      new CustomEvent("vegito:location_changed", { detail: loc })
+      new CustomEvent("vegito:location_changed", { detail: payload })
     );
   } catch {
     // ignore
@@ -476,7 +502,7 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search area, landmark or street in Solapur..."
+                placeholder="Search area, landmark or street..."
                 style={{
                   width: "100%",
                   height: "42px",
@@ -616,45 +642,21 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
               </div>
             </div>
           )}
-          <div>
-            <div
-              style={{
-                fontSize: "11px",
-                fontWeight: 800,
-                color: "#62746a",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-                marginBottom: "8px",
-              }}
-            >
-              Popular Areas in Solapur
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {["Jule Solapur", "Saat Rasta", "Old Pune Naka", "Hotgi Road", "Ashok Chowk", "Lashkar"].map((area) => (
-                <button
-                  key={area}
-                  onClick={() =>
-                    handleSelectLocation({
-                      address: `${area}, Solapur`,
-                      city: "Solapur",
-                      pincode: "413001",
-                    })
-                  }
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "10px",
-                    border: "1px solid #dce8df",
-                    backgroundColor: "#f5f8f6",
-                    color: "#063c32",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  {area}
-                </button>
-              ))}
-            </div>
+          <div
+            style={{
+              padding: "12px 14px",
+              backgroundColor: "#f0f4f1",
+              borderRadius: "14px",
+              border: "1px solid #dce8df",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+            }}
+          >
+            <MapPin size={16} color="#0a4d3c" style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: "12px", color: "#4b5563", lineHeight: 1.4 }}>
+              Use device GPS or choose on map to pinpoint your exact doorstep for 20 KM fresh produce delivery.
+            </span>
           </div>
 
         </div>

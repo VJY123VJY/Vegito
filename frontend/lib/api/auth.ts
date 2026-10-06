@@ -210,6 +210,27 @@ export function saveSession(session: TokenResponse) {
     ? session.authorized_roles
     : [session.role];
 
+  // Strict Location Isolation:
+  // If role is NOT customer (SELLER, DELIVERY_PARTNER, ADMIN), or if switching to a different user:
+  // completely wipe customer delivery location cache so cross-role or cross-account leakage is impossible.
+  const prevUserId = localStorage.getItem("vegito.user-id");
+  const isDifferentUser = prevUserId && prevUserId !== String(session.user_id);
+
+  if (session.role !== "CUSTOMER" || isDifferentUser) {
+    const custLocKeys = [
+      "vegito.selected_location",
+      "vegito.location_selected",
+      "vegito.smart_location_state",
+      "vegito.smart_location_timestamp",
+      "vegito.smart_location_accuracy",
+      "vegito.customer.location",
+    ];
+    custLocKeys.forEach((k) => {
+      localStorage.removeItem(k);
+      sessionStorage.removeItem(k);
+    });
+  }
+
   const items: Record<string, string> = {
     "vegito.access-token": session.access_token,
     "vegito.user-role": session.role,

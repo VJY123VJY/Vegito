@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import React, { FormEvent, useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, MapPin, Plus, ShoppingBasket, Crosshair, Loader2, AlertCircle } from "lucide-react";
 import { createAddress, listAddresses, updateAddress } from "@/lib/api/addresses";
@@ -45,6 +45,14 @@ export default function CheckoutPage() {
   const [slot, setSlot] = useState("today-evening");
   const [confirmed, setConfirmed] = useState<{ id: number; orderNumber: string; otp?: string | null }>();
   const [error, setError] = useState("");
+
+  // Auto-select customer default saved address on load
+  useEffect(() => {
+    if (!selectedAddress && addresses.data && addresses.data.length > 0) {
+      const def = addresses.data.find((a) => a.is_default) || addresses.data[0];
+      if (def) setSelectedAddress(def.id);
+    }
+  }, [addresses.data, selectedAddress]);
 
   const deliveryFeeQuery = useQuery({
     queryKey: ["delivery-fee", selectedAddress],
@@ -185,6 +193,7 @@ export default function CheckoutPage() {
   const distanceKm = deliveryFeeQuery.data?.distance_km;
   const isDistanceValid = distanceKm !== undefined ? distanceKm <= 20.0 : !deliveryFeeQuery.isError;
   const isDeliverable = isDistanceValid && !deliveryFeeQuery.isError && isSellerOnline;
+  const selectedAddressObj = addresses.data?.find((a) => a.id === selectedAddress);
 
   if (confirmed) return <main className="simple-page"><section className="empty-inline"><CheckCircle2 size={38} color="var(--vegito-success)" /><b>Order {confirmed.orderNumber} placed</b><span>Your COD order is now recorded in Vegito.</span>{confirmed.otp ? <strong>Delivery OTP: {confirmed.otp}</strong> : null}<Link className="primary-action" href={`/customer/orders/${confirmed.id}`}>Track order</Link></section></main>;
   if (cart.isLoading || addresses.isLoading) return <main className="simple-page"><p className="helper">Preparing secure checkout...</p></main>;
@@ -376,9 +385,17 @@ export default function CheckoutPage() {
                   {eligibilityData.is_eligible ? "Eligible" : "Outside Area"}
                 </span>
               </div>
-              <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: eligibilityData.is_eligible ? "#15803d" : "#b91c1c" }}>
-                Delivering from: <strong>{eligibilityData.seller_name || "Vegito Seller"}</strong> · Distance: <strong>{eligibilityData.distance_km} KM</strong>
-              </p>
+              <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "3px" }}>
+                <p style={{ margin: 0, fontSize: "12.5px", color: eligibilityData.is_eligible ? "#15803d" : "#b91c1c" }}>
+                  📍 <strong>Customer Delivery Point:</strong> {detectedAddressSummary || (coordinates ? `GPS (${coordinates.latitude.toFixed(5)}, ${coordinates.longitude.toFixed(5)})` : "Current Location")}
+                </p>
+                <p style={{ margin: 0, fontSize: "12px", color: "#475569" }}>
+                  🏪 <strong>Seller Pickup Store:</strong> {eligibilityData.seller_name || "Vegito Seller"} {eligibilityData.seller_address ? `(${eligibilityData.seller_address})` : ""}
+                </p>
+                <p style={{ margin: 0, fontSize: "12.5px", color: eligibilityData.is_eligible ? "#15803d" : "#b91c1c", fontWeight: 700 }}>
+                  📏 <strong>Real GPS Distance:</strong> {eligibilityData.distance_km} KM (Max allowed: 20 KM)
+                </p>
+              </div>
 
               {/* Safe Diagnostics Badge */}
               <div style={{ fontSize: "11px", color: "#4b5563", marginTop: "6px", display: "flex", gap: "12px", flexWrap: "wrap", padding: "4px 8px", backgroundColor: "rgba(255,255,255,0.7)", borderRadius: "6px" }}>
@@ -386,12 +403,6 @@ export default function CheckoutPage() {
                 {coordinates ? <span><strong>GPS:</strong> {coordinates.latitude.toFixed(5)}, {coordinates.longitude.toFixed(5)}</span> : null}
                 {capturedTimestamp ? <span><strong>Captured:</strong> {new Date(capturedTimestamp).toLocaleTimeString()}</span> : null}
               </div>
-
-              {detectedAddressSummary ? (
-                <p style={{ margin: "4px 0 0", fontSize: "11.5px", color: "#374151" }}>
-                  Detected address: <strong>{detectedAddressSummary}</strong>
-                </p>
-              ) : null}
 
               {!eligibilityData.is_eligible ? (
                 <p style={{ margin: "6px 0 0", fontSize: "11.5px", color: "#991b1b" }}>
@@ -466,13 +477,21 @@ export default function CheckoutPage() {
           border: isDistanceValid ? "1.5px solid #86efac" : "1.5px solid #f87171",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-          <span style={{ fontSize: "13px", fontWeight: 700, color: isDistanceValid ? "#166534" : "#991b1b" }}>
-            Delivery distance: {deliveryFeeQuery.data.distance_km} KM
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+          <span style={{ fontSize: "13.5px", fontWeight: 800, color: isDistanceValid ? "#166534" : "#991b1b" }}>
+            Real GPS Distance: {deliveryFeeQuery.data.distance_km} KM
           </span>
           <span style={{ fontSize: "12px", fontWeight: 800, padding: "2px 8px", borderRadius: "999px", backgroundColor: isDistanceValid ? "#dcfce7" : "#fee2e2", color: isDistanceValid ? "#15803d" : "#dc2626" }}>
-            {isDistanceValid ? "✓ Delivery available" : "✕ Delivery unavailable"}
+            {isDistanceValid ? "✓ Within 20 KM Area" : "✕ Outside 20 KM Area"}
           </span>
+        </div>
+        <div style={{ fontSize: "12px", color: "#475569", display: "flex", flexDirection: "column", gap: "2px", marginBottom: "6px" }}>
+          {selectedAddressObj && (
+            <span>📍 <strong>Doorstep Destination:</strong> {selectedAddressObj.address_line1}, {selectedAddressObj.city}</span>
+          )}
+          {(sellerAvailability.data?.shop_name || eligibilityData?.seller_name) && (
+            <span>🏪 <strong>Seller Store:</strong> {sellerAvailability.data?.shop_name || eligibilityData?.seller_name} {eligibilityData?.seller_address ? `(${eligibilityData.seller_address})` : ""}</span>
+          )}
         </div>
         {!isDistanceValid ? (
           <p style={{ margin: "4px 0 0", fontSize: "12.5px", color: "#b91c1c", fontWeight: 600 }}>

@@ -1,10 +1,28 @@
 "use client";
 
 import React from "react";
+import { usePathname } from "next/navigation";
 import { useLocation } from "@/context/location-context";
+import { getStoredRole } from "@/lib/api/auth";
 import { MapPin, AlertCircle, CheckCircle2, Crosshair, X } from "lucide-react";
 
 export function LocationBar() {
+  const pathname = usePathname();
+  const role = getStoredRole();
+
+  // Strict Role & Workspace Isolation:
+  // Never show customer delivery bar on Seller, Delivery Partner, Admin, or Auth pages
+  const isOperatorWorkspace =
+    pathname?.startsWith("/seller") ||
+    pathname?.startsWith("/delivery") ||
+    pathname?.startsWith("/admin") ||
+    pathname?.startsWith("/auth");
+  const isOperatorRole =
+    role === "SELLER" ||
+    role === "DELIVERY_PARTNER" ||
+    role === "ADMIN" ||
+    role === "SUPER_ADMIN";
+
   const {
     status,
     message,
@@ -15,6 +33,10 @@ export function LocationBar() {
     dismissDeniedBanner,
     isLocating,
   } = useLocation();
+
+  if (isOperatorWorkspace || isOperatorRole) {
+    return null;
+  }
 
   if (showDeniedBanner && status === "PERMISSION_DENIED") {
     return (
@@ -104,7 +126,7 @@ export function LocationBar() {
         <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           <CheckCircle2 size={13} color="#16a34a" />
           <span>
-            <strong>Delivering to:</strong> {address.area || address.street || address.city || "Solapur"}
+            <strong>Delivering to:</strong> {address.area || address.street || address.city || "your location"}
             {eligibility.distance_km != null ? ` · ${eligibility.distance_km} KM from ${eligibility.seller_name || "seller"}` : ""}
           </span>
         </div>

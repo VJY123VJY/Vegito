@@ -11,12 +11,23 @@ export function CustomerHeader({ count }: { count: number }) {
   const [locTitle, setLocTitle] = useState("Set location");
 
   useEffect(() => {
+    const updateLoc = (loc: any) => {
+      if (loc?.city) {
+        setLocTitle(loc.city);
+      } else if (loc?.address) {
+        setLocTitle(loc.address.split(",")[0] || "Set location");
+      } else {
+        setLocTitle("Set location");
+      }
+    };
     const loc = getStoredLocation();
-    if (loc?.city) {
-      setLocTitle(loc.city);
-    } else if (loc?.address) {
-      setLocTitle(loc.address.split(",")[0] || "Set location");
-    }
+    updateLoc(loc);
+
+    const handler = (e: any) => {
+      if (e.detail) updateLoc(e.detail);
+    };
+    window.addEventListener("vegito:location_changed", handler);
+    return () => window.removeEventListener("vegito:location_changed", handler);
   }, []);
 
   return (

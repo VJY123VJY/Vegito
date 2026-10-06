@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { MapPin, ChevronDown, Check, Plus, X } from "lucide-react";
+import { MapPin, ChevronDown, Check, Plus, X, Crosshair, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { listAddresses, Address } from "@/lib/api/addresses";
+import { saveStoredLocation } from "@/components/location/location-modal";
+import { getFreshDeviceCoordinates, reverseGeocode } from "@/lib/api/location-helper";
 
 interface AddressSelectorProps {
   selectedAddressId: number | null;
@@ -13,6 +15,8 @@ interface AddressSelectorProps {
 
 export function AddressSelector({ selectedAddressId, onSelectAddress }: AddressSelectorProps) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [detectingGps, setDetectingGps] = useState(false);
+  const [gpsMsg, setGpsMsg] = useState("");
 
   const addressesQuery = useQuery({
     queryKey: ["addresses"],
@@ -26,9 +30,69 @@ export function AddressSelector({ selectedAddressId, onSelectAddress }: AddressS
     addressList[0] ||
     null;
 
+  // Auto-sync customer's primary address to customer location state on load
+  useEffect(() => {
+    if (selectedAddress) {
+      if (selectedAddress.id !== selectedAddressId) {
+        onSelectAddress(selectedAddress);
+      }
+      saveStoredLocation({
+        address: `${selectedAddress.address_line1}, ${selectedAddress.city}`,
+        city: selectedAddress.city,
+        pincode: selectedAddress.pincode,
+        latitude: selectedAddress.latitude != null ? Number(selectedAddress.latitude) : undefined,
+        longitude: selectedAddress.longitude != null ? Number(selectedAddress.longitude) : undefined,
+      });
+    }
+  }, [selectedAddress, selectedAddressId, onSelectAddress]);
+
   const handleSelect = (addr: Address) => {
     onSelectAddress(addr);
+    saveStoredLocation({
+      address: `${addr.address_line1}, ${addr.city}`,
+      city: addr.city,
+      pincode: addr.pincode,
+      latitude: addr.latitude != null ? Number(addr.latitude) : undefined,
+      longitude: addr.longitude != null ? Number(addr.longitude) : undefined,
+    });
     setModalOpen(false);
+  };
+
+  const handleDetectCurrentGps = async () => {
+    setDetectingGps(true);
+    setGpsMsg("");
+    try {
+      const coords = await getFreshDeviceCoordinates();
+      let addrLine = `Doorstep GPS (${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)})`;
+      let cityStr = "";
+      let pinStr = "";
+      try {
+        const geo = await reverseGeocode(coords.latitude, coords.longitude);
+        if (geo?.place_name || geo?.address_line1) {
+          addrLine = (geo.place_name || geo.address_line1) as string;
+          cityStr = geo.city || "";
+          pinStr = geo.pincode || "";
+        }
+      } catch {
+        // fallback to coords
+      }
+      saveStoredLocation({
+        address: addrLine,
+        city: cityStr,
+        pincode: pinStr,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      });
+      setGpsMsg(`✓ GPS captured: ${addrLine.split(",")[0]}`);
+      setTimeout(() => {
+        setModalOpen(false);
+        setGpsMsg("");
+      }, 1000);
+    } catch (err: any) {
+      setGpsMsg(err?.message || "Could not detect GPS location.");
+    } finally {
+      setDetectingGps(false);
+    }
   };
 
   return (
@@ -70,13 +134,13 @@ export function AddressSelector({ selectedAddressId, onSelectAddress }: AddressS
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <strong style={{ fontSize: "13.5px", color: "#063c32" }}>
-                {selectedAddress?.address_type || "Home"}
+                {selectedAddress?.address_type || "Delivery Point"}
               </strong>
               <span style={{ color: "#94a3b8" }}>·</span>
               <span style={{ fontSize: "13px", color: "#475569", maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {selectedAddress
                   ? `${selectedAddress.address_line1}, ${selectedAddress.city}`
-                  : "Solapur (Add delivery address)"}
+                  : "No address set (Tap to choose)"}
               </span>
             </div>
           </div>
@@ -130,7 +194,7 @@ export function AddressSelector({ selectedAddressId, onSelectAddress }: AddressS
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
               <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#063c32" }}>
                 Select Delivery Address
               </h3>
@@ -146,6 +210,38 @@ export function AddressSelector({ selectedAddressId, onSelectAddress }: AddressS
               >
                 <X size={20} />
               </button>
+            </div>
+
+            {/* Live Device GPS Detection */}
+            <div style={{ marginBottom: "16px" }}>
+              <button
+                type="button"
+                onClick={handleDetectCurrentGps}
+                disabled={detectingGps}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: "12px",
+                  backgroundColor: "#e9f6ee",
+                  border: "1.5px solid #16835b",
+                  color: "#063c32",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  cursor: detectingGps ? "not-allowed" : "pointer",
+                }}
+              >
+                {detectingGps ? <Loader2 size={16} className="animate-spin" /> : <Crosshair size={16} color="#16835b" />}
+                {detectingGps ? "Detecting real GPS location..." : "Use my current device location"}
+              </button>
+              {gpsMsg && (
+                <div style={{ fontSize: "11.5px", marginTop: "6px", color: gpsMsg.startsWith("✓") ? "#15803d" : "#b91c1c", fontWeight: 600, textAlign: "center" }}>
+                  {gpsMsg}
+                </div>
+              )}
             </div>
 
             {addressList.length === 0 ? (

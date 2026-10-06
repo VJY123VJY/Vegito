@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -47,7 +47,7 @@ export default function CustomerAddressesPage() {
     <DashboardShell
       role="customer"
       greeting="My Saved Addresses"
-      subtitle="Manage your delivery destinations in Solapur"
+      subtitle="Manage your delivery destinations"
     >
       <div style={{ maxWidth: "860px", margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>

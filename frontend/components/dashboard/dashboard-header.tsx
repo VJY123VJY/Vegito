@@ -75,6 +75,7 @@ export function DashboardHeader({
   };
 
   useEffect(() => {
+    if (role !== "customer") return;
     const saved = getStoredLocation();
     if (saved?.address) setSelectedLoc(saved.address);
 
@@ -83,7 +84,7 @@ export function DashboardHeader({
     };
     window.addEventListener("vegito:location_changed", handler);
     return () => window.removeEventListener("vegito:location_changed", handler);
-  }, []);
+  }, [role]);
 
   const defaultSearchPlaceholder =
     searchPlaceholder ||
