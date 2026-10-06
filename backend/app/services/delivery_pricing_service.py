@@ -20,17 +20,17 @@ class DeliveryPricingService:
         the caller must reject the order instead of substituting a fabricated Solapur coordinate.
         """
         from app.models.user import User
-        from sqlalchemy import or_
 
         shop_prof = None
-        if seller_id:
+        if seller_id is not None:
             shop_prof = (
                 db.query(SellerProfile)
-                .filter(or_(SellerProfile.user_id == seller_id, SellerProfile.id == seller_id))
+                .filter(SellerProfile.user_id == seller_id)
                 .first()
             )
-
-        if not shop_prof:
+            if not shop_prof:
+                return None, None
+        else:
             from app.models.seller_product import SellerProduct
             shop_prof = (
                 db.query(SellerProfile)
@@ -45,7 +45,7 @@ class DeliveryPricingService:
                 .order_by(SellerProfile.id.desc())
                 .first()
             )
-        if not shop_prof:
+        if not shop_prof and seller_id is None:
             shop_prof = (
                 db.query(SellerProfile)
                 .join(User, SellerProfile.user_id == User.id)
@@ -57,7 +57,7 @@ class DeliveryPricingService:
                 .order_by(SellerProfile.id.desc())
                 .first()
             )
-        if not shop_prof:
+        if not shop_prof and seller_id is None:
             shop_prof = db.query(SellerProfile).filter(
                 SellerProfile.latitude.isnot(None),
                 SellerProfile.longitude.isnot(None),
@@ -101,7 +101,13 @@ class DeliveryPricingService:
         # Ensure customer address coordinates are resolved and persisted
         cust_lat, cust_lng = LocationService.resolve_address_coordinates(db, address)
 
-        # Resolve seller shop coordinates without fabricating default Solapur coordinates.
+        if seller_id is None:
+            raise BadRequestException(
+                message="A seller must be selected before delivery eligibility can be checked.",
+                code="SELLER_REQUIRED",
+            )
+
+        # Resolve only the selected seller's shop coordinates.
         shop_lat, shop_lng = LocationService.resolve_seller_coordinates(db, seller_id)
         if shop_lat is None or shop_lng is None:
             shop_lat, shop_lng = DeliveryPricingService.get_seller_shop_coordinates(db, seller_id)

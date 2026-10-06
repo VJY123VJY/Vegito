@@ -87,8 +87,6 @@ class DeliveryPartnerRegisterRequest(BaseModel):
     address: Optional[str] = None
     city: Optional[str] = "Solapur"
     pincode: Optional[str] = "413001"
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
     vehicle_type: Optional[str] = "Motorcycle"
     vehicle_number: Optional[str] = None
 
@@ -113,10 +111,25 @@ class UnifiedRegisterRequest(BaseModel):
     pincode: Optional[str] = "413001"
     business_name: Optional[str] = None
     business_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     gst_number: Optional[str] = None
     description: Optional[str] = None
     vehicle_type: Optional[str] = "Motorcycle"
     vehicle_number: Optional[str] = None
+
+    @model_validator(mode="after")
+    def require_seller_location(self):
+        if self.role == "SELLER":
+            if self.latitude is None or self.longitude is None:
+                raise ValueError("A real shop latitude and longitude are required to register a seller.")
+            if not (-90 <= self.latitude <= 90 and -180 <= self.longitude <= 180):
+                raise ValueError("Shop coordinates are outside valid latitude/longitude bounds.")
+            if self.latitude == 0 and self.longitude == 0:
+                raise ValueError("Shop coordinates must identify a real location.")
+        elif (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Latitude and longitude must be provided together.")
+        return self
 
 
 class RegisterResponse(BaseModel):

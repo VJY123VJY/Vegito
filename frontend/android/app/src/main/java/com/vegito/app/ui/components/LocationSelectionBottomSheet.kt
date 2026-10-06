@@ -37,8 +37,7 @@ private enum class LocationSheetState {
     GPS_DISABLED,
     PERMISSION_DENIED,
     ERROR_RETRY,
-    MANUAL_ENTRY,
-    MAP_SELECTION
+    MANUAL_ENTRY
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,9 +60,6 @@ fun LocationSelectionBottomSheet(
     var manualLandmark by remember { mutableStateOf(currentAddress?.landmark ?: "") }
     var manualCity by remember { mutableStateOf(currentAddress?.city.orEmpty()) }
     var manualPincode by remember { mutableStateOf(currentAddress?.pincode.orEmpty()) }
-
-    var mapLat by remember { mutableDoubleStateOf(currentAddress?.latitude ?: 0.0) }
-    var mapLng by remember { mutableDoubleStateOf(currentAddress?.longitude ?: 0.0) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -185,20 +181,6 @@ fun LocationSelectionBottomSheet(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            OutlinedButton(
-                                onClick = { state = LocationSheetState.MAP_SELECTION },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(52.dp),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Icon(Icons.Default.Map, contentDescription = "Map")
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Choose on Map", fontWeight = FontWeight.SemiBold)
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
                             TextButton(
                                 onClick = { state = LocationSheetState.MANUAL_ENTRY }
                             ) {
@@ -275,7 +257,7 @@ fun LocationSelectionBottomSheet(
                                         Icon(Icons.Default.Place, contentDescription = "Pin", tint = VegitoPrimary)
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = success?.area ?: "Solapur Central",
+                                            text = success?.area.orEmpty().ifBlank { "Current GPS location" },
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 15.sp
                                         )
@@ -487,18 +469,6 @@ fun LocationSelectionBottomSheet(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            OutlinedButton(
-                                onClick = { state = LocationSheetState.MAP_SELECTION },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Text("Choose on Map")
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
                             TextButton(onClick = { state = LocationSheetState.MANUAL_ENTRY }) {
                                 Text("Enter Address Manually", color = VegitoPrimary)
                             }
@@ -598,94 +568,6 @@ fun LocationSelectionBottomSheet(
                         }
                     }
 
-                    LocationSheetState.MAP_SELECTION -> {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Choose Location Pin",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                TextButton(onClick = { state = LocationSheetState.OPTIONS }) {
-                                    Text("Back")
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Interactive Mapbox-style Location Pin Container
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(180.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(
-                                            Icons.Default.Place,
-                                            contentDescription = "Map Pin",
-                                            tint = VegitoPrimary,
-                                            modifier = Modifier.size(48.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "Solapur Delivery Area",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
-                                        )
-                                        Text(
-                                            text = "Lat: ${String.format("%.4f", mapLat)}, Lng: ${String.format("%.4f", mapLng)}",
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        val reverse = LocationHelper.reverseGeocode(context, mapLat, mapLng)
-                                        onAddressConfirmed(
-                                            SavedAddress(
-                                                id = "map_${System.currentTimeMillis()}",
-                                                title = reverse.area.ifBlank { "Map Location" },
-                                                addressLine = reverse.addressLine,
-                                                latitude = mapLat,
-                                                longitude = mapLng,
-                                                city = reverse.city,
-                                                pincode = reverse.pincode,
-                                                state = reverse.state,
-                                                isDefault = true
-                                            )
-                                        )
-                                        onDismiss()
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
-                            ) {
-                                Text("Use This Location Pin", fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
                 }
             }
         }

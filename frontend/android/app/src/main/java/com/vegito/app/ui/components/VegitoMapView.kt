@@ -35,15 +35,15 @@ private const val MAPBOX_TOKEN = "pk.eyJ1IjoidmlqYXkxMjN2aWpheSIsImEiOiJjbXU0OHh
 @Composable
 fun VegitoMapView(
     modifier: Modifier = Modifier,
-    riderLat: Double = 17.6740,
-    riderLng: Double = 75.9010,
-    shopLat: Double = 17.6805,
-    shopLng: Double = 75.9064,
-    customerLat: Double? = 17.6599,
-    customerLng: Double? = 75.9064,
-    shopName: String = "Solapur APMC Mandi",
-    customerAddress: String = "Customer Location (Solapur)",
-    statusText: String = "OUT_FOR_DELIVERY",
+    riderLat: Double?,
+    riderLng: Double?,
+    shopLat: Double,
+    shopLng: Double,
+    customerLat: Double? = null,
+    customerLng: Double? = null,
+    shopName: String,
+    customerAddress: String,
+    statusText: String,
     showRoute: Boolean = true,
     interactive: Boolean = true,
     onGpsClick: (() -> Unit)? = null
@@ -52,10 +52,16 @@ fun VegitoMapView(
     var isMapLoading by remember { mutableStateOf(true) }
 
     // Prepare HTML content for the map
-    val mapHtml = remember(shopLat, shopLng, customerLat, customerLng) {
+    val mapHtml = remember(
+        riderLat, riderLng, shopLat, shopLng, customerLat, customerLng,
+        shopName, customerAddress, statusText
+    ) {
         val hasCustomer = customerLat != null && customerLng != null
         val customerLatStr = if (hasCustomer) customerLat.toString() else "null"
         val customerLngStr = if (hasCustomer) customerLng.toString() else "null"
+        val hasRider = riderLat != null && riderLng != null
+        val riderLatStr = if (hasRider) riderLat.toString() else "0"
+        val riderLngStr = if (hasRider) riderLng.toString() else "0"
 
         """
         <!DOCTYPE html>
@@ -166,27 +172,32 @@ fun VegitoMapView(
                     destMarker.bindPopup('<b>$customerAddress</b><br>Delivery Doorstep');
                 }
 
-                // Delivery Partner Rider Marker
-                var riderIconHtml = L.divIcon({
-                    html: '<div class="rider-icon">🛵</div>',
-                    className: '',
-                    iconSize: [38, 38],
-                    iconAnchor: [19, 19]
-                });
-                riderMarker = L.marker([$riderLat, $riderLng], { icon: riderIconHtml }).addTo(map);
-                riderMarker.bindPopup('<b>Vegito Rider</b><br>$statusText');
+                var hasRider = $hasRider;
+                if (hasRider) {
+                    var riderIconHtml = L.divIcon({
+                        html: '<div class="rider-icon">🛵</div>',
+                        className: '',
+                        iconSize: [38, 38],
+                        iconAnchor: [19, 19]
+                    });
+                    riderMarker = L.marker([$riderLatStr, $riderLngStr], { icon: riderIconHtml }).addTo(map);
+                    riderMarker.bindPopup('<b>Delivery Partner</b><br>$statusText');
+                }
 
                 // Polyline Route
-                var waypoints = [[$shopLat, $shopLng], [$riderLat, $riderLng]];
+                var waypoints = [[$shopLat, $shopLng]];
+                if (hasRider) waypoints.push([$riderLatStr, $riderLngStr]);
                 if (hasCust) {
                     waypoints.push([$customerLatStr, $customerLngStr]);
                 }
-                routePolyline = L.polyline(waypoints, {
-                    color: '#2E7D32',
-                    weight: 4,
-                    dashArray: '8, 8',
-                    opacity: 0.85
-                }).addTo(map);
+                if (waypoints.length > 1) {
+                    routePolyline = L.polyline(waypoints, {
+                        color: '#2E7D32',
+                        weight: 4,
+                        dashArray: '8, 8',
+                        opacity: 0.85
+                    }).addTo(map);
+                }
 
                 // Auto-fit all markers
                 var bounds = L.latLngBounds(waypoints);

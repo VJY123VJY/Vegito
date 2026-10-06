@@ -56,13 +56,17 @@ fun OrderTrackingScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text("Delivery Verification OTP", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    text = order.customerOtp ?: "4829",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = VegitoPrimary
-                )
-                Text("Share this OTP with delivery partner upon arrival", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (!order.customerOtp.isNullOrBlank()) {
+                    Text(
+                        text = order.customerOtp,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = VegitoPrimary
+                    )
+                    Text("Share this OTP with delivery partner upon arrival", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Text("Your delivery OTP will appear when the order is handed to a delivery partner.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
 
@@ -181,19 +185,30 @@ fun OrderTrackingScreen(
             shape = RoundedCornerShape(20.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
         ) {
-            com.vegito.app.ui.components.VegitoMapView(
-                modifier = Modifier.fillMaxSize(),
-                riderLat = 17.6710,
-                riderLng = 75.9030,
-                shopLat = 17.6805,
-                shopLng = 75.9064,
-                customerLat = 17.6599,
-                customerLng = 75.9064,
-                shopName = "Solapur APMC Mandi",
-                customerAddress = "Your Doorstep (Jule Solapur)",
-                statusText = order.status,
-                showRoute = true
-            )
+            if (order.sellerLat != null && order.sellerLng != null &&
+                order.deliveryAddress.latitude != null && order.deliveryAddress.longitude != null
+            ) {
+                com.vegito.app.ui.components.VegitoMapView(
+                    modifier = Modifier.fillMaxSize(),
+                    riderLat = order.deliveryPartnerLat,
+                    riderLng = order.deliveryPartnerLng,
+                    shopLat = order.sellerLat,
+                    shopLng = order.sellerLng,
+                    customerLat = order.deliveryAddress.latitude,
+                    customerLng = order.deliveryAddress.longitude,
+                    shopName = order.sellerName,
+                    customerAddress = order.deliveryAddress.addressLine,
+                    statusText = order.status,
+                    showRoute = true
+                )
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Live route is unavailable until the seller's verified location is available.")
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

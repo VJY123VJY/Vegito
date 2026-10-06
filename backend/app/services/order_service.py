@@ -132,7 +132,7 @@ class OrderService:
         # Deterministically fetch the selected seller profile (NO RANDOM FALLBACK!)
         sp_prof = (
             db.query(SellerProfile)
-            .filter(or_(SellerProfile.user_id == target_seller_id, SellerProfile.id == target_seller_id))
+            .filter(SellerProfile.user_id == target_seller_id)
             .first()
         )
         if not sp_prof:

@@ -65,6 +65,7 @@ fun SellerShopLocationPicker(
     var lat by remember { mutableDoubleStateOf(initialLat ?: 0.0) }
     var lng by remember { mutableDoubleStateOf(initialLng ?: 0.0) }
     var accuracyMeters by remember { mutableStateOf<Float?>(null) }
+    var capturedAtEpochMillis by remember { mutableStateOf<Long?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -83,6 +84,7 @@ fun SellerShopLocationPicker(
                         lat = result.latitude
                         lng = result.longitude
                         accuracyMeters = result.accuracyMeters
+                        capturedAtEpochMillis = result.capturedAtEpochMillis
                         pickerMode = LocationPickerMode.CAPTURED_CONFIRM
                     }
                     is LocationResult.GpsDisabled -> {
@@ -258,6 +260,14 @@ fun SellerShopLocationPicker(
                                     Text("~${acc.toInt()}m", fontWeight = FontWeight.Medium, fontSize = 13.sp)
                                 }
                             }
+                        }
+                        capturedAtEpochMillis?.let { capturedAt ->
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Captured ${((System.currentTimeMillis() - capturedAt).coerceAtLeast(0) / 1000)} seconds ago",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))

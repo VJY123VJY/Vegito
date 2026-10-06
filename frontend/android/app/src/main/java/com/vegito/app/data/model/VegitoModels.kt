@@ -427,6 +427,10 @@ data class OrderResponseDto(
     @SerializedName("customer_delivery_address") val customerDeliveryAddress: String? = null,
     @SerializedName("delivery_latitude") val deliveryLatitude: Double? = null,
     @SerializedName("delivery_longitude") val deliveryLongitude: Double? = null,
+    @SerializedName("shop_latitude") val shopLatitude: Double? = null,
+    @SerializedName("shop_longitude") val shopLongitude: Double? = null,
+    @SerializedName("customer_latitude") val customerLatitude: Double? = null,
+    @SerializedName("customer_longitude") val customerLongitude: Double? = null,
     @SerializedName("shop_name") val shopName: String? = null,
     @SerializedName("customer_name") val customerName: String? = null,
     @SerializedName("items_count") val itemsCount: Int? = null,
@@ -438,7 +442,14 @@ data class OrderResponseDto(
         status = status,
         totalAmount = totalAmount,
         deliveryFee = deliveryCharge,
+        deliveryAddress = SavedAddress(
+            addressLine = customerDeliveryAddress.orEmpty(),
+            latitude = customerLatitude ?: deliveryLatitude,
+            longitude = customerLongitude ?: deliveryLongitude
+        ),
         sellerName = shopName ?: "Vegito Hub",
+        sellerLat = shopLatitude,
+        sellerLng = shopLongitude,
         customerOtp = deliveryOtp,
         pickupOtp = pickupOtp
     )

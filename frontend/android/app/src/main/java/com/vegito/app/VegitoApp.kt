@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import android.util.Log
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.vegito.app.data.local.SessionManager
@@ -23,6 +24,7 @@ import com.vegito.app.presentation.auth.*
 import com.vegito.app.presentation.b2b.B2BBulkScreen
 import com.vegito.app.presentation.customer.*
 import com.vegito.app.presentation.delivery.*
+import com.vegito.app.utils.LocationHelper
 import com.vegito.app.presentation.seller.*
 import com.vegito.app.ui.components.BottomNavBar
 import com.vegito.app.ui.components.LocationSelectionBottomSheet
@@ -638,31 +640,77 @@ fun VegitoApp() {
                         selectedAddress = selectedAddress,
                         onBack = { navController.popBackStack() },
                         onAddressUpdated = { updatedAddress ->
-                            sessionManager.saveSelectedAddress(updatedAddress)
-                            scope.launch {
-                                repository.saveAddress(
-                                    AddressCreateDto(
-                                        addressLine1 = updatedAddress.addressLine,
-                                        city = updatedAddress.city,
-                                        state = updatedAddress.state,
-                                        pincode = updatedAddress.pincode,
-                                        latitude = updatedAddress.latitude,
-                                        longitude = updatedAddress.longitude,
-                                        landmark = updatedAddress.landmark,
-                                        isDefault = true
-                                    )
+                            val saved = repository.saveAddress(
+                                AddressCreateDto(
+                                    addressLine1 = updatedAddress.addressLine,
+                                    city = updatedAddress.city,
+                                    state = updatedAddress.state,
+                                    pincode = updatedAddress.pincode,
+                                    latitude = updatedAddress.latitude,
+                                    longitude = updatedAddress.longitude,
+                                    landmark = updatedAddress.landmark,
+                                    isDefault = true
                                 )
-                                val refreshed = repository.getUserAddresses()
-                                if (refreshed.isNotEmpty()) savedAddressesList = refreshed
+                            )
+                            if (saved != null) {
+                                sessionManager.saveSelectedAddress(saved)
+                                savedAddressesList = repository.getUserAddresses()
                             }
+                            saved
                         },
                         onCheckDeliveryEligibility = { addr ->
-                            val addrId = addr.id.toIntOrNull() ?: 1
-                            repository.checkDeliveryEligibility(addrId)
+                            val addrId = addr.id.toIntOrNull()
+                            if (addrId == null) null else repository.checkDeliveryEligibility(addrId)
                         },
                         onPlaceOrder = { method ->
-                            scope.launch {
-                                val addrId = selectedAddress?.id?.toIntOrNull() ?: 1
+                            val currentAddr = selectedAddress
+                            if (currentAddr == null || !LocationHelper.isValidCoordinates(currentAddr.latitude, currentAddr.longitude)) {
+                                Log.e("VegitoLocation", "[CHECKOUT] deliveryLatitude: null/invalid, deliveryLongitude: null/invalid")
+                                Log.e("VegitoOrder", "[ORDER] Order placement blocked: Missing or invalid delivery location coordinates")
+                                showGlobalLocationSheet = true
+                                false
+                            } else {
+                                Log.i("VegitoLocation", "[LOCATION] latitude: ${currentAddr.latitude}, longitude: ${currentAddr.longitude}")
+                                Log.i("VegitoLocation", "[CHECKOUT] deliveryLocationSource: selected_address_gps")
+                                Log.i("VegitoLocation", "[CHECKOUT] deliveryLatitude: ${currentAddr.latitude}")
+                                Log.i("VegitoLocation", "[CHECKOUT] deliveryLongitude: ${currentAddr.longitude}")
+
+                                var addrId = currentAddr.id.toIntOrNull() ?: 0
+                                if (addrId <= 0) {
+                                    Log.i("VegitoCheckout", "[CHECKOUT] Address ID missing locally, saving address to backend first...")
+                                    val saved = repository.saveAddress(
+                                        AddressCreateDto(
+                                            addressLine1 = currentAddr.addressLine,
+                                            addressLine2 = currentAddr.landmark,
+                                            city = currentAddr.city.ifBlank { "Solapur" },
+                                            state = currentAddr.state.ifBlank { "Maharashtra" },
+                                            pincode = currentAddr.pincode.ifBlank { "413001" },
+                                            latitude = currentAddr.latitude,
+                                            longitude = currentAddr.longitude,
+                                            landmark = currentAddr.landmark,
+                                            isDefault = true
+                                        )
+                                    )
+                                    if (saved != null && saved.id.toIntOrNull() != null) {
+                                        addrId = saved.id.toInt()
+                                        sessionManager.saveSelectedAddress(saved)
+                                    } else {
+                                        val addrs = repository.getUserAddresses()
+                                        if (addrs.isNotEmpty()) {
+                                            val matched = addrs.find {
+                                                it.latitude != null && it.longitude != null &&
+                                                Math.abs(it.latitude - currentAddr.latitude!!) < 0.0001 &&
+                                                Math.abs(it.longitude - currentAddr.longitude!!) < 0.0001
+                                            } ?: addrs.first()
+                                            addrId = matched.id.toIntOrNull() ?: 1
+                                            sessionManager.saveSelectedAddress(matched)
+                                        } else {
+                                            addrId = 1
+                                        }
+                                    }
+                                }
+
+                                Log.i("VegitoOrder", "[ORDER] sending delivery location: addressId=$addrId, lat=${currentAddr.latitude}, lng=${currentAddr.longitude}")
                                 val serverOrder = repository.createOrder(
                                     addressId = addrId,
                                     paymentMethod = method
@@ -675,18 +723,19 @@ fun VegitoApp() {
                                         status = serverOrder.status,
                                         totalAmount = serverOrder.totalAmount,
                                         deliveryFee = serverOrder.deliveryCharge,
-                                        deliveryAddress = selectedAddress ?: SavedAddress(),
+                                        deliveryAddress = currentAddr,
                                         customerOtp = serverOrder.deliveryOtp ?: "${(1000..9999).random()}",
                                         pickupOtp = serverOrder.pickupOtp
                                     )
                                 } else {
+                                    Log.w("VegitoOrder", "[ORDER] Server order creation returned null, falling back to local order")
                                     Order(
                                         id = "ord_${System.currentTimeMillis()}",
                                         orderNumber = "VEG-${(1000..9999).random()}",
                                         status = "NEW",
                                         totalAmount = cartSummary.grandTotal,
                                         deliveryFee = cartSummary.deliveryFee,
-                                        deliveryAddress = selectedAddress ?: SavedAddress(),
+                                        deliveryAddress = currentAddr,
                                         customerOtp = "${(1000..9999).random()}"
                                     )
                                 }
@@ -701,6 +750,7 @@ fun VegitoApp() {
                                 navController.navigate("customer_tracking") {
                                     popUpTo("customer_home")
                                 }
+                                true
                             }
                         }
                     )

@@ -30,20 +30,37 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun LocationSetupScreen(
-    onLocationConfirmed: (SavedAddress) -> Unit,
+    onLocationConfirmed: suspend (SavedAddress) -> SavedAddress?,
     onSkip: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var detecting by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
     var detectedAddress by remember { mutableStateOf<LocationResult.Success?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showManualEntry by remember { mutableStateOf(false) }
 
     var manualAddressLine by remember { mutableStateOf("") }
-    var manualCity by remember { mutableStateOf("Solapur") }
-    var manualPincode by remember { mutableStateOf("413001") }
+    var manualCity by remember { mutableStateOf("") }
+    var manualPincode by remember { mutableStateOf("") }
+
+    fun confirmAddress(address: SavedAddress) {
+        scope.launch {
+            saving = true
+            errorMessage = null
+            try {
+                if (onLocationConfirmed(address) == null) {
+                    errorMessage = "Could not save your address. Please check your connection and try again."
+                }
+            } catch (e: Exception) {
+                errorMessage = "Could not save your address. Please try again."
+            } finally {
+                saving = false
+            }
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -154,6 +171,20 @@ fun LocationSetupScreen(
                         Text(detectedAddress!!.addressLine, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                         Spacer(modifier = Modifier.height(2.dp))
                         Text("${detectedAddress!!.city} - ${detectedAddress!!.pincode}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "GPS: ${String.format(java.util.Locale.US, "%.6f", detectedAddress!!.latitude)}, " +
+                                String.format(java.util.Locale.US, "%.6f", detectedAddress!!.longitude),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        detectedAddress!!.accuracyMeters?.let { accuracy ->
+                            Text("Accuracy: ${accuracy.toInt()} m", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(
+                            "Captured: ${((System.currentTimeMillis() - detectedAddress!!.capturedAtEpochMillis).coerceAtLeast(0) / 1000)} seconds ago",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
@@ -172,15 +203,16 @@ fun LocationSetupScreen(
                             longitude = detectedAddress!!.longitude,
                             isDefault = true
                         )
-                        onLocationConfirmed(addr)
+                        confirmAddress(addr)
                     },
+                    enabled = !saving,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                 ) {
-                    Text("Confirm Location & Start Shopping", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(if (saving) "Saving Location..." else "Confirm Location & Start Shopping", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
             } else if (showManualEntry) {
                 OutlinedTextField(
@@ -215,27 +247,29 @@ fun LocationSetupScreen(
 
                 Button(
                     onClick = {
-                        if (manualAddressLine.isNotBlank()) {
+                        if (manualAddressLine.isNotBlank() && manualCity.isNotBlank() && manualPincode.isNotBlank()) {
                             val addr = SavedAddress(
                                 id = "addr_${System.currentTimeMillis()}",
                                 title = "Manual Address",
                                 addressLine = manualAddressLine,
                                 city = manualCity,
+                                state = "Maharashtra",
                                 pincode = manualPincode,
-                                latitude = 0.0,
-                                longitude = 0.0,
+                                latitude = null,
+                                longitude = null,
                                 isDefault = true
                             )
-                            onLocationConfirmed(addr)
+                            confirmAddress(addr)
                         }
                     },
+                    enabled = !saving && manualAddressLine.isNotBlank() && manualCity.isNotBlank() && manualPincode.isNotBlank(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                 ) {
-                    Text("Save Address & Start Shopping", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(if (saving) "Saving Address..." else "Save Address & Start Shopping", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
             } else {
                 Button(

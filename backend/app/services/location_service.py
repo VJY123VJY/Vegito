@@ -119,7 +119,22 @@ class LocationService:
         If coordinates are absent, the flow must reject the request with a clear validation error.
         """
         if address.latitude is not None and address.longitude is not None:
-            return float(address.latitude), float(address.longitude)
+            latitude, longitude = float(address.latitude), float(address.longitude)
+            try:
+                calculate_haversine_distance_km(latitude, longitude, latitude, longitude)
+            except ValueError as exc:
+                raise BadRequestException(
+                    message="This delivery address has invalid GPS coordinates. Please re-pin the location.",
+                    code="ADDRESS_COORDINATES_INVALID",
+                    details={"address_id": address.id},
+                ) from exc
+            if latitude == 0 and longitude == 0:
+                raise BadRequestException(
+                    message="This delivery address has invalid GPS coordinates. Please re-pin the location.",
+                    code="ADDRESS_COORDINATES_INVALID",
+                    details={"address_id": address.id},
+                )
+            return latitude, longitude
 
         raise BadRequestException(
             message="This delivery address is missing real GPS coordinates. Please select a valid saved address or re-pin the location.",
@@ -146,9 +161,11 @@ class LocationService:
         if seller_id is not None:
             profile = (
                 db.query(SellerProfile)
-                .filter(or_(SellerProfile.user_id == seller_id, SellerProfile.id == seller_id))
+                .filter(SellerProfile.user_id == seller_id)
                 .first()
             )
+            if not profile:
+                return None, None
         if not profile:
             profile = (
                 db.query(SellerProfile)

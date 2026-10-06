@@ -34,8 +34,8 @@ fun DeliveryMapScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var riderLat by remember { mutableStateOf(17.6740) }
-    var riderLng by remember { mutableStateOf(75.9010) }
+    var riderLat by remember { mutableStateOf<Double?>(null) }
+    var riderLng by remember { mutableStateOf<Double?>(null) }
     var showPickupDialog by remember { mutableStateOf(false) }
     var showCustomerDialog by remember { mutableStateOf(false) }
     var inputOtp by remember { mutableStateOf("") }
@@ -153,30 +153,43 @@ fun DeliveryMapScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Live Interactive Navigation Map
-                VegitoMapView(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(260.dp),
-                    riderLat = riderLat,
-                    riderLng = riderLng,
-                    shopLat = 17.6805,
-                    shopLng = 75.9064,
-                    customerLat = if (task.isPickupVerified) 17.6599 else null,
-                    customerLng = if (task.isPickupVerified) 75.9064 else null,
-                    shopName = task.sellerName ?: "Solapur Mandi",
-                    customerAddress = if (task.isPickupVerified) (task.customerAddress ?: "Doorstep Destination") else "Protected (Unlocked after pickup)",
-                    statusText = if (task.isPickupVerified) "DELIVERING_TO_CUSTOMER" else "EN_ROUTE_TO_PICKUP",
-                    showRoute = true,
-                    onGpsClick = {
-                        scope.launch {
-                            val res = LocationHelper.getFreshLocation(context)
-                            if (res is LocationResult.Success) {
-                                riderLat = res.latitude
-                                riderLng = res.longitude
+                if (riderLat != null && riderLng != null && task.sellerLat != null && task.sellerLng != null) {
+                    VegitoMapView(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp),
+                        riderLat = riderLat,
+                        riderLng = riderLng,
+                        shopLat = task.sellerLat,
+                        shopLng = task.sellerLng,
+                        customerLat = if (task.isPickupVerified) task.customerLat else null,
+                        customerLng = if (task.isPickupVerified) task.customerLng else null,
+                        shopName = task.sellerName.ifBlank { "Seller shop" },
+                        customerAddress = if (task.isPickupVerified) (task.customerAddress ?: "Delivery address") else "Protected until pickup is verified",
+                        statusText = if (task.isPickupVerified) "DELIVERING_TO_CUSTOMER" else "EN_ROUTE_TO_PICKUP",
+                        showRoute = true,
+                        onGpsClick = {
+                            scope.launch {
+                                val res = LocationHelper.getFreshLocation(context)
+                                if (res is LocationResult.Success) {
+                                    riderLat = res.latitude
+                                    riderLng = res.longitude
+                                }
                             }
                         }
+                    )
+                } else {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Text("A live route will appear after GPS and verified shop coordinates are available.")
+                        }
                     }
-                )
+                }
 
                 // Stage 1: Pickup from Seller
                 Card(

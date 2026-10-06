@@ -1,5 +1,8 @@
 package com.vegito.app.presentation.customer
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,6 +23,9 @@ import androidx.compose.ui.unit.sp
 import com.vegito.app.data.model.AddressCreateDto
 import com.vegito.app.data.model.SavedAddress
 import com.vegito.app.ui.theme.VegitoPrimary
+import com.vegito.app.utils.LocationHelper
+import com.vegito.app.utils.LocationResult
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,15 +37,52 @@ fun AddressesScreen(
     onAddAddress: (AddressCreateDto) -> Unit,
     onDeleteAddress: (Int) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showAddDialog by remember { mutableStateOf(false) }
 
     // Dialog state
     var addressLine by remember { mutableStateOf("") }
-    var city by remember { mutableStateOf("Solapur") }
-    var state by remember { mutableStateOf("Maharashtra") }
-    var pincode by remember { mutableStateOf("413001") }
+    var city by remember { mutableStateOf("") }
+    var state by remember { mutableStateOf("") }
+    var pincode by remember { mutableStateOf("") }
     var landmark by remember { mutableStateOf("") }
     var isDefault by remember { mutableStateOf(false) }
+    var latitude by remember { mutableStateOf<Double?>(null) }
+    var longitude by remember { mutableStateOf<Double?>(null) }
+    var isCapturingLocation by remember { mutableStateOf(false) }
+    var locationError by remember { mutableStateOf<String?>(null) }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+            isCapturingLocation = true
+            locationError = null
+            scope.launch {
+                when (val result = LocationHelper.getFreshLocation(context)) {
+                    is LocationResult.Success -> {
+                        latitude = result.latitude
+                        longitude = result.longitude
+                        city = result.city
+                        state = result.state
+                        pincode = result.pincode
+                    }
+                    else -> locationError = when (result) {
+                        is LocationResult.GpsDisabled -> "Turn on GPS and try again."
+                        is LocationResult.PreciseLocationRequired -> result.message
+                        is LocationResult.PermissionDenied -> "Precise location permission is required."
+                        is LocationResult.Timeout -> result.message
+                        is LocationResult.Error -> result.message
+                        is LocationResult.Success -> null
+                    }
+                }
+                isCapturingLocation = false
+            }
+        } else {
+            locationError = "Precise location permission is required."
+        }
+    }
 
     if (showAddDialog) {
         AlertDialog(
@@ -75,6 +119,33 @@ fun AddressesScreen(
                             modifier = Modifier.weight(1f)
                         )
                     }
+                    OutlinedTextField(
+                        value = state,
+                        onValueChange = { state = it },
+                        label = { Text("State") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        },
+                        enabled = !isCapturingLocation,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            when {
+                                isCapturingLocation -> "Detecting precise location..."
+                                latitude != null && longitude != null -> "GPS location captured"
+                                else -> "Capture precise GPS location"
+                            }
+                        )
+                    }
+                    locationError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -90,7 +161,9 @@ fun AddressesScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (addressLine.isNotBlank()) {
+                        if (addressLine.isNotBlank() && city.isNotBlank() && state.isNotBlank() &&
+                            pincode.isNotBlank() && latitude != null && longitude != null
+                        ) {
                             onAddAddress(
                                 AddressCreateDto(
                                     addressLine1 = addressLine.trim(),
@@ -99,15 +172,22 @@ fun AddressesScreen(
                                     pincode = pincode.trim(),
                                     landmark = landmark.ifBlank { null },
                                     isDefault = isDefault,
-                                    latitude = 17.6599,
-                                    longitude = 75.9064
+                                    latitude = latitude,
+                                    longitude = longitude
                                 )
                             )
                             showAddDialog = false
                             addressLine = ""
                             landmark = ""
+                            city = ""
+                            state = ""
+                            pincode = ""
+                            latitude = null
+                            longitude = null
                         }
                     },
+                    enabled = addressLine.isNotBlank() && city.isNotBlank() && state.isNotBlank() &&
+                        pincode.isNotBlank() && latitude != null && longitude != null,
                     colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                 ) {
                     Text("Save Address")

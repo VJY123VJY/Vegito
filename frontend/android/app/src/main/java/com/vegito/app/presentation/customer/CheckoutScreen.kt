@@ -24,6 +24,7 @@ import com.vegito.app.ui.components.LocationSelectionBottomSheet
 import com.vegito.app.ui.theme.VegitoPrimary
 import com.vegito.app.ui.theme.VegitoSecondary
 import com.vegito.app.utils.LocationHelper
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,32 +32,44 @@ fun CheckoutScreen(
     cart: CartSummary,
     selectedAddress: SavedAddress?,
     onBack: () -> Unit,
-    onAddressUpdated: (SavedAddress) -> Unit,
+    onAddressUpdated: suspend (SavedAddress) -> SavedAddress?,
     onCheckDeliveryEligibility: suspend (SavedAddress) -> DeliveryFeeResponse?,
-    onPlaceOrder: (paymentMethod: String) -> Unit
+    onPlaceOrder: suspend (paymentMethod: String, address: SavedAddress) -> Boolean
 ) {
+    val scope = rememberCoroutineScope()
+    var currentAddress by remember(selectedAddress) { mutableStateOf(selectedAddress) }
     var paymentMethod by remember { mutableStateOf("COD") }
     var showLocationSheet by remember { mutableStateOf(false) }
     var isCheckingEligibility by remember { mutableStateOf(false) }
+    var isPlacingOrder by remember { mutableStateOf(false) }
     var eligibilityResponse by remember { mutableStateOf<DeliveryFeeResponse?>(null) }
     var eligibilityError by remember { mutableStateOf<String?>(null) }
+    var orderError by remember { mutableStateOf<String?>(null) }
 
-    val hasValidCoordinates = selectedAddress != null && LocationHelper.isValidCoordinates(
-        selectedAddress.latitude,
-        selectedAddress.longitude
+    LaunchedEffect(selectedAddress) {
+        currentAddress = selectedAddress
+    }
+
+    val addr = currentAddress
+    val hasValidCoordinates = addr != null && LocationHelper.isValidCoordinates(
+        addr.latitude,
+        addr.longitude
     )
 
     // Automatically prompt for location if missing or invalid
-    LaunchedEffect(selectedAddress) {
+    LaunchedEffect(addr) {
+        eligibilityResponse = null
         if (!hasValidCoordinates) {
             showLocationSheet = true
-        } else if (selectedAddress != null) {
+        } else if (addr != null) {
             isCheckingEligibility = true
             eligibilityError = null
             try {
-                val res = onCheckDeliveryEligibility(selectedAddress)
+                val res = onCheckDeliveryEligibility(addr)
                 eligibilityResponse = res
-                if (res != null && !res.isDeliverable) {
+                if (res == null) {
+                    eligibilityError = "Could not verify delivery eligibility. Please try again."
+                } else if (!res.isDeliverable) {
                     eligibilityError = "Sorry, this location is outside the seller's delivery area. (${String.format("%.1f", res.distanceKm)} km from seller)"
                 }
             } catch (e: Exception) {
@@ -67,9 +80,10 @@ fun CheckoutScreen(
         }
     }
 
-    val isDeliverable = hasValidCoordinates && (eligibilityResponse == null || eligibilityResponse?.isDeliverable == true)
+    val isDeliverable = hasValidCoordinates && eligibilityError == null && eligibilityResponse?.isDeliverable == true
     val calculatedDeliveryFee = eligibilityResponse?.deliveryFee ?: cart.deliveryFee
     val finalGrandTotal = (cart.subtotal + calculatedDeliveryFee - cart.discount).coerceAtLeast(0.0)
+    val addressToDisplay = addr
 
     Scaffold(
         topBar = {
@@ -116,24 +130,50 @@ fun CheckoutScreen(
                             }
                         }
                     }
+                    orderError?.let { message ->
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
 
                     Button(
-                        onClick = { onPlaceOrder(paymentMethod) },
-                        enabled = hasValidCoordinates && isDeliverable && !isCheckingEligibility,
+                        onClick = {
+                            scope.launch {
+                                isPlacingOrder = true
+                                orderError = null
+                                try {
+                                    val placed = currentAddress?.let { onPlaceOrder(paymentMethod, it) } ?: false
+                                    if (!placed) {
+                                        orderError = "Your order could not be placed. Please try again."
+                                    }
+                                } catch (e: Exception) {
+                                    orderError = "Your order could not be placed. Please try again."
+                                } finally {
+                                    isPlacingOrder = false
+                                }
+                            }
+                        },
+                        enabled = hasValidCoordinates && isDeliverable && !isCheckingEligibility && !isPlacingOrder,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                     ) {
-                        if (isCheckingEligibility) {
+                        if (isCheckingEligibility || isPlacingOrder) {
                             CircularProgressIndicator(
                                 color = Color.White,
                                 modifier = Modifier.size(24.dp),
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Checking Delivery Radius...", fontSize = 15.sp)
+                            Text(
+                                if (isPlacingOrder) "Placing Order..." else "Checking Delivery Radius...",
+                                fontSize = 15.sp
+                            )
                         } else {
                             Text(
                                 text = "Place Order • ₹${String.format("%.1f", finalGrandTotal)}",
@@ -195,16 +235,16 @@ fun CheckoutScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    if (selectedAddress != null && hasValidCoordinates) {
+                    if (addressToDisplay != null && hasValidCoordinates) {
                         Text(
-                            text = selectedAddress.title,
+                            text = addressToDisplay.title,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = selectedAddress.addressLine,
+                            text = addressToDisplay.addressLine,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp
                         )
@@ -214,7 +254,7 @@ fun CheckoutScreen(
                             color = VegitoPrimary.copy(alpha = 0.08f)
                         ) {
                             Text(
-                                text = "📍 GPS: ${String.format("%.4f", selectedAddress.latitude)}, ${String.format("%.4f", selectedAddress.longitude)} • ${selectedAddress.city}",
+                                text = "GPS: ${String.format("%.4f", addressToDisplay.latitude)}, ${String.format("%.4f", addressToDisplay.longitude)} • ${addressToDisplay.city}",
                                 fontSize = 11.sp,
                                 color = VegitoPrimary,
                                 fontWeight = FontWeight.Medium,
@@ -298,7 +338,7 @@ fun CheckoutScreen(
                     } else if (eligibilityResponse != null) {
                         val dist = eligibilityResponse!!.distanceKm
                         Text(
-                            text = "Distance from seller: ${String.format("%.1f", dist)} km (Max: 15 km)",
+                            text = "Distance from seller: ${String.format("%.1f", dist)} km (Max: ${String.format("%.0f", eligibilityResponse!!.maxAllowedKm)} km)",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -320,7 +360,7 @@ fun CheckoutScreen(
                         }
                     } else {
                         Text(
-                            text = "Standard delivery within 15 km. Free delivery over ₹199.",
+                            text = eligibilityError ?: "Delivery eligibility has not been verified.",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -438,11 +478,20 @@ fun CheckoutScreen(
 
     if (showLocationSheet) {
         LocationSelectionBottomSheet(
-            currentAddress = selectedAddress,
+            currentAddress = currentAddress,
             onDismiss = { showLocationSheet = false },
             onAddressConfirmed = { addr ->
-                onAddressUpdated(addr)
-                showLocationSheet = false
+                scope.launch {
+                    val savedAddress = onAddressUpdated(addr)
+                    if (savedAddress != null) {
+                        currentAddress = savedAddress
+                        eligibilityError = null
+                        orderError = null
+                        showLocationSheet = false
+                    } else {
+                        eligibilityError = "Could not save this delivery address. Please try again."
+                    }
+                }
             }
         )
     }
