@@ -182,11 +182,23 @@ export function LocationModal({ isOpen, onClose, onSelect }: LocationModalProps)
         }, 600);
       }
     } catch (err: any) {
+      if (err?.coordinates) {
+        const lat = err.coordinates.latitude;
+        const lng = err.coordinates.longitude;
+        const fallbackData: SelectedLocationData = {
+          address: `Current Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+          latitude: lat,
+          longitude: lng,
+        };
+        setGeoState("detected");
+        setTimeout(() => {
+          handleSelectLocation(fallbackData);
+        }, 600);
+        return;
+      }
       setGeoState("error");
       if (err?.code === "PERMISSION_DENIED") {
         setGeoError("Location permission denied. Please allow access or select below.");
-      } else if (err?.code === "LOW_ACCURACY") {
-        setGeoError(err.message || "Your location accuracy is low. Please enable GPS and try again.");
       } else {
         setGeoError(err?.message || "Location unavailable. Please select on map or enter manually.");
       }

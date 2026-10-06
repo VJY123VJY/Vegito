@@ -13,6 +13,7 @@ import {
   detectLocationAndValidateEligibility,
   getFreshDeviceCoordinates,
   type LocationDetectionState,
+  type GpsCoordinates,
 } from "@/lib/api/location-helper";
 import type { DeliveryEligibilityData } from "@/lib/api/customers";
 
@@ -33,7 +34,7 @@ export default function CheckoutPage() {
   const [stateName, setStateName] = useState("Maharashtra");
   const [pincode, setPincode] = useState("");
   const [addressType, setAddressType] = useState("HOME");
-  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number }>();
+  const [coordinates, setCoordinates] = useState<GpsCoordinates>();
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [capturedTimestamp, setCapturedTimestamp] = useState<number | null>(null);
   const [reverseGeocodeFailed, setReverseGeocodeFailed] = useState(false);
@@ -287,7 +288,15 @@ export default function CheckoutPage() {
             </div>
           ) : null}
 
-          {/* Low Accuracy Warning */}
+          {/* Low Accuracy Advisory */}
+          {coordinates?.isLowAccuracy && (locState.status === "success" || locState.status === "outside_area") ? (
+            <div style={{ padding: "10px 14px", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: "10px", fontSize: "12px", color: "#92400e", display: "flex", alignItems: "center", gap: "8px" }}>
+              <AlertCircle size={15} color="#b45309" />
+              <span>Location fix is approximate (±{accuracy}m). Please verify or complete your house number and street name below.</span>
+            </div>
+          ) : null}
+
+          {/* Low Accuracy Warning (Fallback) */}
           {locState.status === "low_accuracy" ? (
             <div style={{ padding: "12px 14px", backgroundColor: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: "10px", fontSize: "12.5px", color: "#92400e", display: "flex", flexDirection: "column", gap: "8px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700 }}>
@@ -295,7 +304,7 @@ export default function CheckoutPage() {
                 <span>Your location accuracy is low{accuracy ? ` (±${accuracy}m)` : ""}.</span>
               </div>
               <p style={{ margin: 0, fontSize: "12px", color: "#78350f" }}>
-                Please turn on device GPS/location services for a precise doorstep fix, or enter your delivery address manually.
+                Device reported an approximate location fix. You can enter your delivery address manually or try again.
               </p>
               <div style={{ display: "flex", gap: "8px", marginTop: "2px" }}>
                 <button

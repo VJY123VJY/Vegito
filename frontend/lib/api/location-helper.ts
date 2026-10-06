@@ -7,6 +7,7 @@ export interface GpsCoordinates {
   longitude: number;
   accuracy?: number;
   timestamp?: number;
+  isLowAccuracy?: boolean;
 }
 
 export interface AddressComponents {
@@ -103,22 +104,14 @@ export async function getFreshDeviceCoordinates(options?: {
         timestamp: new Date(timestamp).toISOString(),
       });
 
-      // Verify accuracy against coarse network/IP bounds
-      if (accuracy > maxAccuracyMeters) {
-        const err = new Error(
-          `Your location accuracy is low (±${accuracy}m). Please enable device GPS/location services and try again.`
-        );
-        (err as any).code = "LOW_ACCURACY";
-        (err as any).coordinates = { latitude: lat, longitude: lng, accuracy, timestamp };
-        reject(err);
-        return;
-      }
+      const isLowAccuracy = accuracy > maxAccuracyMeters;
 
       resolve({
         latitude: lat,
         longitude: lng,
         accuracy,
         timestamp,
+        isLowAccuracy,
       });
     };
 
@@ -207,10 +200,12 @@ export async function detectLocationAndValidateEligibility(
 
     onStateChange?.({
       status: "gps_captured",
-      message: `Location captured (±${coords.accuracy}m).`,
+      message: coords.isLowAccuracy
+        ? `Location captured (approximate fix ±${coords.accuracy}m).`
+        : `Location captured (±${coords.accuracy}m).`,
       coordinates: coords,
-      accuracy: coords.accuracy,
-      timestamp: coords.timestamp,
+      accuracy: coords.accuracy || 0,
+      timestamp: coords.timestamp || Date.now(),
     });
 
     onStateChange?.({
@@ -270,7 +265,9 @@ export async function detectLocationAndValidateEligibility(
     if (eligibility.is_eligible) {
       onStateChange?.({
         status: "success",
-        message: eligibility.message || `✓ Delivery available (${eligibility.distance_km} km from seller)`,
+        message: coords.isLowAccuracy
+          ? `✓ Delivery available (${eligibility.distance_km} km from seller, approximate fix)`
+          : (eligibility.message || `✓ Delivery available (${eligibility.distance_km} km from seller)`),
         result,
       });
     } else {

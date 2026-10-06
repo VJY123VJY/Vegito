@@ -145,11 +145,22 @@ export default function SellerAuthPage() {
         setShopAddress(`Shop at GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
         setLocationDetected(true);
       }
+      if (coords.isLowAccuracy) {
+        setError("Location fix is approximate. You can fine-tune your shop pin on the map below.");
+      } else {
+        setError(null);
+      }
     } catch (err: any) {
-      if (err?.code === "PERMISSION_DENIED") {
+      if (err?.coordinates) {
+        const lat = err.coordinates.latitude;
+        const lng = err.coordinates.longitude;
+        setShopLat(lat);
+        setShopLng(lng);
+        setShopAddress(`Shop at GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+        setLocationDetected(true);
+        setError("Location fix is approximate. You can fine-tune your shop pin on the map below.");
+      } else if (err?.code === "PERMISSION_DENIED") {
         setError("Location permission was denied. You can choose shop location on map.");
-      } else if (err?.code === "LOW_ACCURACY") {
-        setError(err.message || "Your location accuracy is low. Please enable GPS or choose on map.");
       } else {
         setError(err?.message || "Could not detect device GPS. Please choose shop location on map.");
       }

@@ -194,10 +194,20 @@ export default function StartShoppingPage() {
         setSelectedLoc(loc);
       }
     } catch (err: any) {
-      if (err?.code === "PERMISSION_DENIED") {
+      if (err?.coordinates) {
+        const lat = err.coordinates.latitude;
+        const lng = err.coordinates.longitude;
+        const loc: SelectedLocationData = {
+          address: `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+          city: "",
+          pincode: "",
+          latitude: lat,
+          longitude: lng,
+        };
+        setSelectedLoc(loc);
+        setError("Location fix is approximate. Please verify or choose on map below.");
+      } else if (err?.code === "PERMISSION_DENIED") {
         setError("Location permission was denied. You can enter address manually or choose on map.");
-      } else if (err?.code === "LOW_ACCURACY") {
-        setError(err.message || "Your location accuracy is low. Please enable device GPS or choose on map.");
       } else {
         setError(err?.message || "Could not detect device GPS. Please enter address manually or choose on map.");
       }
