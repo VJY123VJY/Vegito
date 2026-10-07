@@ -94,3 +94,28 @@ def test_auth_otp_fails_closed_when_provider_is_not_configured(monkeypatch):
 
     with pytest.raises(ServiceUnavailableException):
         OtpService.verify_otp("9876543210", "123456")
+
+
+def test_dev_mode_fallback_on_trial_restriction(monkeypatch):
+    provider_error = TwilioRestException(400, "/Verify", "The destination is not permitted", code=21608)
+    fake_service = SimpleNamespace(
+        v2=SimpleNamespace(
+            services=lambda _: SimpleNamespace(
+                verifications=SimpleNamespace(create=lambda **_: (_ for _ in ()).throw(provider_error))
+            )
+        )
+    )
+    monkeypatch.setattr(OtpService, "is_twilio_configured", staticmethod(lambda: True))
+    monkeypatch.setattr(OtpService, "_twilio_client", staticmethod(lambda: SimpleNamespace(verify=fake_service)))
+    monkeypatch.setattr(settings, "OTP_TEST_MODE", True)
+
+    res = OtpService.send_otp("7758924361")
+    assert res == {"dev_otp": "123456", "fallback": True}
+
+
+def test_dev_mode_verify_accepts_test_code(monkeypatch):
+    monkeypatch.setattr(OtpService, "is_twilio_configured", staticmethod(lambda: True))
+    monkeypatch.setattr(settings, "OTP_TEST_MODE", True)
+
+    assert OtpService.verify_otp("7758924361", "123456") is True
+

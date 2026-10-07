@@ -79,11 +79,13 @@ class AuthService:
                     f"This phone number is already registered under the {user_role_name} role. Please use the {user_role_name} portal."
                 )
 
-        OtpService.send_otp(phone)
+        otp_res = OtpService.send_otp(phone)
+        dev_code = otp_res.get("dev_otp") if isinstance(otp_res, dict) else getattr(settings, "OTP_DEV_CODE", "123456")
 
         return SendOtpResponse(
             message=f"OTP sent successfully to {OtpService.to_e164(phone)}",
             phone=OtpService.to_e164(phone),
+            dev_otp=dev_code,
         )
 
     @staticmethod
@@ -169,11 +171,13 @@ class AuthService:
         if not user.is_active:
             raise ForbiddenException("Your account is deactivated. Please contact support.")
 
-        OtpService.send_otp(phone)
+        otp_res = OtpService.send_otp(phone)
+        dev_code = otp_res.get("dev_otp") if isinstance(otp_res, dict) else getattr(settings, "OTP_DEV_CODE", "123456")
 
         return SendOtpResponse(
             message=f"OTP sent successfully to {OtpService.to_e164(phone)}",
             phone=OtpService.to_e164(phone),
+            dev_otp=dev_code,
         )
 
     @staticmethod

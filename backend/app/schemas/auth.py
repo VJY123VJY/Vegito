@@ -10,6 +10,7 @@ class SendOtpRequest(BaseModel):
 class SendOtpResponse(BaseModel):
     message: str
     phone: str
+    dev_otp: Optional[str] = None
 
 
 class VerifyOtpRequest(BaseModel):

@@ -47,8 +47,8 @@ class Settings(BaseSettings):
     OTP_EXPIRE_MINUTES: int = 5
 
     # Development/test only
-    OTP_DEV_MODE: bool = False
-    OTP_TEST_MODE: bool = False
+    OTP_DEV_MODE: bool = True
+    OTP_TEST_MODE: bool = True
     OTP_DEV_CODE: str = "123456"
     OTP_MAX_ATTEMPTS: int = 5
 
