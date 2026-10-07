@@ -19,6 +19,7 @@ class CartItemRead(BaseSchema):
     cart_id: int
     seller_product_id: int
     product_id: int
+    seller_id: int
     product_name: str
     unit: str
     image_url: Optional[str] = None

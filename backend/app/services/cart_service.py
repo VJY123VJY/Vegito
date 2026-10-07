@@ -63,6 +63,7 @@ class CartService:
                     cart_id=item.cart_id,
                     seller_product_id=sp.id,
                     product_id=product.id,
+                    seller_id=sp.seller_id,
                     product_name=product.name,
                     unit=product.unit,
                     image_url=image_url,
