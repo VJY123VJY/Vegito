@@ -158,47 +158,61 @@ fun SellerAnalyticsScreen(
                 fontWeight = FontWeight.Bold
             )
 
-            val displayTopProducts = if (topProducts.isNotEmpty()) topProducts else listOf(
-                TopProductAnalyticsDto(1, "Solapur Desi Tomato", 48.0, 1920.0),
-                TopProductAnalyticsDto(2, "Red Onion (Kanda)", 35.0, 1225.0),
-                TopProductAnalyticsDto(3, "Fresh Spinach (Palak)", 28.0, 560.0),
-                TopProductAnalyticsDto(4, "Crisp Cauliflower", 16.0, 560.0)
-            )
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    displayTopProducts.forEachIndexed { index, p ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = VegitoPrimary.copy(alpha = 0.15f),
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text("${index + 1}", fontWeight = FontWeight.Bold, color = VegitoPrimary, fontSize = 12.sp)
+            if (topProducts.isEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "No sales recorded yet for this period.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        topProducts.forEachIndexed { index, p ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = VegitoPrimary.copy(alpha = 0.15f),
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text("${index + 1}", fontWeight = FontWeight.Bold, color = VegitoPrimary, fontSize = 12.sp)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(p.productName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                        Text("${p.totalQuantitySold.toInt()} units sold", fontSize = 11.sp, color = Color.Gray)
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(p.productName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                    Text("${p.totalQuantitySold.toInt()} units sold", fontSize = 11.sp, color = Color.Gray)
-                                }
+                                Text("₹${p.totalRevenue.toInt()}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             }
-                            Text("₹${p.totalRevenue.toInt()}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        }
-                        if (index < displayTopProducts.size - 1) {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            if (index < topProducts.size - 1) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            }
                         }
                     }
                 }

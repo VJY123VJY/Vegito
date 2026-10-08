@@ -1,6 +1,9 @@
 package com.vegito.app.presentation.customer
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -50,20 +53,28 @@ fun AddressesScreen(
     var isDefault by remember { mutableStateOf(false) }
     var latitude by remember { mutableStateOf<Double?>(null) }
     var longitude by remember { mutableStateOf<Double?>(null) }
+    var locationIsPrecise by remember { mutableStateOf(false) }
+    var locationAccuracyMeters by remember { mutableStateOf<Float?>(null) }
     var isCapturingLocation by remember { mutableStateOf(false) }
     var locationError by remember { mutableStateOf<String?>(null) }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        ) {
             isCapturingLocation = true
             locationError = null
             scope.launch {
-                when (val result = LocationHelper.getFreshLocation(context)) {
+                latitude = null
+                longitude = null
+                when (val result = LocationHelper.getFreshLocation(context, allowApproximate = true)) {
                     is LocationResult.Success -> {
                         latitude = result.latitude
                         longitude = result.longitude
+                        locationIsPrecise = result.isPrecise
+                        locationAccuracyMeters = result.accuracyMeters
                         city = result.city
                         state = result.state
                         pincode = result.pincode
@@ -80,7 +91,7 @@ fun AddressesScreen(
                 isCapturingLocation = false
             }
         } else {
-            locationError = "Precise location permission is required."
+            locationError = "Location permission is required to detect your current address."
         }
     }
 
@@ -127,6 +138,9 @@ fun AddressesScreen(
                     )
                     OutlinedButton(
                         onClick = {
+                            latitude = null
+                            longitude = null
+                            locationError = null
                             locationPermissionLauncher.launch(
                                 arrayOf(
                                     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -140,12 +154,35 @@ fun AddressesScreen(
                         Text(
                             when {
                                 isCapturingLocation -> "Detecting precise location..."
-                                latitude != null && longitude != null -> "GPS location captured"
-                                else -> "Capture precise GPS location"
+                                latitude != null && longitude != null ->
+                                    if (locationIsPrecise) "Fresh precise location captured"
+                                    else "Fresh approximate location captured"
+                                else -> "Use current device location"
                             }
                         )
                     }
-                    locationError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+                    if (latitude != null && longitude != null) {
+                        Text(
+                            "Accuracy: ${locationAccuracyMeters?.let { "${it.toInt()} m" } ?: "not reported"}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    locationError?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        if (it.contains("permission", ignoreCase = true)) {
+                            TextButton(onClick = {
+                                context.startActivity(
+                                    Intent(
+                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        Uri.fromParts("package", context.packageName, null)
+                                    )
+                                )
+                            }) {
+                                Text("Open App Settings")
+                            }
+                        }
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -186,7 +223,7 @@ fun AddressesScreen(
                             longitude = null
                         }
                     },
-                    enabled = addressLine.isNotBlank() && city.isNotBlank() && state.isNotBlank() &&
+                    enabled = !isCapturingLocation && addressLine.isNotBlank() && city.isNotBlank() && state.isNotBlank() &&
                         pincode.isNotBlank() && latitude != null && longitude != null,
                     colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                 ) {

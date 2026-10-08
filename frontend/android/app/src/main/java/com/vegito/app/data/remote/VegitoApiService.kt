@@ -7,11 +7,35 @@ import retrofit2.http.*
 interface VegitoApiService {
 
     // AUTH
+    @POST("/api/v1/auth/firebase")
+    suspend fun loginWithFirebase(
+        @Header("Authorization") bearerToken: String,
+        @Body request: FirebaseLoginRequestDto? = null
+    ): Response<ApiResponse<TokenResponseDto>>
+
     @POST("/api/v1/auth/send-otp")
     suspend fun sendOtp(@Body request: OtpRequest): Response<ApiResponse<SendOtpResponseDto>>
 
     @POST("/api/v1/auth/verify-otp")
     suspend fun verifyOtp(@Body request: OtpVerifyRequest): Response<ApiResponse<TokenResponseDto>>
+
+    @POST("/api/v1/auth/customer/send-otp")
+    suspend fun sendCustomerOtp(@Body request: OtpRequest): Response<ApiResponse<SendOtpResponseDto>>
+
+    @POST("/api/v1/auth/customer/verify-otp")
+    suspend fun verifyCustomerOtp(@Body request: OtpVerifyRequest): Response<ApiResponse<TokenResponseDto>>
+
+    @POST("/api/v1/auth/seller/send-otp")
+    suspend fun sendSellerOtp(@Body request: OtpRequest): Response<ApiResponse<SendOtpResponseDto>>
+
+    @POST("/api/v1/auth/seller/verify-otp")
+    suspend fun verifySellerOtp(@Body request: OtpVerifyRequest): Response<ApiResponse<TokenResponseDto>>
+
+    @POST("/api/v1/auth/delivery/send-otp")
+    suspend fun sendDeliveryOtp(@Body request: OtpRequest): Response<ApiResponse<SendOtpResponseDto>>
+
+    @POST("/api/v1/auth/delivery/verify-otp")
+    suspend fun verifyDeliveryOtp(@Body request: OtpVerifyRequest): Response<ApiResponse<TokenResponseDto>>
 
     @POST("/api/v1/auth/login")
     suspend fun loginWithPassword(@Body request: PasswordLoginRequestDto): Response<ApiResponse<TokenResponseDto>>
@@ -33,7 +57,10 @@ interface VegitoApiService {
     suspend fun getProducts(
         @Query("category_id") categoryId: Int? = null,
         @Query("search") search: String? = null,
-        @Query("page_size") pageSize: Int = 100
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+        @Query("lat") latitude: Double? = null,
+        @Query("lon") longitude: Double? = null
     ): Response<ApiResponse<PaginatedData<ProductDto>>>
 
     @GET("/api/v1/products/{id}")
@@ -42,6 +69,22 @@ interface VegitoApiService {
     // OFFERS & PROMOTIONS
     @GET("/api/v1/promotions")
     suspend fun getActiveOffers(): Response<ApiResponse<List<PromotionDto>>>
+
+    // CUSTOMER CART
+    @GET("/api/v1/cart")
+    suspend fun getCart(): Response<ApiResponse<CartReadDto>>
+
+    @POST("/api/v1/cart/items")
+    suspend fun addCartItem(@Body request: CartItemAddRequest): Response<ApiResponse<CartReadDto>>
+
+    @PATCH("/api/v1/cart/items/{item_id}")
+    suspend fun updateCartItem(
+        @Path("item_id") itemId: Int,
+        @Body request: CartItemUpdateRequest
+    ): Response<ApiResponse<CartReadDto>>
+
+    @DELETE("/api/v1/cart/items/{item_id}")
+    suspend fun removeCartItem(@Path("item_id") itemId: Int): Response<ApiResponse<CartReadDto>>
 
     // ADDRESSES
     @GET("/api/v1/addresses")

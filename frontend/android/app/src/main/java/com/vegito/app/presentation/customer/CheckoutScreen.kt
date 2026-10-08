@@ -31,8 +31,11 @@ import kotlinx.coroutines.launch
 fun CheckoutScreen(
     cart: CartSummary,
     selectedAddress: SavedAddress?,
+    savedAddresses: List<SavedAddress>,
     onBack: () -> Unit,
+    onSavedAddressSelected: (SavedAddress) -> Unit,
     onAddressUpdated: suspend (SavedAddress) -> SavedAddress?,
+    onRefreshCurrentLocation: suspend () -> SavedAddress?,
     onCheckDeliveryEligibility: suspend (SavedAddress) -> DeliveryFeeResponse?,
     onPlaceOrder: suspend (paymentMethod: String, address: SavedAddress) -> Boolean
 ) {
@@ -40,7 +43,9 @@ fun CheckoutScreen(
     var currentAddress by remember(selectedAddress) { mutableStateOf(selectedAddress) }
     var paymentMethod by remember { mutableStateOf("COD") }
     var showLocationSheet by remember { mutableStateOf(false) }
+    var showSavedAddressesDialog by remember { mutableStateOf(false) }
     var isCheckingEligibility by remember { mutableStateOf(false) }
+    var isRefreshingLocation by remember { mutableStateOf(false) }
     var isPlacingOrder by remember { mutableStateOf(false) }
     var eligibilityResponse by remember { mutableStateOf<DeliveryFeeResponse?>(null) }
     var eligibilityError by remember { mutableStateOf<String?>(null) }
@@ -157,7 +162,44 @@ fun CheckoutScreen(
                                 isPlacingOrder = true
                                 orderError = null
                                 try {
-                                    val placed = currentAddress?.let {
+                                    var addressToPlace = currentAddress
+                                    if (addressToPlace?.capturedAsCurrentLocation == true) {
+                                        isRefreshingLocation = true
+                                        val refreshedAddress = onRefreshCurrentLocation()
+                                        isRefreshingLocation = false
+                                        if (refreshedAddress == null || !LocationHelper.isValidCoordinates(
+                                                refreshedAddress.latitude,
+                                                refreshedAddress.longitude
+                                            )
+                                        ) {
+                                            orderError = "Could not refresh your current location. Please select it again or choose a saved address."
+                                            showLocationSheet = true
+                                            return@launch
+                                        }
+
+                                        addressToPlace = refreshedAddress
+                                        currentAddress = refreshedAddress
+                                        isCheckingEligibility = true
+                                        val freshEligibility = onCheckDeliveryEligibility(refreshedAddress)
+                                        isCheckingEligibility = false
+                                        eligibilityResponse = freshEligibility
+                                        eligibilityError = when {
+                                            freshEligibility == null ->
+                                                "Could not verify delivery eligibility. Please try again."
+                                            !freshEligibility.isDeliverable && !freshEligibility.sellerOnline ->
+                                                "This store is currently offline. Please try again later."
+                                            !freshEligibility.isDeliverable ->
+                                                "This location is outside the selected store's delivery area (${String.format("%.1f", freshEligibility.distanceKm)} km away)."
+                                            else -> null
+                                        }
+                                        if (freshEligibility?.isDeliverable != true) {
+                                            orderError = eligibilityError
+                                                ?: "Delivery is not available at this location."
+                                            return@launch
+                                        }
+                                    }
+
+                                    val placed = addressToPlace?.let {
                                         onPlaceOrder(paymentMethod, it)
                                     } ?: false
                                     if (!placed) {
@@ -166,18 +208,21 @@ fun CheckoutScreen(
                                 } catch (e: Exception) {
                                     orderError = "Your order could not be placed. Please try again."
                                 } finally {
+                                    isRefreshingLocation = false
+                                    isCheckingEligibility = false
                                     isPlacingOrder = false
                                 }
                             }
                         },
-                        enabled = hasValidCoordinates && isDeliverable && !isCheckingEligibility && !isPlacingOrder,
+                        enabled = cart.items.isNotEmpty() && hasValidCoordinates && isDeliverable &&
+                            !isCheckingEligibility && !isRefreshingLocation && !isPlacingOrder,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                     ) {
-                        if (isCheckingEligibility || isPlacingOrder) {
+                        if (isCheckingEligibility || isRefreshingLocation || isPlacingOrder) {
                             CircularProgressIndicator(
                                 color = Color.White,
                                 modifier = Modifier.size(24.dp),
@@ -185,12 +230,17 @@ fun CheckoutScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                if (isPlacingOrder) "Placing Order..." else "Checking Delivery Radius...",
+                                when {
+                                    isPlacingOrder -> "Placing order..."
+                                    isRefreshingLocation -> "Refreshing location..."
+                                    else -> "Checking delivery..."
+                                },
                                 fontSize = 15.sp
                             )
                         } else {
                             Text(
-                                text = "Place Order • ₹${String.format("%.1f", finalGrandTotal)}",
+                                text = if (cart.items.isEmpty()) "Your basket is empty"
+                                else "Place order • ₹${String.format("%.2f", finalGrandTotal)}",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -242,8 +292,19 @@ fun CheckoutScreen(
                             TextButton(onClick = { showLocationSheet = true }) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = VegitoPrimary, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Refresh", color = VegitoPrimary, fontSize = 13.sp)
+                                Text("Use current location", color = VegitoPrimary, fontSize = 13.sp)
                             }
+                        }
+                    }
+
+                    if (savedAddresses.isNotEmpty()) {
+                        TextButton(
+                            onClick = { showSavedAddressesDialog = true },
+                            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Default.Home, contentDescription = "Saved addresses", modifier = Modifier.size(17.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Choose a saved address")
                         }
                     }
 
@@ -262,6 +323,15 @@ fun CheckoutScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 13.sp
                         )
+                        if (addressToDisplay.capturedAsCurrentLocation) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Current device location — it will be refreshed before your order is placed.",
+                                color = VegitoPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
@@ -289,13 +359,13 @@ fun CheckoutScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = "GPS Location Missing",
+                                        text = "Delivery location needed",
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.error,
                                         fontSize = 13.sp
                                     )
                                     Text(
-                                        text = "Please set real GPS delivery coordinates to continue.",
+                                        text = "Choose a saved address or detect your current location to continue.",
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onErrorContainer
                                     )
@@ -304,21 +374,13 @@ fun CheckoutScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Button(
+                    TextButton(
                         onClick = { showLocationSheet = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.EditLocation, contentDescription = "Change", tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Icon(Icons.Default.EditLocation, contentDescription = "Change delivery location")
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (hasValidCoordinates) "Change Location Pin" else "Set Delivery Location Now",
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Text(if (hasValidCoordinates) "Change delivery location" else "Select delivery location")
                     }
                 }
             }
@@ -347,7 +409,7 @@ fun CheckoutScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Calculating distance to nearest seller mandi...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Checking distance to the selected store...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     } else if (eligibilityResponse != null) {
                         val dist = eligibilityResponse!!.distanceKm
@@ -505,6 +567,47 @@ fun CheckoutScreen(
                     } else {
                         eligibilityError = "Could not save this delivery address. Please try again."
                     }
+                }
+            }
+        )
+    }
+
+    if (showSavedAddressesDialog) {
+        AlertDialog(
+            onDismissRequest = { showSavedAddressesDialog = false },
+            title = { Text("Choose a delivery address", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    savedAddresses.forEach { address ->
+                        TextButton(
+                            onClick = {
+                                val selected = address.copy(capturedAsCurrentLocation = false)
+                                currentAddress = selected
+                                onSavedAddressSelected(selected)
+                                eligibilityError = null
+                                orderError = null
+                                showSavedAddressesDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text(address.title, fontWeight = FontWeight.Bold)
+                                Text(
+                                    address.addressLine,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSavedAddressesDialog = false }) {
+                    Text("Close")
                 }
             }
         )

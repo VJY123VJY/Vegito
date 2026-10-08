@@ -138,3 +138,8 @@ class RegisterResponse(BaseModel):
     user_id: int
     phone: str
     role: str
+
+
+class FirebaseLoginRequest(BaseModel):
+    role: Optional[str] = Field(None, description="Optional role context, e.g. CUSTOMER, SELLER, DELIVERY_PARTNER")
+    id_token: Optional[str] = Field(None, description="Optional Firebase ID token if not provided in Authorization header")

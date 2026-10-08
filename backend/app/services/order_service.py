@@ -41,13 +41,22 @@ class OrderService:
     def checkout(db: Session, user: User, order_in: OrderCreate) -> OrderDetailRead:
         """
         Executes an atomic checkout:
-        1. Validates cart items.
-        2. Reserves & commits inventory stock with row-level locks.
+        1. Checks idempotency key to prevent duplicate orders.
+        2. Validates cart items and locks/reserves inventory stock with row-level locks (SELECT ... FOR UPDATE).
         3. Validates coupon.
         4. Calculates server-side financials.
         5. Creates order, order items snapshot, order status history, payment, delivery task.
         6. Clears customer cart.
         """
+        if order_in.idempotency_key:
+            existing_order = db.query(Order).filter(
+                Order.customer_id == user.id,
+                Order.idempotency_key == order_in.idempotency_key
+            ).first()
+            if existing_order:
+                logger.info(f"[IDEMPOTENCY] Returning existing order #{existing_order.order_number} for idempotency_key={order_in.idempotency_key}")
+                return OrderService.get_order_detail(db, user, existing_order.id)
+
         cart = db.query(Cart).filter(Cart.user_id == user.id).first()
         if not cart:
             raise BadRequestException("Cart is empty.")
@@ -71,22 +80,31 @@ class OrderService:
         )
         if not address:
             raise NotFoundException("Selected delivery address was not found.")
-        # Remove hardcoded city check: delivery is determined by real 20 KM GPS radius from seller shop.
+
+        # Sort cart items by seller_product_id ASC to guarantee deterministic lock order and prevent database deadlocks
+        sorted_cart_items = sorted(
+            cart_items,
+            key=lambda ci: ci.seller_product_id if ci.seller_product_id else (ci.seller_product.id if ci.seller_product else 0)
+        )
 
         subtotal = Decimal("0.00")
         items_to_create = []
 
-        # Validate items and calculate server-side subtotal
-        for item in cart_items:
+        # Validate items, lock/reserve inventory with SELECT ... FOR UPDATE in deterministic sorted order, and calculate server-side subtotal
+        for item in sorted_cart_items:
             sp = item.seller_product
             product = sp.product if sp else None
             if not sp or not product or not sp.is_available or not product.is_active:
                 raise BadRequestException(f"Item '{product.name if product else 'Unknown'}' is no longer available.")
 
-            if item.quantity > sp.stock_quantity:
-                raise BadRequestException(
-                    f"Insufficient stock for '{product.name}'. Available: {sp.stock_quantity}, in cart: {item.quantity}."
-                )
+            # Reserve stock with row-level lock (SELECT ... FOR UPDATE) in deterministic sorted order to prevent deadlocks and negative stock
+            InventoryService.reserve_stock(
+                db=db,
+                seller_product_id=sp.id,
+                quantity=item.quantity,
+                reference_id=None,
+                created_by=user.id,
+            )
 
             item_subtotal = round_currency(sp.price * item.quantity)
             subtotal += item_subtotal
@@ -225,6 +243,7 @@ class OrderService:
             delivery_slot_end=order_in.delivery_slot_end,
             customer_note=order_in.customer_note,
             placed_at=datetime.datetime.now(datetime.timezone.utc),
+            idempotency_key=order_in.idempotency_key,
         )
         db.add(order)
         db.flush()

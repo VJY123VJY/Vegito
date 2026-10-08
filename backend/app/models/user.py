@@ -12,6 +12,7 @@ class User(Base):
     role_id: Mapped[int] = mapped_column(SmallInteger, ForeignKey("roles.id"), nullable=False)
     name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    firebase_uid: Mapped[Optional[str]] = mapped_column(String(128), unique=True, nullable=True, index=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

@@ -19,24 +19,38 @@ import androidx.compose.ui.unit.sp
 import com.vegito.app.data.model.Product
 import com.vegito.app.ui.components.ZigZagSection
 import com.vegito.app.ui.theme.VegitoPrimary
+import kotlinx.coroutines.delay
 
 @Composable
 fun SearchScreen(
     products: List<Product>,
+    initialCategory: String? = null,
     onProductClick: (Product) -> Unit,
     onAddToCart: (Product) -> Unit,
-    onToggleFavorite: ((Product) -> Unit)? = null
+    onToggleFavorite: ((Product) -> Unit)? = null,
+    onSearchQueryChange: (String) -> Unit = {},
+    searchError: String? = null
 ) {
     var searchQuery by remember { mutableStateOf(TextFieldValue("")) }
     var selectedCategory by remember { mutableStateOf("ALL") }
     var sortByPrice by remember { mutableStateOf("NONE") } // NONE, ASC, DESC
-    var onlyHighFreshness by remember { mutableStateOf(false) }
+
+    LaunchedEffect(initialCategory) {
+        selectedCategory = initialCategory?.takeIf { category ->
+            products.any { it.category.equals(category, ignoreCase = true) }
+        } ?: "ALL"
+    }
+
+    LaunchedEffect(searchQuery.text) {
+        delay(300L)
+        onSearchQueryChange(searchQuery.text.trim())
+    }
 
     val categories = remember(products) {
         listOf("ALL") + products.map { it.category }.distinct()
     }
 
-    val filtered = remember(searchQuery.text, selectedCategory, sortByPrice, onlyHighFreshness, products) {
+    val filtered = remember(searchQuery.text, selectedCategory, sortByPrice, products) {
         var list = products
 
         if (searchQuery.text.isNotBlank()) {
@@ -48,10 +62,6 @@ fun SearchScreen(
 
         if (selectedCategory != "ALL") {
             list = list.filter { it.category.equals(selectedCategory, ignoreCase = true) }
-        }
-
-        if (onlyHighFreshness) {
-            list = list.filter { it.freshnessPercentage >= 90 }
         }
 
         when (sortByPrice) {
@@ -104,7 +114,7 @@ fun SearchScreen(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Quick Filters & Sort
+        // Sort options
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -112,12 +122,6 @@ fun SearchScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            FilterChip(
-                selected = onlyHighFreshness,
-                onClick = { onlyHighFreshness = !onlyHighFreshness },
-                label = { Text("🌿 Fresh 90%+") }
-            )
-
             FilterChip(
                 selected = sortByPrice == "ASC",
                 onClick = {
@@ -147,10 +151,9 @@ fun SearchScreen(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            if (selectedCategory != "ALL" || onlyHighFreshness || sortByPrice != "NONE") {
+            if (selectedCategory != "ALL" || sortByPrice != "NONE" || searchQuery.text.isNotBlank()) {
                 TextButton(onClick = {
                     selectedCategory = "ALL"
-                    onlyHighFreshness = false
                     sortByPrice = "NONE"
                     searchQuery = TextFieldValue("")
                 }) {
@@ -159,11 +162,29 @@ fun SearchScreen(
             }
         }
 
-        ZigZagSection(
-            products = filtered,
-            onProductClick = onProductClick,
-            onAddToCart = onAddToCart,
-            onToggleFavorite = { onToggleFavorite?.invoke(it) }
-        )
+        if (filtered.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = searchError ?: if (searchQuery.text.isBlank()) {
+                        "No products are currently available in this catalog."
+                    } else {
+                        "No products match your search. Try another name or category."
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            ZigZagSection(
+                products = filtered,
+                onProductClick = onProductClick,
+                onAddToCart = onAddToCart,
+                onToggleFavorite = { onToggleFavorite?.invoke(it) }
+            )
+        }
     }
 }

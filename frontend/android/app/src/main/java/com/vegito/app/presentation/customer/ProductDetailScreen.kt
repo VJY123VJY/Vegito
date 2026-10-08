@@ -70,11 +70,16 @@ fun ProductDetailScreen(
 
                     Button(
                         onClick = { onAddToCart(product, quantity) },
+                        enabled = product.isPurchasable,
                         colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary),
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.height(48.dp)
                     ) {
-                        Text("Add to Cart", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (product.isPurchasable) "Add to Basket" else "Currently unavailable",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -104,12 +109,14 @@ fun ProductDetailScreen(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
-                FreshnessBadge(
-                    percentage = product.freshnessPercentage,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(12.dp)
-                )
+                if (product.freshnessPercentage > 0) {
+                    FreshnessBadge(
+                        percentage = product.freshnessPercentage,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(12.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -120,11 +127,13 @@ fun ProductDetailScreen(
                 fontWeight = FontWeight.Bold
             )
 
-            Text(
-                text = "Sold by ${product.sellerName.ifEmpty { "Solapur Local Farmer" }}",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (product.sellerName.isNotBlank()) {
+                Text(
+                    text = "Sold by ${product.sellerName}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -134,7 +143,11 @@ fun ProductDetailScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "₹${product.price} / ${product.unit}",
+                    text = if (product.isPurchasable) {
+                        "₹${product.price} / ${product.unit}"
+                    } else {
+                        "Currently unavailable"
+                    },
                     fontSize = 22.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = VegitoPrimary
@@ -177,7 +190,7 @@ fun ProductDetailScreen(
             Text("Description & Storage", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = product.description.ifEmpty { "Fresh farm product sourced directly from local Solapur farmers, packed under strict quality and hygiene standards." },
+                text = product.description.ifEmpty { "No product description is available." },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

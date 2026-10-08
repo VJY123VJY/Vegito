@@ -10,9 +10,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
@@ -50,10 +49,18 @@ fun OtpScreen(
         }
     }
 
+    val maskedPhone = remember(phone) {
+        if (phone.length == 10) {
+            "${phone.take(3)} ***** ${phone.takeLast(2)}"
+        } else {
+            phone
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF7FAF8))
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding()
@@ -89,33 +96,35 @@ fun OtpScreen(
                 text = "Verify your number",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF0A4D3C)
+                color = MaterialTheme.colorScheme.onBackground
             )
 
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "We sent a verification code to",
+                text = "We sent a 6-digit verification code to",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF64748B)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            Spacer(modifier = Modifier.height(2.dp))
+
             Text(
-                text = "🇮🇳 +91 ${phone.take(5)} ${phone.takeLast(5)} ($role)",
+                text = "🇮🇳 +91 $maskedPhone (${role.replaceFirstChar { it.uppercase() }})",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = VegitoPrimary
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Animated 4/6 Box OTP Display Row
-            val boxCount = if (otp.text.length > 4) 6 else 4
+            val boxCount = 6
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
+                    .padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
             ) {
                 for (i in 0 until boxCount) {
                     val digitChar = otp.text.getOrNull(i)?.toString() ?: ""
@@ -130,13 +139,13 @@ fun OtpScreen(
 
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = if (isFilled) VegitoPrimary.copy(alpha = 0.08f) else Color.White,
+                        color = if (isFilled) VegitoPrimary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
                         border = BorderStroke(
                             width = if (isFocused) 2.dp else 1.2.dp,
-                            color = if (isFocused) VegitoPrimary else if (isFilled) VegitoPrimary else Color(0xFFCBD5E1)
+                            color = if (isFocused) VegitoPrimary else if (isFilled) VegitoPrimary else MaterialTheme.colorScheme.outlineVariant
                         ),
                         modifier = Modifier
-                            .size(52.dp)
+                            .size(48.dp)
                             .scale(boxScale),
                         shadowElevation = if (isFocused) 3.dp else 0.dp
                     ) {
@@ -167,7 +176,8 @@ fun OtpScreen(
             OutlinedTextField(
                 value = otp,
                 onValueChange = { if (it.text.length <= 6) otp = it },
-                label = { Text("Enter verification code") },
+                label = { Text("Enter 6-digit verification code") },
+                placeholder = { Text("e.g. 123456") },
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = VegitoPrimary) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
@@ -175,18 +185,36 @@ fun OtpScreen(
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = VegitoPrimary,
-                    unfocusedBorderColor = Color(0xFFCBD5E1)
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                 )
             )
 
             errorMessage?.let { err ->
                 Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = err,
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.ErrorOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = err,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -220,7 +248,7 @@ fun OtpScreen(
                 Text(
                     text = "Resend code in ${timerSeconds}s",
                     fontSize = 13.sp,
-                    color = Color(0xFF64748B),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
             } else {
@@ -237,7 +265,7 @@ fun OtpScreen(
 
             if (onChangeNumber != null) {
                 TextButton(onClick = onChangeNumber) {
-                    Text("← Change mobile number", color = Color(0xFF64748B), fontSize = 13.sp)
+                    Text("← Change mobile number", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 }
             }
         }

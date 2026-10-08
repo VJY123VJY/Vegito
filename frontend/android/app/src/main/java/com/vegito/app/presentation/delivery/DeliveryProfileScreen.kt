@@ -17,7 +17,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vegito.app.data.model.DeliveryPartnerProfileDto
 import com.vegito.app.data.model.UserProfile
+import androidx.compose.material.icons.filled.SwapHoriz
 import com.vegito.app.ui.theme.VegitoPrimary
+import com.vegito.app.ui.theme.VegitoSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,6 +27,7 @@ fun DeliveryProfileScreen(
     user: UserProfile?,
     partnerProfile: DeliveryPartnerProfileDto?,
     onBack: () -> Unit,
+    onSwitchRole: ((String) -> Unit)? = null,
     onLogout: () -> Unit
 ) {
     Scaffold(
@@ -142,6 +145,41 @@ fun DeliveryProfileScreen(
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            // Switch Workspace Card
+            if (onSwitchRole != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.SwapHoriz, contentDescription = "Switch", tint = VegitoSecondary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Switch Workspace", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = false,
+                                onClick = { onSwitchRole("customer") },
+                                label = { Text("Customer") }
+                            )
+                            FilterChip(
+                                selected = false,
+                                onClick = { onSwitchRole("seller") },
+                                label = { Text("Seller") }
+                            )
+                            FilterChip(
+                                selected = true,
+                                onClick = {},
+                                label = { Text("Delivery (Active)") }
+                            )
+                        }
+                    }
                 }
             }
 

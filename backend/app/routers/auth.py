@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, status
+from typing import Optional
+from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.core.exceptions import UnauthorizedException
 from app.schemas.auth import (
     SendOtpRequest,
     SendOtpResponse,
@@ -15,6 +17,7 @@ from app.schemas.auth import (
     DeliveryPartnerRegisterRequest,
     RegisterResponse,
     SwitchWorkspaceRequest,
+    FirebaseLoginRequest,
 )
 from app.schemas.user import UserRead
 from app.schemas.common import APIResponse
@@ -64,6 +67,31 @@ def send_otp(payload: SendOtpRequest, db: Session = Depends(get_db)):
 )
 def verify_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
     token_res = AuthService.verify_otp_for_phone(db, payload.phone, payload.otp, payload.role)
+    return APIResponse(message="Authentication successful", data=token_res)
+
+
+# ── FIREBASE PHONE AUTHENTICATION ─────────────────────────────────────────────
+@router.post(
+    "/firebase",
+    response_model=APIResponse[TokenResponse],
+    summary="Authenticate with verified Firebase ID token and obtain Vegito JWT session",
+)
+def firebase_login(
+    payload: Optional[FirebaseLoginRequest] = None,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+):
+    id_token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        id_token = authorization[7:].strip()
+    elif payload and payload.id_token:
+        id_token = payload.id_token.strip()
+
+    if not id_token:
+        raise UnauthorizedException("Firebase ID token must be provided in Authorization: Bearer <token> header.")
+
+    role_context = payload.role if payload else None
+    token_res = AuthService.authenticate_with_firebase(db, id_token, role_context=role_context)
     return APIResponse(message="Authentication successful", data=token_res)
 
 

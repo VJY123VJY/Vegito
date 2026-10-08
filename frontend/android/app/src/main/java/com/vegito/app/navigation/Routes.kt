@@ -23,6 +23,7 @@ object Routes {
     const val CUSTOMER_PROFILE = "customer_profile"
     const val CUSTOMER_ADDRESSES = "customer_addresses"
     const val B2B_BULK = "b2b_bulk"
+    const val DEVELOPER_TOOLS = "developer_tools"
 
     // Seller Workspace
     const val SELLER_DASHBOARD = "seller_dashboard"

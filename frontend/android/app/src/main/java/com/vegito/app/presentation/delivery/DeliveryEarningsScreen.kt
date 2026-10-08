@@ -145,37 +145,44 @@ fun DeliveryEarningsScreen(
 
             Text("Recent Completed Trips", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
-            val displayTrips = if (earningsData.recentTrips.isNotEmpty()) earningsData.recentTrips else listOf(
-                com.vegito.app.data.model.DeliveryTripSummary(1, "VEG-8819", 45.0, 5.0, 3.2, "DELIVERED"),
-                com.vegito.app.data.model.DeliveryTripSummary(2, "VEG-8815", 40.0, 10.0, 2.8, "DELIVERED"),
-                com.vegito.app.data.model.DeliveryTripSummary(3, "VEG-8810", 55.0, 0.0, 4.5, "DELIVERED")
-            )
+            val displayTrips = earningsData.recentTrips
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(displayTrips, key = { it.orderId }) { trip ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            if (displayTrips.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No completed delivery trips recorded yet.", color = Color.Gray, fontSize = 13.sp)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(displayTrips, key = { it.orderId }) { trip ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                         ) {
-                            Column {
-                                Text("Order #${trip.orderNumber}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text("${trip.distanceKm} km • Solapur Local", fontSize = 12.sp, color = Color.Gray)
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("₹${trip.payout + trip.tip}", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = VegitoPrimary)
-                                if (trip.tip > 0) {
-                                    Text("+₹${trip.tip} tip", fontSize = 11.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("Order #${trip.orderNumber}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("${trip.distanceKm} km • Delivery Completed", fontSize = 12.sp, color = Color.Gray)
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text("₹${trip.payout + trip.tip}", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = VegitoPrimary)
+                                    if (trip.tip > 0) {
+                                        Text("+₹${trip.tip} tip", fontSize = 11.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }

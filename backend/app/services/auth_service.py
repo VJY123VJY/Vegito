@@ -24,6 +24,7 @@ from app.schemas.auth import (
 )
 from app.utils.validators import validate_phone_number
 from app.core.security import hash_password, verify_password
+from app.core.firebase import verify_firebase_id_token
 
 
 class AuthService:
@@ -221,6 +222,105 @@ class AuthService:
             phone=user.phone,
             name=user.name,
             is_new_user=False,
+            authorized_roles=authorized_roles,
+        )
+
+    @staticmethod
+    def authenticate_with_firebase(
+        db: Session,
+        firebase_id_token: str,
+        role_context: Optional[str] = None,
+    ) -> TokenResponse:
+        """
+        Authenticates a user via verified Firebase ID Token.
+        Derives phone and external identity from verified token.
+        PostgreSQL remains the source of truth for business role.
+        If user does not exist in PostgreSQL, registers them safely with CUSTOMER role.
+        """
+        verified = verify_firebase_id_token(firebase_id_token)
+        firebase_uid = verified["uid"]
+        phone_e164 = verified.get("phone_number")
+
+        if not phone_e164:
+            raise BadRequestException("Firebase ID token does not have an associated verified phone number.")
+
+        normalized_phone = validate_phone_number(phone_e164)
+
+        # 1. Lookup user by firebase_uid or normalized phone
+        user = None
+        if hasattr(User, "firebase_uid"):
+            user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
+
+        if not user:
+            user = db.query(User).filter(User.phone == normalized_phone).first()
+            if user and hasattr(User, "firebase_uid") and user.firebase_uid != firebase_uid:
+                # Link existing PostgreSQL user to verified Firebase UID
+                user.firebase_uid = firebase_uid
+                if not user.is_verified:
+                    user.is_verified = True
+                db.commit()
+                db.refresh(user)
+
+        is_new_user = False
+        if not user:
+            # Safe default registration is CUSTOMER only
+            customer_role_id = ROLE_ID_MAP[RoleEnum.CUSTOMER]
+            user = User(
+                phone=normalized_phone,
+                role_id=customer_role_id,
+                name=f"User {normalized_phone[-4:]}",
+                is_active=True,
+                is_verified=True,
+            )
+            if hasattr(User, "firebase_uid"):
+                user.firebase_uid = firebase_uid
+            db.add(user)
+            db.flush()
+
+            customer_profile = CustomerProfile(user_id=user.id)
+            db.add(customer_profile)
+            cart = Cart(user_id=user.id)
+            db.add(cart)
+
+            db.commit()
+            db.refresh(user)
+            is_new_user = True
+        else:
+            if not user.is_active:
+                raise ForbiddenException("Your account is deactivated. Please contact support.")
+            if not user.is_verified:
+                user.is_verified = True
+                db.commit()
+
+        user_role_name = ROLE_NAME_MAP.get(user.role_id, "CUSTOMER")
+        authorized_roles = AuthService.get_user_authorized_roles(db, user)
+        active_role = user_role_name
+
+        if role_context:
+            norm_ctx = role_context.strip().upper()
+            if norm_ctx == "DELIVERY":
+                norm_ctx = "DELIVERY_PARTNER"
+            # Only allow role context if user is authorized for that role
+            if norm_ctx in authorized_roles:
+                active_role = norm_ctx
+
+        token_payload: Dict[str, Any] = {
+            "sub": str(user.id),
+            "role": active_role,
+            "phone": user.phone,
+            "firebase_uid": firebase_uid,
+        }
+        access_token = create_access_token(token_payload)
+
+        return TokenResponse(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            user_id=user.id,
+            role=active_role,
+            phone=user.phone,
+            name=user.name,
+            is_new_user=is_new_user,
             authorized_roles=authorized_roles,
         )
 

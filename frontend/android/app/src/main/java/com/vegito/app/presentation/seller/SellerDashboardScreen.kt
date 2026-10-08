@@ -31,7 +31,7 @@ import com.vegito.app.ui.theme.bounceClick
 @Composable
 fun SellerDashboardScreen(
     stats: SellerDashboardStats,
-    storeName: String = "Solapur Mandi Store",
+    storeName: String = "Shree Ganesh Store",
     sellerProfile: SellerProfileDto? = null,
     onToggleOnline: (Boolean) -> Unit,
     onNavigateOrders: () -> Unit,
@@ -44,7 +44,9 @@ fun SellerDashboardScreen(
     onNavigateSettings: () -> Unit,
     onNavigateNotifications: () -> Unit,
     onNavigateB2B: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onSwitchWorkspace: ((String) -> Unit)? = null,
+    onNavigateDeliveryTasks: (() -> Unit)? = null
 ) {
     var isOnline by remember { mutableStateOf(stats.isOnline) }
     var showMenuSheet by remember { mutableStateOf(false) }
@@ -60,17 +62,27 @@ fun SellerDashboardScreen(
         label = "salesAnim"
     )
     val animatedOrders by animateIntAsState(
-        targetValue = stats.activeOrdersCount,
+        targetValue = stats.todayOrdersCount,
         animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
         label = "ordersAnim"
     )
+
+    val hourOfDay = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    val greetingWord = remember(hourOfDay) {
+        when {
+            hourOfDay < 12 -> "GOOD MORNING"
+            hourOfDay < 17 -> "GOOD AFTERNOON"
+            else -> "GOOD EVENING"
+        }
+    }
+    val resolvedStoreName = sellerProfile?.businessName?.takeIf { it.isNotBlank() } ?: storeName
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text(storeName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(resolvedStoreName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
@@ -122,146 +134,311 @@ fun SellerDashboardScreen(
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Online / Offline Toggle Card (Entire card is clickable)
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .clickable {
-                        val newState = !isOnline
-                        isOnline = newState
-                        onToggleOnline(newState)
-                    },
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isOnline) VegitoPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant
-                )
+            // Workspace Switcher (Seller Mode / Delivery Mode)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Live Store Availability", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text(
-                            if (isOnline) "Receiving live customer orders from Solapur • Tap to toggle" else "Store offline • Tap card to go live",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Button(
+                        onClick = { /* Already in seller mode */ },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = VegitoPrimary,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(vertical = 10.dp)
+                    ) {
+                        Icon(Icons.Default.Storefront, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Seller Mode", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
-                    Switch(
-                        checked = isOnline,
-                        onCheckedChange = {
-                            isOnline = it
-                            onToggleOnline(it)
-                        }
-                    )
+
+                    OutlinedButton(
+                        onClick = { onSwitchWorkspace?.invoke("delivery_partner") },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(vertical = 10.dp)
+                    ) {
+                        Icon(Icons.Default.LocalShipping, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Delivery Mode", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
                 }
             }
 
-            // Shop Pickup Location Status Banner
+            // Command Center Header Card
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .clickable { onNavigateSettings() },
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (sellerProfile?.address.isNullOrBlank()) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface
-                ),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                        Icon(
-                            if (sellerProfile?.address.isNullOrBlank()) Icons.Default.Warning else Icons.Default.Storefront,
-                            contentDescription = "Shop Location",
-                            tint = if (sellerProfile?.address.isNullOrBlank()) MaterialTheme.colorScheme.error else VegitoPrimary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (sellerProfile?.address.isNullOrBlank()) "⚠ Shop Location Required" else "✓ Shop Location Set",
+                                text = "$greetingWord, ROHIT 👋",
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = if (sellerProfile?.address.isNullOrBlank()) MaterialTheme.colorScheme.error else VegitoPrimary
+                                color = VegitoPrimary,
+                                letterSpacing = 0.8.sp
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = sellerProfile?.address?.ifBlank { null } ?: "Tap to configure mandatory shop operating location",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
+                                text = resolvedStoreName,
+                                fontSize = 19.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isOnline) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable {
+                                    val newState = !isOnline
+                                    isOnline = newState
+                                    onToggleOnline(newState)
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(9.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isOnline) Color(0xFF2E7D32) else Color(0xFFC62828))
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    if (isOnline) "STORE ONLINE" else "STORE OFFLINE",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isOnline) Color(0xFF2E7D32) else Color(0xFFC62828)
+                                )
+                            }
+                        }
                     }
-                    Text("Change →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = VegitoPrimary)
                 }
             }
 
-            // Metrics Grid (Both cards properly routed)
+            // Priority Center ("NEEDS ATTENTION")
+            if (stats.urgentCount > 0 || stats.newOrdersCount > 0 || stats.readyOrdersCount > 0 || stats.lowStockCount > 0) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.NotificationImportant, contentDescription = "Attention", tint = Color(0xFFF57F17), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("NEEDS ATTENTION", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFF57F17), letterSpacing = 0.5.sp)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (stats.urgentCount > 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFFFEBEE),
+                                    modifier = Modifier.clickable { onNavigateOrders() }
+                                ) {
+                                    Text(
+                                        "⚡ ${stats.urgentCount} Urgent",
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFC62828)
+                                    )
+                                }
+                            }
+                            if (stats.newOrdersCount > 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFFFF3E0),
+                                    modifier = Modifier.clickable { onNavigateOrders() }
+                                ) {
+                                    Text(
+                                        "📥 ${stats.newOrdersCount} New Orders",
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFE65100)
+                                    )
+                                }
+                            }
+                            if (stats.readyOrdersCount > 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFE8F5E9),
+                                    modifier = Modifier.clickable { onNavigateOrders() }
+                                ) {
+                                    Text(
+                                        "✓ ${stats.readyOrdersCount} Ready",
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF2E7D32)
+                                    )
+                                }
+                            }
+                            if (stats.lowStockCount > 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFEDE7F6),
+                                    modifier = Modifier.clickable { onNavigateInventory() }
+                                ) {
+                                    Text(
+                                        "⚠️ ${stats.lowStockCount} Low Stock",
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF512DA8)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // TODAY'S OVERVIEW (All 8 Metrics Clickable)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Card(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { onNavigateAnalytics() },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.AttachMoney, contentDescription = "Sales", tint = VegitoPrimary)
-                            Text("View →", fontSize = 10.sp, color = VegitoPrimary, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text("Today's Sales", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("₹$animatedSales", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
+                Text(
+                    "TODAY'S OVERVIEW",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 0.8.sp
+                )
+                Text(
+                    "Tap metric to view",
+                    fontSize = 11.sp,
+                    color = Color.Gray
+                )
+            }
 
-                Card(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { onNavigateOrders() },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Receipt, contentDescription = "Orders", tint = VegitoPrimary)
-                            Text("View →", fontSize = 10.sp, color = VegitoPrimary, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text("Active Orders", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("$animatedOrders", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            // Row 1: Orders & Revenue
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                DashboardMetricCard(
+                    title = "Orders",
+                    value = "${stats.todayOrdersCount}",
+                    icon = Icons.Default.Receipt,
+                    iconTint = VegitoPrimary,
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateOrders
+                )
+                DashboardMetricCard(
+                    title = "Revenue",
+                    value = "₹$animatedSales",
+                    icon = Icons.Default.CurrencyRupee,
+                    iconTint = Color(0xFF2E7D32),
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateAnalytics
+                )
+            }
+
+            // Row 2: Pending & Packing
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                DashboardMetricCard(
+                    title = "Pending",
+                    value = "${stats.newOrdersCount}",
+                    icon = Icons.Default.HourglassTop,
+                    iconTint = Color(0xFFE65100),
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateOrders
+                )
+                DashboardMetricCard(
+                    title = "Packing",
+                    value = "${stats.activeOrdersCount}",
+                    icon = Icons.Default.Inventory2,
+                    iconTint = Color(0xFF7B1FA2),
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateOrders
+                )
+            }
+
+            // Row 3: Ready & Deliveries
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                DashboardMetricCard(
+                    title = "Ready",
+                    value = "${stats.readyOrdersCount}",
+                    icon = Icons.Default.CheckCircle,
+                    iconTint = Color(0xFF2E7D32),
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateOrders
+                )
+                DashboardMetricCard(
+                    title = "Deliveries",
+                    value = "${stats.outForDeliveryCount}",
+                    icon = Icons.Default.LocalShipping,
+                    iconTint = Color(0xFF00695C),
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        if (onNavigateDeliveryTasks != null) onNavigateDeliveryTasks()
+                        else onNavigateOrders()
                     }
-                }
+                )
+            }
+
+            // Row 4: Urgent & Low Stock
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                DashboardMetricCard(
+                    title = "Urgent",
+                    value = "${stats.urgentCount}",
+                    icon = Icons.Default.Bolt,
+                    iconTint = Color(0xFFC62828),
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateOrders
+                )
+                DashboardMetricCard(
+                    title = "Low Stock",
+                    value = "${stats.lowStockCount}",
+                    icon = Icons.Default.Warning,
+                    iconTint = Color(0xFFF57F17),
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateInventory
+                )
             }
 
             // Quick Management Actions
@@ -532,3 +709,41 @@ private fun DrawerMenuItem(
         )
     }
 }
+
+@Composable
+private fun DashboardMetricCard(
+    title: String,
+    value: String,
+    icon: ImageVector,
+    iconTint: Color = VegitoPrimary,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(20.dp))
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.Gray.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(value, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+            Text(title, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        }
+    }
+}
+

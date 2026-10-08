@@ -6,6 +6,23 @@ from app.core.exceptions import BadRequestException, ServiceUnavailableException
 
 logger = logging.getLogger("vegito.auth.otp")
 
+# ============================================================================
+# IMPORTANT: This OtpService uses Twilio Verify.
+# It is NOT part of the active customer authentication flow.
+# Customer authentication uses Firebase Phone Auth exclusively:
+#   Android → PhoneAuthProvider.verifyPhoneNumber() → Firebase → ID Token
+#   FastAPI → POST /auth/firebase → verify_firebase_id_token() → JWT
+#
+# OtpService is retained for:
+#   - Delivery partner pickup OTP verification (order handoff)
+#   - Admin portal legacy support
+#   - Future B2B use cases
+#
+# DO NOT call OtpService.send_otp / verify_otp for customer login/register.
+# DO NOT set OTP_DEV_MODE=true or OTP_TEST_MODE=true in production .env.
+# ============================================================================
+
+
 
 class OtpService:
     @staticmethod
@@ -28,11 +45,14 @@ class OtpService:
 
     @staticmethod
     def send_otp(phone: str) -> dict:
-        if not OtpService.is_twilio_configured():
-            raise ServiceUnavailableException("Verification service is not configured.")
-
         is_test_mode = getattr(settings, "OTP_TEST_MODE", False) or getattr(settings, "OTP_DEV_MODE", False)
         dev_code = getattr(settings, "OTP_DEV_CODE", "123456")
+
+        if not OtpService.is_twilio_configured():
+            if is_test_mode:
+                logger.info("Twilio not configured but OTP dev/test mode active. Returning dev OTP %s for %s", dev_code, phone)
+                return {"dev_otp": dev_code, "fallback": True}
+            raise ServiceUnavailableException("Verification service is not configured.")
 
         try:
             OtpService._twilio_client().verify.v2.services(
@@ -46,7 +66,6 @@ class OtpService:
                 exc.status,
                 exc.msg,
             )
-            # If test/dev mode is active, fall back gracefully to dev OTP (e.g. for trial accounts)
             if is_test_mode:
                 logger.info("Falling back to dev OTP %s for %s", dev_code, phone)
                 return {"dev_otp": dev_code, "fallback": True}
@@ -63,17 +82,18 @@ class OtpService:
 
     @staticmethod
     def verify_otp(phone: str, otp_code: str) -> bool:
-        if not OtpService.is_twilio_configured():
-            raise ServiceUnavailableException("Verification service is not configured.")
-
         is_test_mode = getattr(settings, "OTP_TEST_MODE", False) or getattr(settings, "OTP_DEV_MODE", False)
         dev_code = getattr(settings, "OTP_DEV_CODE", "123456")
         clean_code = (otp_code or "").strip()
 
-        # In test / dev mode, allow the configured test code
         if is_test_mode and clean_code == dev_code:
-            logger.info("OTP verified via dev/test code for %s", phone)
+            logger.info("OTP verified via dev/test mode for %s", phone)
             return True
+
+        if not OtpService.is_twilio_configured():
+            if is_test_mode and clean_code == dev_code:
+                return True
+            raise ServiceUnavailableException("Verification service is not configured.")
 
         try:
             result = OtpService._twilio_client().verify.v2.services(

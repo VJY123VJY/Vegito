@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 private enum class LocationSheetState {
     OPTIONS,
     DETECTING,
+    SEARCHING_ADDRESS,
     SUCCESS_CONFIRM,
     GPS_DISABLED,
     PERMISSION_DENIED,
@@ -67,10 +68,15 @@ fun LocationSelectionBottomSheet(
         val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
         val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
-        if (fineGranted) {
+        if (fineGranted || coarseGranted) {
             state = LocationSheetState.DETECTING
+            detectedSuccess = null
             scope.launch {
-                when (val result = LocationHelper.getFreshLocation(context)) {
+                when (val result = LocationHelper.getFreshLocation(
+                    context = context,
+                    allowApproximate = true,
+                    onRecentLocation = { detectedSuccess = it }
+                )) {
                     is LocationResult.Success -> {
                         detectedSuccess = result
                         state = LocationSheetState.SUCCESS_CONFIRM
@@ -216,6 +222,28 @@ fun LocationSelectionBottomSheet(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
                             )
+                            detectedSuccess?.let { recent ->
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Using recent location temporarily while checking for a fresh fix: ${recent.addressLine}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+
+                    LocationSheetState.SEARCHING_ADDRESS -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(color = VegitoPrimary)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("Finding coordinates for the entered address...")
                         }
                     }
 
@@ -241,7 +269,12 @@ fun LocationSelectionBottomSheet(
                             }
                             Spacer(modifier = Modifier.height(14.dp))
                             Text(
-                                text = "Current Location Detected",
+                                text = when {
+                                    success?.isAddressMatch == true -> "Address Coordinates Found"
+                                    success?.isFreshFix != true -> "Recent Location"
+                                    success?.isPrecise == true -> "Precise Current Location"
+                                    else -> "Approximate Current Location"
+                                },
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
@@ -257,7 +290,10 @@ fun LocationSelectionBottomSheet(
                                         Icon(Icons.Default.Place, contentDescription = "Pin", tint = VegitoPrimary)
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = success?.area.orEmpty().ifBlank { "Current GPS location" },
+                                            text = success?.area.orEmpty().ifBlank {
+                                                if (success?.isAddressMatch == true) "Entered address"
+                                                else "Current device location"
+                                            },
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 15.sp
                                         )
@@ -268,13 +304,42 @@ fun LocationSelectionBottomSheet(
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                    if (success?.isAddressMatch == true) {
+                                        Text(
+                                            "Coordinates were resolved from the address you entered.",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    } else if (success?.isFreshFix == false) {
+                                        Text(
+                                            "This is a recent location, not a fresh fix. Retry before using it for delivery.",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    } else if (success?.isPrecise == false) {
+                                        Text(
+                                            "Android provided approximate location. Delivery availability will be checked by Vegito.",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "GPS: ${String.format("%.4f", success?.latitude ?: 0.0)}, ${String.format("%.4f", success?.longitude ?: 0.0)} • ${success?.city}, ${success?.pincode}",
+                                        text = listOf(success?.city, success?.pincode)
+                                            .filterNotNull()
+                                            .filter(String::isNotBlank)
+                                            .joinToString(" • "),
                                         fontSize = 12.sp,
                                         color = VegitoPrimary,
                                         fontWeight = FontWeight.Medium
                                     )
+                                    success?.accuracyMeters?.let { accuracy ->
+                                        Text(
+                                            "Reported accuracy: ${accuracy.toInt()} m",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
 
@@ -286,26 +351,34 @@ fun LocationSelectionBottomSheet(
                                         onAddressConfirmed(
                                             SavedAddress(
                                                 id = "loc_${System.currentTimeMillis()}",
-                                                title = success.area.ifBlank { "Current Location" },
+                                                title = success.area.ifBlank {
+                                                    if (success.isAddressMatch) "Manual Address" else "Current Location"
+                                                },
                                                 addressLine = success.addressLine,
                                                 latitude = success.latitude,
                                                 longitude = success.longitude,
                                                 city = success.city,
                                                 pincode = success.pincode,
                                                 state = success.state,
-                                                isDefault = true
+                                                isDefault = true,
+                                                capturedAsCurrentLocation = !success.isAddressMatch
                                             )
                                         )
                                         onDismiss()
                                     }
                                 },
+                                enabled = success?.isFreshFix == true || success?.isAddressMatch == true,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(50.dp),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                             ) {
-                                Text("Use This Location", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text(
+                                    if (success?.isAddressMatch == true) "Use This Address" else "Use This Location",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
@@ -386,13 +459,13 @@ fun LocationSelectionBottomSheet(
                             )
                             Spacer(modifier = Modifier.height(14.dp))
                             Text(
-                                text = "Precise Location Required",
+                                text = "Location Permission Required",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Precise location is required to verify your delivery distance. Enable Precise Location in app settings or enter your address manually.",
+                                text = "Allow location access to detect your current address. Approximate location is supported; delivery availability will still be confirmed by Vegito.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
@@ -413,7 +486,7 @@ fun LocationSelectionBottomSheet(
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                             ) {
-                                Text("Enable Precise Location")
+                                Text("Open App Settings")
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
@@ -540,20 +613,35 @@ fun LocationSelectionBottomSheet(
                             Button(
                                 onClick = {
                                     if (manualAddressLine.isNotBlank()) {
-                                        val addr = SavedAddress(
-                                            id = "man_${System.currentTimeMillis()}",
-                                            title = "Home",
-                                            addressLine = listOfNotNull(manualAddressLine, manualLandmark, manualCity, manualPincode).filter { it.isNotBlank() }.joinToString(", "),
-                                            landmark = manualLandmark.ifBlank { null },
-                                            latitude = null,
-                                            longitude = null,
-                                            city = manualCity,
-                                            pincode = manualPincode,
-                                            state = "Maharashtra",
-                                            isDefault = true
-                                        )
-                                        onAddressConfirmed(addr)
-                                        onDismiss()
+                                        val query = listOf(
+                                            manualAddressLine,
+                                            manualLandmark,
+                                            manualCity,
+                                            manualPincode
+                                        ).filter(String::isNotBlank).joinToString(", ")
+                                        errorMessage = ""
+                                        state = LocationSheetState.SEARCHING_ADDRESS
+                                        scope.launch {
+                                            when (val result = LocationHelper.geocodeAddress(context, query)) {
+                                                is LocationResult.Success -> {
+                                                    detectedSuccess = result.copy(
+                                                        addressLine = query,
+                                                        city = manualCity,
+                                                        pincode = manualPincode,
+                                                        area = manualLandmark
+                                                    )
+                                                    state = LocationSheetState.SUCCESS_CONFIRM
+                                                }
+                                                is LocationResult.Error -> {
+                                                    errorMessage = result.message
+                                                    state = LocationSheetState.ERROR_RETRY
+                                                }
+                                                else -> {
+                                                    errorMessage = "Address search did not return a usable location."
+                                                    state = LocationSheetState.ERROR_RETRY
+                                                }
+                                            }
+                                        }
                                     }
                                 },
                                 enabled = manualAddressLine.isNotBlank(),

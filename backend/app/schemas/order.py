@@ -14,6 +14,7 @@ class OrderCreate(BaseModel):
     delivery_slot_start: Optional[datetime.datetime] = None
     delivery_slot_end: Optional[datetime.datetime] = None
     customer_note: Optional[str] = None
+    idempotency_key: Optional[str] = Field(None, description="Idempotency key for checkout duplicate protection")
 
 
 class OrderItemRead(BaseSchema):

@@ -12,9 +12,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.vegito.app.data.model.CartSummary
 import com.vegito.app.ui.theme.VegitoPrimary
 
@@ -23,7 +25,8 @@ fun CartScreen(
     cart: CartSummary,
     onUpdateQuantity: (itemId: String, newQty: Double) -> Unit,
     onRemoveItem: (itemId: String) -> Unit,
-    onProceedToCheckout: () -> Unit
+    onProceedToCheckout: () -> Unit,
+    onBrowseProducts: () -> Unit
 ) {
     if (cart.items.isEmpty()) {
         Box(
@@ -33,7 +36,15 @@ fun CartScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Your Cart is Empty", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Add fresh vegetables and groceries to continue", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Add fresh vegetables and fruit to get started.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onBrowseProducts,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
+                ) {
+                    Text("Explore fresh produce")
+                }
             }
         }
         return
@@ -43,6 +54,35 @@ fun CartScreen(
         bottomBar = {
             Surface(shadowElevation = 8.dp) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Items", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("₹${cart.subtotal}", color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Delivery", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (cart.deliveryFee <= 0.0) "Free" else "₹${cart.deliveryFee}",
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    if (cart.discount > 0.0) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Discount", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("-₹${cart.discount}", color = VegitoPrimary)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -90,6 +130,14 @@ fun CartScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        AsyncImage(
+                            model = item.product.imageUrl,
+                            contentDescription = item.product.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(64.dp)
+                                .padding(end = 12.dp)
+                        )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(item.product.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text("₹${item.product.price} / ${item.product.unit}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -109,7 +157,7 @@ fun CartScreen(
                                     contentDescription = "Decrease"
                                 )
                             }
-                            Text("${item.quantity.toInt()} ${item.product.unit}", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp))
+                            Text("${item.quantity} ${item.product.unit}", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp))
                             IconButton(
                                 onClick = { onUpdateQuantity(item.id, item.quantity + 1) },
                                 modifier = Modifier.size(32.dp)

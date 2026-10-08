@@ -38,7 +38,9 @@ fun LocationSetupScreen(
 
     var detecting by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
+    var resolvingManualAddress by remember { mutableStateOf(false) }
     var detectedAddress by remember { mutableStateOf<LocationResult.Success?>(null) }
+    var resolvedManualAddress by remember { mutableStateOf<LocationResult.Success?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showManualEntry by remember { mutableStateOf(false) }
 
@@ -68,11 +70,16 @@ fun LocationSetupScreen(
         val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
         val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
-        if (fineGranted) {
+        if (fineGranted || coarseGranted) {
             detecting = true
+            detectedAddress = null
             errorMessage = null
             scope.launch {
-                when (val result = LocationHelper.getFreshLocation(context)) {
+                when (val result = LocationHelper.getFreshLocation(
+                    context = context,
+                    allowApproximate = true,
+                    onRecentLocation = { detectedAddress = it }
+                )) {
                     is LocationResult.Success -> {
                         detectedAddress = result
                         detecting = false
@@ -158,7 +165,20 @@ fun LocationSetupScreen(
             if (detecting) {
                 CircularProgressIndicator(color = VegitoPrimary)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Detecting your current location...", fontSize = 14.sp)
+                Text(
+                    if (detectedAddress == null) "Detecting your current location..."
+                    else "Using recent location temporarily • checking for a fresh fix...",
+                    fontSize = 14.sp
+                )
+                detectedAddress?.let { recent ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        recent.addressLine,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
             } else if (detectedAddress != null) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -166,19 +186,29 @@ fun LocationSetupScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Detected Location:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = VegitoPrimary)
+                        Text(
+                            when {
+                                detectedAddress!!.isFreshFix && detectedAddress!!.isPrecise -> "Fresh precise location:"
+                                detectedAddress!!.isFreshFix -> "Fresh approximate location:"
+                                else -> "Recent location (not fresh):"
+                            },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = VegitoPrimary
+                        )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(detectedAddress!!.addressLine, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                         Spacer(modifier = Modifier.height(2.dp))
                         Text("${detectedAddress!!.city} - ${detectedAddress!!.pincode}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            "GPS: ${String.format(java.util.Locale.US, "%.6f", detectedAddress!!.latitude)}, " +
-                                String.format(java.util.Locale.US, "%.6f", detectedAddress!!.longitude),
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                         detectedAddress!!.accuracyMeters?.let { accuracy ->
                             Text("Accuracy: ${accuracy.toInt()} m", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (!detectedAddress!!.isFreshFix) {
+                            Text(
+                                "Retry to get a fresh location before confirming.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
                         }
                         Text(
                             "Captured: ${((System.currentTimeMillis() - detectedAddress!!.capturedAtEpochMillis).coerceAtLeast(0) / 1000)} seconds ago",
@@ -201,11 +231,12 @@ fun LocationSetupScreen(
                             pincode = detectedAddress!!.pincode,
                             latitude = detectedAddress!!.latitude,
                             longitude = detectedAddress!!.longitude,
-                            isDefault = true
+                            isDefault = true,
+                            capturedAsCurrentLocation = true
                         )
                         confirmAddress(addr)
                     },
-                    enabled = !saving,
+                    enabled = !saving && detectedAddress!!.isFreshFix,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
@@ -214,10 +245,36 @@ fun LocationSetupScreen(
                 ) {
                     Text(if (saving) "Saving Location..." else "Confirm Location & Start Shopping", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
+                if (!detectedAddress!!.isFreshFix) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            errorMessage = null
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Try Again")
+                    }
+                    TextButton(onClick = {
+                        detectedAddress = null
+                        showManualEntry = true
+                    }) {
+                        Text("Enter Address Manually")
+                    }
+                }
             } else if (showManualEntry) {
                 OutlinedTextField(
                     value = manualAddressLine,
-                    onValueChange = { manualAddressLine = it },
+                    onValueChange = {
+                        manualAddressLine = it
+                        resolvedManualAddress = null
+                    },
                     label = { Text("Street Address / Area") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -227,7 +284,10 @@ fun LocationSetupScreen(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = manualCity,
-                        onValueChange = { manualCity = it },
+                        onValueChange = {
+                            manualCity = it
+                            resolvedManualAddress = null
+                        },
                         label = { Text("City") },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
@@ -235,11 +295,24 @@ fun LocationSetupScreen(
                     )
                     OutlinedTextField(
                         value = manualPincode,
-                        onValueChange = { manualPincode = it },
+                        onValueChange = {
+                            manualPincode = it
+                            resolvedManualAddress = null
+                        },
                         label = { Text("Pincode") },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true
+                    )
+                }
+
+                resolvedManualAddress?.let { match ->
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        "Address coordinates found for ${match.city.ifBlank { manualCity }}. Confirm to use this geocoded location.",
+                        fontSize = 13.sp,
+                        color = VegitoPrimary,
+                        textAlign = TextAlign.Center
                     )
                 }
 
@@ -248,28 +321,56 @@ fun LocationSetupScreen(
                 Button(
                     onClick = {
                         if (manualAddressLine.isNotBlank() && manualCity.isNotBlank() && manualPincode.isNotBlank()) {
-                            val addr = SavedAddress(
-                                id = "addr_${System.currentTimeMillis()}",
-                                title = "Manual Address",
-                                addressLine = manualAddressLine,
-                                city = manualCity,
-                                state = "Maharashtra",
-                                pincode = manualPincode,
-                                latitude = null,
-                                longitude = null,
-                                isDefault = true
-                            )
-                            confirmAddress(addr)
+                            val match = resolvedManualAddress
+                            if (match != null) {
+                                confirmAddress(
+                                    SavedAddress(
+                                        id = "addr_${System.currentTimeMillis()}",
+                                        title = "Manual Address",
+                                        addressLine = manualAddressLine,
+                                        city = manualCity,
+                                        state = match.state,
+                                        pincode = manualPincode,
+                                        latitude = match.latitude,
+                                        longitude = match.longitude,
+                                        isDefault = true,
+                                        capturedAsCurrentLocation = false
+                                    )
+                                )
+                            } else {
+                                resolvingManualAddress = true
+                                errorMessage = null
+                                scope.launch {
+                                    val query = listOf(manualAddressLine, manualCity, manualPincode)
+                                        .joinToString(", ")
+                                    when (val result = LocationHelper.geocodeAddress(context, query)) {
+                                        is LocationResult.Success -> resolvedManualAddress = result
+                                        is LocationResult.Error -> errorMessage = result.message
+                                        else -> errorMessage = "Address search did not return a usable location."
+                                    }
+                                    resolvingManualAddress = false
+                                }
+                            }
                         }
                     },
-                    enabled = !saving && manualAddressLine.isNotBlank() && manualCity.isNotBlank() && manualPincode.isNotBlank(),
+                    enabled = !saving && !resolvingManualAddress &&
+                        manualAddressLine.isNotBlank() && manualCity.isNotBlank() && manualPincode.isNotBlank(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                 ) {
-                    Text(if (saving) "Saving Address..." else "Save Address & Start Shopping", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(
+                        when {
+                            saving -> "Saving Address..."
+                            resolvingManualAddress -> "Finding Address..."
+                            resolvedManualAddress != null -> "Confirm Address & Start Shopping"
+                            else -> "Find Address Coordinates"
+                        },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
                 }
             } else {
                 Button(

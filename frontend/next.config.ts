@@ -3,12 +3,14 @@ import path from "path";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  distDir: process.env.NODE_ENV === "production" ? ".next-production" : ".next",
   output: process.env.NODE_ENV === "production" ? "export" : undefined,
   reactStrictMode: true,
   // Keep static Android builds reliable on Windows environments where the
   // separate webpack build worker cannot be spawned.
   experimental: {
     webpackBuildWorker: false,
+    devtoolSegmentExplorer: false,
   },
   images: {
     unoptimized: true,

@@ -86,8 +86,8 @@ def test_twilio_send_returns_safe_provider_diagnostic(monkeypatch):
 
 def test_auth_otp_fails_closed_when_provider_is_not_configured(monkeypatch):
     monkeypatch.setattr(OtpService, "is_twilio_configured", staticmethod(lambda: False))
-    monkeypatch.setattr(settings, "OTP_TEST_MODE", True)
-    monkeypatch.setattr(settings, "OTP_DEV_MODE", True)
+    monkeypatch.setattr(settings, "OTP_TEST_MODE", False)
+    monkeypatch.setattr(settings, "OTP_DEV_MODE", False)
 
     with pytest.raises(ServiceUnavailableException):
         OtpService.send_otp("9876543210")

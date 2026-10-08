@@ -256,6 +256,7 @@ export default function StartShoppingPage() {
 
   return (
     <main
+      className="auth-page"
       style={{
         minHeight: "100vh",
         backgroundColor: "var(--vegito-bg, #f8faf7)",

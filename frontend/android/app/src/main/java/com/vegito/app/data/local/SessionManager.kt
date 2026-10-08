@@ -25,9 +25,18 @@ class SessionManager(context: Context) {
     }
 
     fun saveTokenResponse(tokenRes: com.vegito.app.data.model.TokenResponseDto) {
+        val previousUserId = getUser()?.id
+        val nextUserId = tokenRes.userId.toString()
+        if (!previousUserId.isNullOrBlank() && previousUserId != nextUserId) {
+            prefs.edit()
+                .remove(KEY_ADDRESS)
+                .remove(KEY_ADDRESS_OWNER_ID)
+                .apply()
+            selectedAddressFlow.value = null
+        }
         saveAuthToken(tokenRes.accessToken)
         val profile = UserProfile(
-            id = tokenRes.userId.toString(),
+            id = nextUserId,
             phone = tokenRes.phone,
             name = tokenRes.name,
             role = tokenRes.role.lowercase(),
@@ -80,11 +89,24 @@ class SessionManager(context: Context) {
 
     fun saveSelectedAddress(address: SavedAddress) {
         val json = gson.toJson(address)
-        prefs.edit().putString(KEY_ADDRESS, json).apply()
+        prefs.edit()
+            .putString(KEY_ADDRESS, json)
+            .putString(KEY_ADDRESS_OWNER_ID, getUser()?.id)
+            .apply()
         selectedAddressFlow.value = address
     }
 
+    fun clearSelectedAddress() {
+        prefs.edit()
+            .remove(KEY_ADDRESS)
+            .remove(KEY_ADDRESS_OWNER_ID)
+            .apply()
+        selectedAddressFlow.value = null
+    }
+
     fun getSelectedAddress(): SavedAddress? {
+        val currentUserId = getUser()?.id ?: return null
+        if (prefs.getString(KEY_ADDRESS_OWNER_ID, null) != currentUserId) return null
         val json = prefs.getString(KEY_ADDRESS, null) ?: return null
         return try {
             gson.fromJson(json, SavedAddress::class.java)
@@ -112,5 +134,6 @@ class SessionManager(context: Context) {
         private const val KEY_LANGUAGE = "app_language"
         private const val KEY_THEME = "app_theme"
         private const val KEY_ADDRESS = "selected_address"
+        private const val KEY_ADDRESS_OWNER_ID = "selected_address_owner_id"
     }
 }

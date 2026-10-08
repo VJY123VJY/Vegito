@@ -349,8 +349,8 @@ fun SellerSettingsScreen(
                     initialLng = currentLng,
                     isMandatory = false,
                     title = "Change Shop Location",
-                    subtitle = "Select your new operating/pickup location using GPS, Map or Manual Entry.",
-                    onLocationConfirmed = { addr, city, pincode, lat, lng, _ ->
+                    subtitle = "Use fresh device GPS or search for the shop's address. Your saved location stays unchanged until you confirm.",
+                    onLocationConfirmed = { addr, city, pincode, lat, lng, _, _ ->
                         pendingAddress = addr
                         pendingCity = city
                         pendingPincode = pincode

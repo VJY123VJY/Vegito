@@ -82,19 +82,20 @@ fun CompactProductCard(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Top-Left: Living Freshness Pill
-                Surface(
-                    shape = RoundedCornerShape(bottomEnd = VegitoRadius.Badge),
-                    color = VegitoPrimary.copy(alpha = 0.92f),
-                    modifier = Modifier.align(Alignment.TopStart)
-                ) {
-                    Text(
-                        text = "⚡ ${product.freshnessPercentage}% Fresh",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+                if (product.freshnessPercentage > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(bottomEnd = VegitoRadius.Badge),
+                        color = VegitoPrimary.copy(alpha = 0.92f),
+                        modifier = Modifier.align(Alignment.TopStart)
+                    ) {
+                        Text(
+                            text = "⚡ ${product.freshnessPercentage}% Fresh",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
 
                 // Top-Right: Tactile Heart Favorite Button
@@ -165,21 +166,39 @@ fun CompactProductCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(
-                        text = "₹${product.price.toInt()}",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp,
-                        color = VegitoPrimary
-                    )
-                    Text(
-                        text = "per ${product.unit}",
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (product.isPurchasable) {
+                        Text(
+                            text = "₹${product.price} / ${product.unit}",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.sp,
+                            color = VegitoPrimary
+                        )
+                    } else {
+                        Text(
+                            text = "Currently unavailable",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 // Interactive Add Pill or Animated Quantity Controller
                 if (currentQuantity <= 0.0) {
+                    if (!product.isPurchasable) {
+                        Surface(
+                            shape = RoundedCornerShape(VegitoRadius.Chip),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Text(
+                                text = "Unavailable",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                            )
+                        }
+                    } else {
                     Surface(
                         shape = RoundedCornerShape(VegitoRadius.Chip),
                         color = VegitoPrimary.copy(alpha = 0.12f),
@@ -205,6 +224,7 @@ fun CompactProductCard(
                                 color = VegitoPrimary
                             )
                         }
+                    }
                     }
                 } else {
                     Surface(

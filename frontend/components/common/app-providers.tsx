@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/context/theme-context";
 import { I18nProvider } from "@/context/i18n-context";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { SessionExpiredModal } from "@/components/common/session-expired-modal";
 import { LocationProvider } from "@/context/location-context";
 import { LocationBar } from "@/components/common/location-bar";
@@ -32,6 +32,12 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       })
   );
   const router = useRouter();
+  const pathname = usePathname();
+  const showLocationBar =
+    pathname !== "/" &&
+    pathname !== "/auth" &&
+    !pathname.startsWith("/auth/") &&
+    pathname !== "/start-shopping";
 
   useEffect(() => {
     const handleAuthStateChange = () => {
@@ -79,7 +85,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <I18nProvider>
         <QueryClientProvider client={client}>
           <LocationProvider>
-            <LocationBar />
+            {showLocationBar && <LocationBar />}
             {children}
             <SessionExpiredModal />
           </LocationProvider>

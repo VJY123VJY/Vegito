@@ -6,6 +6,7 @@ import com.google.gson.JsonParser
 import com.vegito.app.data.model.*
 import com.vegito.app.data.remote.VegitoApiService
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import retrofit2.Response
 
 class VegitoRepository(private val apiService: VegitoApiService) {
@@ -16,6 +17,52 @@ class VegitoRepository(private val apiService: VegitoApiService) {
     sealed interface AuthResult<out T> {
         data class Success<T>(val data: T) : AuthResult<T>
         data class Failure(val message: String) : AuthResult<Nothing>
+    }
+
+    sealed interface CartResult {
+        data class Success(val cart: CartReadDto) : CartResult
+        data class Failure(val message: String) : CartResult
+    }
+
+    sealed interface CatalogResult {
+        data class Success(
+            val products: List<Product>,
+            val totalCount: Int,
+            val pageCount: Int
+        ) : CatalogResult
+
+        data class Failure(val httpStatus: Int?, val message: String) : CatalogResult
+    }
+
+    sealed interface DemoSessionResult {
+        data class Authenticated(val user: UserProfile) : DemoSessionResult
+        data class Failure(val httpStatus: Int?, val message: String) : DemoSessionResult
+    }
+
+    suspend fun verifyDemoSession(): DemoSessionResult {
+        return try {
+            val response = apiService.getProfile()
+            val body = response.body()
+            if (response.isSuccessful && body?.success == true && body.data != null) {
+                DemoSessionResult.Authenticated(body.data)
+            } else {
+                val backendMessage = body?.error?.message
+                    ?: body?.message
+                    ?: parseBackendMessage(response.errorBody()?.string())
+                DemoSessionResult.Failure(
+                    httpStatus = response.code(),
+                    message = backendMessage ?: "Session verification failed (HTTP ${response.code()})."
+                )
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            Log.w(TAG, "Demo session verification failed (${error.javaClass.simpleName})")
+            DemoSessionResult.Failure(null, "Unable to reach the configured Vegito API.")
+        } catch (error: JsonParseException) {
+            Log.e(TAG, "Demo session response parsing failed (${error.javaClass.simpleName})")
+            DemoSessionResult.Failure(null, "The API returned an invalid session response.")
+        }
     }
 
     private suspend fun <T : Any> authRequest(
@@ -42,16 +89,19 @@ class VegitoRepository(private val apiService: VegitoApiService) {
 
     private fun authErrorMessage(statusCode: Int, responseBody: String?): String {
         val backendMessage = parseBackendMessage(responseBody)
+        if (!backendMessage.isNullOrBlank()) {
+            return backendMessage
+        }
         return when (statusCode) {
-            400, 422 -> backendMessage ?: "Please check the information and try again."
-            401 -> "Your authentication request was not accepted. Please try again."
-            403 -> backendMessage ?: "You are not authorized to use this account."
-            404 -> "Authentication service unavailable."
-            409 -> backendMessage ?: "This mobile number is already registered. Please sign in."
-            429 -> "Too many attempts. Please wait before requesting another code."
+            400, 422 -> "Please check the entered information and try again."
+            401 -> "Invalid credentials or verification code. Please try again."
+            403 -> "You are not authorized for this account role."
+            404 -> "Account not found with this mobile number. Please register first."
+            409 -> "This mobile number is already registered. Please sign in."
+            429 -> "Too many attempts. Please wait a minute before requesting another code."
             503 -> "Verification service is temporarily unavailable. Please try again."
-            in 500..599 -> "Vegito server is temporarily unavailable. Please try again."
-            else -> backendMessage ?: "Request failed (HTTP $statusCode). Please try again."
+            in 500..599 -> "Vegito server is temporarily busy. Please try again in a moment."
+            else -> "Request failed (HTTP $statusCode). Please try again."
         }
     }
 
@@ -61,36 +111,86 @@ class VegitoRepository(private val apiService: VegitoApiService) {
             val root = JsonParser.parseString(responseBody)
             if (!root.isJsonObject) return null
             val json = root.asJsonObject
+
+            // 1. Check "error.message"
             val error = json.get("error")
             if (error?.isJsonObject == true) {
                 val message = error.asJsonObject.get("message")
                 if (message?.isJsonPrimitive == true && message.asJsonPrimitive.isString) {
-                    return message.asString
+                    val str = message.asString.trim()
+                    if (str.isNotEmpty()) return str
                 }
             }
+
+            // 2. Check root "message"
+            val rootMsg = json.get("message")
+            if (rootMsg?.isJsonPrimitive == true && rootMsg.asJsonPrimitive.isString) {
+                val str = rootMsg.asString.trim()
+                if (str.isNotEmpty()) return str
+            }
+
+            // 3. Check "detail" (string or array)
             val detail = json.get("detail")
             if (detail?.isJsonPrimitive == true && detail.asJsonPrimitive.isString) {
-                detail.asString
-            } else {
-                null
+                val str = detail.asString.trim()
+                if (str.isNotEmpty()) return str
+            } else if (detail?.isJsonArray == true && detail.asJsonArray.size() > 0) {
+                val firstErr = detail.asJsonArray.get(0)
+                if (firstErr.isJsonObject) {
+                    val msg = firstErr.asJsonObject.get("msg")
+                    if (msg?.isJsonPrimitive == true && msg.asJsonPrimitive.isString) {
+                        return msg.asString
+                    }
+                }
             }
-        } catch (error: JsonParseException) {
+            null
+        } catch (error: Exception) {
             Log.w(TAG, "Authentication error response parsing failed (${error.javaClass.simpleName})")
             null
         }
     }
 
     // AUTHENTICATION
-    suspend fun sendOtp(phone: String, role: String? = null): AuthResult<SendOtpResponseDto> =
-        authRequest { apiService.sendOtp(OtpRequest(phone = phone, role = role)) }
+    suspend fun loginWithFirebase(
+        firebaseIdToken: String,
+        role: String? = null
+    ): AuthResult<TokenResponseDto> {
+        return authRequest {
+            apiService.loginWithFirebase(
+                bearerToken = "Bearer $firebaseIdToken",
+                request = FirebaseLoginRequestDto(role = role)
+            )
+        }
+    }
+
+    suspend fun sendOtp(phone: String, role: String? = null): AuthResult<SendOtpResponseDto> {
+        val req = OtpRequest(phone = phone, role = role)
+        return authRequest {
+            when (role?.uppercase()) {
+                "CUSTOMER" -> apiService.sendCustomerOtp(req)
+                "SELLER" -> apiService.sendSellerOtp(req)
+                "DELIVERY_PARTNER", "DELIVERY" -> apiService.sendDeliveryOtp(req)
+                else -> apiService.sendOtp(req)
+            }
+        }
+    }
 
     suspend fun verifyOtp(
         phone: String,
         otp: String,
         role: String? = null,
         name: String? = null
-    ): AuthResult<TokenResponseDto> =
-        authRequest { apiService.verifyOtp(OtpVerifyRequest(phone = phone, otp = otp, role = role, name = name)) }
+    ): AuthResult<TokenResponseDto> {
+        val req = OtpVerifyRequest(phone = phone, otp = otp, role = role, name = name)
+        return authRequest {
+            when (role?.uppercase()) {
+                "CUSTOMER" -> apiService.verifyCustomerOtp(req)
+                "SELLER" -> apiService.verifySellerOtp(req)
+                "DELIVERY_PARTNER", "DELIVERY" -> apiService.verifyDeliveryOtp(req)
+                else -> apiService.verifyOtp(req)
+            }
+        }
+    }
 
     suspend fun switchWorkspace(targetRole: String): TokenResponseDto? {
         return try {
@@ -179,105 +279,120 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         }
     }
 
-    // Default Fallback Categories
-    val defaultCategories = listOf(
-        Category("1", "Vegetables", "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300", 35),
-        Category("2", "Fruits", "https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=300", 28),
-        Category("3", "Leafy Vegetables", "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=300", 12),
-        Category("4", "Root Vegetables", "https://images.unsplash.com/photo-1598170845058-12ef4a457939?w=300", 8),
-        Category("50", "Fruit Vegetables", "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=300", 14),
-        Category("51", "Gourds", "https://images.unsplash.com/photo-1601004890684-d8cbf643f5f2?w=300", 7),
-        Category("52", "Beans & Peas", "https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?w=300", 6),
-        Category("53", "Cruciferous", "https://images.unsplash.com/photo-1568584711075-3d021a7c3ca3?w=300", 5),
-        Category("56", "Citrus Fruits", "https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?w=300", 6),
-        Category("57", "Tropical Fruits", "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=300", 8),
-        Category("58", "Melons", "https://images.unsplash.com/photo-1587049352847-81a56d773cae?w=300", 4),
-        Category("59", "Berries & Stone", "https://images.unsplash.com/photo-1537640538966-79f369143f8f?w=300", 7),
-        Category("60", "Exotic Fruits", "https://images.unsplash.com/photo-1585059819970-31398467b243?w=300", 5)
-    )
 
-    // Comprehensive Vegetable & Fruit Catalog
-    val fullCatalog = listOf(
-        // VEGETABLES - Root & Tubers
-        Product("v1", "Solapur Potato (Batata)", "Vegetables", 32.0, "kg", 500.0, 94, "Ultra Fresh", "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=500", "Fresh starch potatoes directly sourced from Solapur mandi.", "1", "Solapur Mandi"),
-        Product("v2", "Red Onion (Kanda)", "Vegetables", 28.0, "kg", 450.0, 96, "Ultra Fresh", "https://images.unsplash.com/photo-1618512496248-a07fe83aa8cf?w=500", "Pungent red onions, farm harvested.", "1", "Solapur Mandi"),
-        Product("v3", "Fresh Carrot (Gajar)", "Vegetables", 40.0, "kg", 180.0, 91, "Fresh", "https://images.unsplash.com/photo-1598170845058-12ef4a457939?w=500", "Sweet crunchy red carrots.", "1", "Solapur Mandi"),
-        Product("v4", "Beetroot", "Vegetables", 35.0, "kg", 120.0, 92, "Fresh", "https://images.unsplash.com/photo-1593105544559-ecb03bf76f82?w=500", "Nutrient rich dark red beetroots.", "1", "Solapur Mandi"),
-        Product("v5", "Garlic (Lahsuna)", "Vegetables", 140.0, "kg", 90.0, 95, "Ultra Fresh", "https://images.unsplash.com/photo-1540148426945-6cf22a6b2383?w=500", "Organic white garlic cloves.", "1", "Solapur Mandi"),
-        Product("v6", "Fresh Ginger (Adrak)", "Vegetables", 80.0, "kg", 110.0, 93, "Fresh", "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=500", "Aromatic ginger roots.", "1", "Solapur Mandi"),
-
-        // LEAFY GREENS
-        Product("vl1", "Organic Palak (Spinach)", "Leafy Greens", 20.0, "bunch", 100.0, 98, "Ultra Fresh", "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=500", "Fresh green spinach leaves harvested this morning.", "1", "Solapur Mandi"),
-        Product("vl2", "Fresh Methi (Fenugreek)", "Leafy Greens", 22.0, "bunch", 85.0, 97, "Ultra Fresh", "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500", "Tender green methi bunches.", "1", "Solapur Mandi"),
-        Product("vl3", "Coriander (Kothimbir)", "Leafy Greens", 15.0, "bunch", 150.0, 99, "Ultra Fresh", "https://images.unsplash.com/photo-1588879460405-5211d13f9c63?w=500", "Fresh aromatic coriander herbs.", "1", "Solapur Mandi"),
-        Product("vl4", "Pudina (Mint)", "Leafy Greens", 12.0, "bunch", 90.0, 95, "Fresh", "https://images.unsplash.com/photo-1628556270448-4d4e4148e1b1?w=500", "Cool fragrant mint leaves.", "1", "Solapur Mandi"),
-
-        // FRUIT VEGETABLES & GOURDS
-        Product("vf1", "Solapur Tomato (Tamatar)", "Vegetables", 38.0, "kg", 300.0, 98, "Ultra Fresh", "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=500", "Juicy ripe red tomatoes.", "1", "Solapur Mandi"),
-        Product("vf2", "Brinjal (Vangi)", "Vegetables", 36.0, "kg", 140.0, 93, "Fresh", "https://images.unsplash.com/photo-1613743983387-0131497918f6?w=500", "Glossy purple Solapur brinjals.", "1", "Solapur Mandi"),
-        Product("vf3", "Capsicum (Green Shimla)", "Vegetables", 48.0, "kg", 160.0, 95, "Ultra Fresh", "https://images.unsplash.com/photo-1563565375-f3fdfdbefa83?w=500", "Crisp green bell peppers.", "1", "Solapur Mandi"),
-        Product("vf4", "Green Chilli (Hirvi Mirchi)", "Vegetables", 40.0, "kg", 90.0, 96, "Ultra Fresh", "https://images.unsplash.com/photo-1588252303782-cb80119abd6d?w=500", "Spicy farm-fresh green chillies.", "1", "Solapur Mandi"),
-        Product("vf5", "Bhindi (Lady Finger / Okra)", "Vegetables", 42.0, "kg", 130.0, 94, "Fresh", "https://images.unsplash.com/photo-1597362925123-77861d3fbac7?w=500", "Tender green bhindi pods.", "1", "Solapur Mandi"),
-        Product("vf6", "Cucumber (Kakdi)", "Vegetables", 30.0, "kg", 210.0, 97, "Ultra Fresh", "https://images.unsplash.com/photo-1449300079323-02e209d9d3a6?w=500", "Cool hydrating cucumbers.", "1", "Solapur Mandi"),
-        Product("vf7", "Bottle Gourd (Dudhi)", "Vegetables", 25.0, "piece", 110.0, 92, "Fresh", "https://images.unsplash.com/photo-1601004890684-d8cbf643f5f2?w=500", "Fresh bottle gourds.", "1", "Solapur Mandi"),
-        Product("vf8", "Cauliflower (Gobi)", "Vegetables", 34.0, "piece", 95.0, 95, "Ultra Fresh", "https://images.unsplash.com/photo-1568584711075-3d021a7c3ca3?w=500", "Crisp white fresh cauliflower heads.", "1", "Solapur Mandi"),
-        Product("vf9", "Green Cabbage (Patta Gobi)", "Vegetables", 26.0, "kg", 120.0, 96, "Ultra Fresh", "https://images.unsplash.com/photo-1594282486552-05b4d80fbb9f?w=500", "Solid green farm cabbage.", "1", "Solapur Mandi"),
-        Product("vf10", "Green Peas (Matar)", "Vegetables", 55.0, "kg", 140.0, 97, "Ultra Fresh", "https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?w=500", "Fresh green peas pods.", "1", "Solapur Mandi"),
-        Product("v11", "Fresh Green Chana (Hira Chana)", "Beans & Peas", 60.0, "kg", 180.0, 97, "Ultra Fresh", "https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?w=500", "Fresh green chana pods direct from farm.", "1", "Solapur Mandi"),
-        Product("v12", "Kala Chana (Black Chickpeas)", "Beans & Peas", 75.0, "kg", 220.0, 99, "Ultra Fresh", "https://images.unsplash.com/photo-1585998066891-63f58e7c9397?w=500", "Nutritious organic black chana.", "1", "Solapur Mandi"),
-        Product("v13", "Kabuli Chana (White Chickpeas)", "Beans & Peas", 90.0, "kg", 190.0, 98, "Ultra Fresh", "https://images.unsplash.com/photo-1585998066891-63f58e7c9397?w=500", "Large premium white kabuli chana.", "1", "Solapur Mandi"),
-
-        // FRUITS CATALOG - Citrus, Tropical, Exotic, Berries & Melons
-        Product("fr1", "Nagpur Orange (Santra)", "Fruits", 75.0, "kg", 200.0, 96, "Ultra Fresh", "https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?w=500", "Sweet juicy Nagpur oranges.", "1", "Solapur Mandi"),
-        Product("fr2", "Robusta Banana (Kela)", "Fruits", 40.0, "dozen", 350.0, 98, "Ultra Fresh", "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=500", "Naturally ripened sweet yellow bananas.", "1", "Solapur Mandi"),
-        Product("fr3", "Alphonso Mango (Hapus)", "Fruits", 320.0, "dozen", 80.0, 99, "Ultra Fresh", "https://images.unsplash.com/photo-1553279768-865429fa0078?w=500", "Premium Konkan Alphonso Hapus mangoes.", "1", "Solapur Mandi"),
-        Product("fr4", "Pomegranate (Anar)", "Fruits", 110.0, "kg", 160.0, 95, "Ultra Fresh", "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=500", "Ruby red Solapur Bhagwa pomegranates.", "1", "Solapur Mandi"),
-        Product("fr5", "Papaya (Papai)", "Fruits", 45.0, "kg", 140.0, 93, "Fresh", "https://images.unsplash.com/photo-1517260739337-6799d239ce83?w=500", "Sweet orange papayas.", "1", "Solapur Mandi"),
-        Product("fr6", "Watermelon (Kalingad)", "Fruits", 25.0, "kg", 300.0, 97, "Ultra Fresh", "https://images.unsplash.com/photo-1587049352847-81a56d773cae?w=500", "Juicy red watermelons.", "1", "Solapur Mandi"),
-        Product("fr7", "Green Grapes (Drakshe)", "Fruits", 85.0, "kg", 170.0, 96, "Ultra Fresh", "https://images.unsplash.com/photo-1537640538966-79f369143f8f?w=500", "Seedless sweet green grapes.", "1", "Solapur Mandi"),
-        Product("fr8", "Fresh Guava (Peru)", "Fruits", 60.0, "kg", 120.0, 94, "Fresh", "https://images.unsplash.com/photo-1536511135882-84a1e94443a7?w=500", "Crisp pink guava fruits.", "1", "Solapur Mandi"),
-        Product("fr9", "Apple (Kashmiri)", "Fruits", 160.0, "kg", 150.0, 95, "Ultra Fresh", "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=500", "Crisp red Kashmiri apples.", "1", "Solapur Mandi"),
-        Product("fr10", "Kiwi Fruit (Imported)", "Fruits", 120.0, "pack", 60.0, 98, "Ultra Fresh", "https://images.unsplash.com/photo-1585059819970-31398467b243?w=500", "Vitamin C rich green kiwis.", "1", "Solapur Mandi")
-    )
 
     suspend fun getCategories(): List<Category> {
         return try {
             val response = apiService.getCategories()
             if (response.isSuccessful && response.body()?.success == true) {
-                response.body()?.data?.map { it.toDomainCategory() }.orEmpty()
+                val categories = response.body()?.data?.map { it.toDomainCategory() }.orEmpty()
+                Log.d(TAG, "GET /api/v1/categories HTTP ${response.code()}: ${categories.size} parsed categories")
+                categories
             } else {
-                Log.w(TAG, "getCategories failed: HTTP ${response.code()}")
+                Log.w(TAG, "GET /api/v1/categories failed: HTTP ${response.code()}")
                 emptyList()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "getCategories network failed: ${e.message}", e)
+            Log.e(TAG, "GET /api/v1/categories failed (${e.javaClass.simpleName})", e)
             emptyList()
+        }
+    }
+
+    suspend fun getProductCatalog(
+        categoryId: Int? = null,
+        categoryName: String? = null,
+        search: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null
+    ): CatalogResult {
+        return try {
+            val items = mutableListOf<Product>()
+            var page = 1
+            var totalCount = 0
+            var pageCount = 0
+            do {
+                val response = apiService.getProducts(
+                    categoryId = categoryId,
+                    search = search,
+                    page = page,
+                    pageSize = 100,
+                    latitude = latitude,
+                    longitude = longitude
+                )
+                val body = response.body()
+                val pageData = body?.data
+                if (!response.isSuccessful || body?.success != true || pageData == null) {
+                    val backendMessage = body?.error?.message
+                        ?: body?.message
+                        ?: parseBackendMessage(response.errorBody()?.string())
+                    Log.w(TAG, "GET /api/v1/products page=$page failed: HTTP ${response.code()}")
+                    return CatalogResult.Failure(
+                        httpStatus = response.code(),
+                        message = backendMessage
+                            ?: "Couldn't load products (HTTP ${response.code()}). Please try again."
+                    )
+                }
+                val meta = pageData.meta
+                if (meta == null) {
+                    Log.e(TAG, "GET /api/v1/products page=$page returned no pagination metadata")
+                    return CatalogResult.Failure(
+                        httpStatus = response.code(),
+                        message = "The product service returned an incomplete response."
+                    )
+                }
+                items += pageData.items.map { it.toDomainProduct() }
+                totalCount = meta.totalItems
+                pageCount = meta.totalPages
+                Log.d(
+                    TAG,
+                    "GET /api/v1/products page=$page HTTP ${response.code()}: " +
+                        "${pageData.items.size} received, ${items.size} parsed of $totalCount"
+                )
+                page += 1
+            } while (page <= pageCount)
+
+            val filteredItems = if (!categoryName.isNullOrEmpty() &&
+                categoryName != "All Vegetables" &&
+                categoryName != "All Fruits"
+            ) {
+                items.filter { it.category.contains(categoryName, ignoreCase = true) }
+            } else {
+                items
+            }
+            CatalogResult.Success(filteredItems, totalCount, pageCount)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            Log.w(TAG, "GET /api/v1/products network failure (${error.javaClass.simpleName})")
+            CatalogResult.Failure(null, "Couldn't connect to Vegito to load products.")
+        } catch (error: JsonParseException) {
+            Log.e(TAG, "GET /api/v1/products response parsing failed (${error.javaClass.simpleName})")
+            CatalogResult.Failure(null, "Vegito returned an unreadable product response.")
+        } catch (e: Exception) {
+            Log.e(TAG, "GET /api/v1/products failed (${e.javaClass.simpleName})", e)
+            CatalogResult.Failure(null, "Couldn't load products. Please try again.")
         }
     }
 
     suspend fun getProducts(
         categoryId: Int? = null,
         categoryName: String? = null,
-        search: String? = null
-    ): List<Product> {
-        return try {
-            val response = apiService.getProducts(categoryId = categoryId, search = search)
-            if (response.isSuccessful && response.body()?.success == true) {
-                val items = response.body()?.data?.items?.map { it.toDomainProduct() }.orEmpty()
-                if (!categoryName.isNullOrEmpty() && categoryName != "All Vegetables" && categoryName != "All Fruits") {
-                    items.filter { it.category.contains(categoryName, ignoreCase = true) }
-                } else {
-                    items
-                }
-            } else {
-                Log.w(TAG, "getProducts failed: HTTP ${response.code()}")
-                emptyList()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "getProducts network failed: ${e.message}", e)
-            emptyList()
+        search: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null
+    ): List<Product> =
+        when (
+            val result = getProductCatalog(
+                categoryId = categoryId,
+                categoryName = categoryName,
+                search = search,
+                latitude = latitude,
+                longitude = longitude
+            )
+        ) {
+            is CatalogResult.Success -> result.products
+            is CatalogResult.Failure -> emptyList()
         }
-    }
 
     suspend fun getActiveOffers(): List<Offer> {
         return try {
@@ -294,64 +409,50 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         }
     }
 
-    private val defaultOffers = listOf(
-        Offer(
-            id = "o1",
-            title = "Kashmiri Apple Special",
-            code = "APPLE20",
-            discountPercent = 20,
-            maxDiscount = 40.0,
-            minOrderAmount = 120.0,
-            description = "Crisp and sweet fresh Kashmiri apples with guaranteed 95% freshness.",
-            imageUrl = "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=600",
-            offerPrice = 128.0,
-            originalPrice = 160.0,
-            unit = "kg",
-            freshness = 95
-        ),
-        Offer(
-            id = "o2",
-            title = "Nagpur Sweet Oranges",
-            code = "CITRUS15",
-            discountPercent = 15,
-            maxDiscount = 25.0,
-            minOrderAmount = 60.0,
-            description = "Juicy Vitamin-C packed Nagpur oranges freshly handpicked from farm orchards.",
-            imageUrl = "https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?w=600",
-            offerPrice = 64.0,
-            originalPrice = 75.0,
-            unit = "kg",
-            freshness = 96
-        ),
-        Offer(
-            id = "o3",
-            title = "Solapur Ruby Pomegranates",
-            code = "ANAR25",
-            discountPercent = 25,
-            maxDiscount = 50.0,
-            minOrderAmount = 100.0,
-            description = "GI-tagged Solapur Bhagwa variety ruby red pomegranates direct from growers.",
-            imageUrl = "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=600",
-            offerPrice = 82.0,
-            originalPrice = 110.0,
-            unit = "kg",
-            freshness = 98
-        ),
-        Offer(
-            id = "o4",
-            title = "Fresh Banana Super Bundle",
-            code = "KELA10",
-            discountPercent = 15,
-            maxDiscount = 15.0,
-            minOrderAmount = 40.0,
-            description = "Naturally ripened Robusta bananas, high potassium energy booster.",
-            imageUrl = "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=600",
-            offerPrice = 34.0,
-            originalPrice = 40.0,
-            unit = "dozen",
-            freshness = 98
-        )
-    )
+
+
+    private suspend fun cartRequest(
+        action: String,
+        request: suspend () -> Response<ApiResponse<CartReadDto>>
+    ): CartResult {
+        return try {
+            val response = request()
+            val body = response.body()
+            if (response.isSuccessful && body?.success == true && body.data != null) {
+                CartResult.Success(body.data)
+            } else {
+                val backendMessage = parseBackendMessage(response.errorBody()?.string())
+                    ?: body?.message?.takeIf(String::isNotBlank)
+                CartResult.Failure(
+                    backendMessage ?: "$action failed (HTTP ${response.code()}). Please try again."
+                )
+            }
+        } catch (error: IOException) {
+            Log.w(TAG, "$action failed (${error.javaClass.simpleName})")
+            CartResult.Failure("Unable to reach Vegito. Check your internet connection.")
+        } catch (error: JsonParseException) {
+            Log.e(TAG, "$action response parsing failed (${error.javaClass.simpleName})")
+            CartResult.Failure("Vegito returned an unexpected response. Please try again.")
+        }
+    }
+
+    suspend fun getCart(): CartResult =
+        cartRequest("Loading your basket") { apiService.getCart() }
+
+    suspend fun addCartItem(sellerProductId: Int, quantity: Double): CartResult =
+        cartRequest("Adding item to your basket") {
+            apiService.addCartItem(CartItemAddRequest(sellerProductId, quantity))
+        }
+
+    suspend fun updateCartItem(itemId: Int, quantity: Double): CartResult =
+        cartRequest("Updating your basket") {
+            apiService.updateCartItem(itemId, CartItemUpdateRequest(quantity))
+        }
+
+    suspend fun removeCartItem(itemId: Int): CartResult =
+        cartRequest("Removing item from your basket") {
+            apiService.removeCartItem(itemId)
+        }
 
     // ADDRESS MANAGEMENT
     suspend fun saveAddress(dto: AddressCreateDto): SavedAddress? {

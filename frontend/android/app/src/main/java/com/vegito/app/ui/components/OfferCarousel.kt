@@ -64,7 +64,7 @@ fun OfferCarousel(
                     Text(text = "🍎", fontSize = 28.sp)
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Farm-fresh mandi offers arriving daily!",
+                        text = "No offers are available right now.",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -130,7 +130,7 @@ fun OfferCarousel(
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Farm-Fresh Fruit Offers",
+                            text = "Fresh produce offers",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color(0xFF063C32)
@@ -150,7 +150,7 @@ fun OfferCarousel(
                         }
                     }
                     Text(
-                        text = "Auto-sliding seasonal offers direct from Solapur APMC",
+                        text = "Offers currently available on Vegito",
                         fontSize = 11.sp,
                         color = Color(0xFF62746A),
                         maxLines = 1,
@@ -352,7 +352,7 @@ private fun OfferImageColumn(
     ) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
-                .data(offer.imageUrl ?: "https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=500")
+                .data(offer.imageUrl)
                 .crossfade(true)
                 .build(),
             contentDescription = offer.title,
@@ -380,7 +380,7 @@ private fun OfferImageColumn(
                 )
                 Spacer(modifier = Modifier.width(3.dp))
                 Text(
-                    text = "${offer.discountPercent}% OFF",
+                    text = if (offer.discountPercent > 0) "${offer.discountPercent}% OFF" else "SPECIAL",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color.White
@@ -388,27 +388,28 @@ private fun OfferImageColumn(
             }
         }
 
-        // Mandi Freshness Pill at Bottom Left
-        val freshness = offer.freshness ?: 96
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = Color(0xD9063C32),
-            modifier = Modifier
-                .padding(8.dp)
-                .align(Alignment.BottomStart)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+        val freshness = offer.freshness ?: 0
+        if (freshness > 0) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xD9063C32),
+                modifier = Modifier
+                    .padding(8.dp)
+                    .align(Alignment.BottomStart)
             ) {
-                Text(text = "🌱", fontSize = 10.sp)
-                Spacer(modifier = Modifier.width(3.dp))
-                Text(
-                    text = "$freshness% Mandi Fresh",
-                    fontSize = 9.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF86EFAC)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                ) {
+                    Text(text = "🌱", fontSize = 10.sp)
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "$freshness% Fresh",
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF86EFAC)
+                    )
+                }
             }
         }
 
@@ -456,7 +457,7 @@ private fun OfferContentColumn(
                     color = if (offer.isFamilyPack) Color(0xFFFEF3C7) else Color(0xFFE9F6EE)
                 ) {
                     Text(
-                        text = if (offer.isFamilyPack) "Family Saver Bundle" else "Mandi Direct Special",
+                        text = if (offer.isFamilyPack) "Family Saver Bundle" else "Vegito offer",
                         fontSize = 9.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = if (offer.isFamilyPack) Color(0xFFB45309) else Color(0xFF16835B),
@@ -466,22 +467,6 @@ private fun OfferContentColumn(
             }
 
             Spacer(modifier = Modifier.height(3.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.LocationOn,
-                    contentDescription = null,
-                    tint = Color(0xFF16835B),
-                    modifier = Modifier.size(11.dp)
-                )
-                Spacer(modifier = Modifier.width(2.dp))
-                Text(
-                    text = "Solapur APMC Mandi",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF64748B)
-                )
-            }
 
             Spacer(modifier = Modifier.height(6.dp))
 
@@ -499,66 +484,69 @@ private fun OfferContentColumn(
             Spacer(modifier = Modifier.height(3.dp))
 
             // Description
-            Text(
-                text = offer.description,
-                fontSize = 11.sp,
-                color = Color(0xFF475569),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                lineHeight = 15.sp
-            )
+            if (offer.description.isNotBlank()) {
+                Text(
+                    text = offer.description,
+                    fontSize = 11.sp,
+                    color = Color(0xFF475569),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 15.sp
+                )
+            }
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Price Details Block
-            val offerPrice = offer.offerPrice ?: 75.0
-            val originalPrice = offer.originalPrice ?: (offerPrice * 1.25)
-            val unit = offer.unit ?: "kg"
-            val savings = (originalPrice - offerPrice).toInt()
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "₹${offerPrice.toInt()}",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color(0xFF063C32)
-                )
-
-                if (originalPrice > offerPrice) {
-                    Spacer(modifier = Modifier.width(5.dp))
+            val offerPrice = offer.offerPrice
+            val originalPrice = offer.originalPrice
+            if (offerPrice != null && offerPrice > 0.0) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
-                        text = "₹${originalPrice.toInt()}",
-                        fontSize = 12.sp,
-                        color = Color(0xFF94A3B8),
-                        textDecoration = TextDecoration.LineThrough,
-                        fontWeight = FontWeight.SemiBold
+                        text = "₹$offerPrice",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF063C32)
                     )
-                }
 
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "/ $unit",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF16835B)
-                )
-
-                if (savings > 0) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = Color(0xFFDCFCE7)
-                    ) {
+                    if (originalPrice != null && originalPrice > offerPrice) {
+                        Spacer(modifier = Modifier.width(5.dp))
                         Text(
-                            text = "Save ₹$savings",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF15803D),
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            text = "₹$originalPrice",
+                            fontSize = 12.sp,
+                            color = Color(0xFF94A3B8),
+                            textDecoration = TextDecoration.LineThrough,
+                            fontWeight = FontWeight.SemiBold
                         )
+                    }
+
+                    offer.unit?.takeIf(String::isNotBlank)?.let { unit ->
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "/ $unit",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF16835B)
+                        )
+                    }
+
+                    if (originalPrice != null && originalPrice > offerPrice) {
+                        val savings = originalPrice - offerPrice
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFDCFCE7)
+                        ) {
+                            Text(
+                                text = "Save ₹$savings",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF15803D),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
             }

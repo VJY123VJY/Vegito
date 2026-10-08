@@ -72,6 +72,11 @@ data class SwitchWorkspaceDto(
     @SerializedName("target_role") val targetRole: String
 )
 
+data class FirebaseLoginRequestDto(
+    val role: String? = null,
+    @SerializedName("id_token") val idToken: String? = null
+)
+
 data class OtpRequest(
     val phone: String,
     val role: String? = null
@@ -82,6 +87,18 @@ data class OtpVerifyRequest(
     val otp: String,
     val role: String? = null,
     val name: String? = null
+)
+
+data class RoleLocation(
+    val latitude: Double,
+    val longitude: Double,
+    val addressLine: String = "",
+    val city: String = "",
+    val state: String = "",
+    val pincode: String = "",
+    val area: String = "",
+    val accuracyMeters: Float? = null,
+    val capturedAtEpochMillis: Long = System.currentTimeMillis()
 )
 
 data class UnifiedRegisterRequestDto(
@@ -171,19 +188,26 @@ data class Category(
 data class Product(
     val id: String = "",
     val name: String = "",
-    val category: String = "Vegetables",
+    val category: String = "",
     val price: Double = 0.0,
     val unit: String = "kg",
     val stockQuantity: Double = 0.0,
-    val freshnessPercentage: Int = 95,
-    val freshnessStatus: String = "Ultra Fresh",
+    val freshnessPercentage: Int = 0,
+    val freshnessStatus: String = "",
     val imageUrl: String = "",
     val description: String = "",
     val sellerId: String = "",
     val sellerName: String = "",
     val harvestDate: String? = null,
-    val isFavorite: Boolean = false
-)
+    val isFavorite: Boolean = false,
+    val sellerProductId: String = ""
+) {
+    val isPurchasable: Boolean
+        get() = sellerProductId.toIntOrNull() != null &&
+            sellerId.toIntOrNull() != null &&
+            price > 0.0 &&
+            stockQuantity > 0.0
+}
 
 data class Offer(
     val id: String = "",
@@ -220,6 +244,78 @@ data class CartSummary(
     val unserviceableReason: String? = null
 )
 
+data class CartItemAddRequest(
+    @SerializedName("seller_product_id") val sellerProductId: Int,
+    val quantity: Double
+)
+
+data class CartItemUpdateRequest(val quantity: Double)
+
+data class CartItemReadDto(
+    val id: Int = 0,
+    @SerializedName("seller_product_id") val sellerProductId: Int = 0,
+    @SerializedName("product_id") val productId: Int = 0,
+    @SerializedName("seller_id") val sellerId: Int = 0,
+    @SerializedName("product_name") val productName: String = "",
+    val unit: String = "kg",
+    @SerializedName("image_url") val imageUrl: String? = null,
+    @SerializedName("price_per_unit") val pricePerUnit: Double = 0.0,
+    val quantity: Double = 0.0,
+    @SerializedName("item_total") val itemTotal: Double = 0.0,
+    @SerializedName("is_available") val isAvailable: Boolean = false,
+    @SerializedName("stock_available") val stockAvailable: Double = 0.0
+)
+
+data class CartReadDto(
+    val id: Int = 0,
+    @SerializedName("user_id") val userId: Int = 0,
+    val items: List<CartItemReadDto> = emptyList(),
+    @SerializedName("total_items_count") val totalItemsCount: Int = 0,
+    val subtotal: Double = 0.0,
+    @SerializedName("delivery_charge") val deliveryCharge: Double = 0.0,
+    @SerializedName("discount_amount") val discountAmount: Double = 0.0,
+    @SerializedName("total_amount") val totalAmount: Double = 0.0
+) {
+    fun toDomainSummary(products: List<Product>): CartSummary {
+        val cartItems = items.map { item ->
+            val product = products.firstOrNull {
+                it.sellerProductId == item.sellerProductId.toString()
+            } ?: Product(
+                id = item.productId.toString(),
+                name = item.productName,
+                category = "Produce",
+                unit = item.unit,
+                stockQuantity = item.stockAvailable,
+                imageUrl = item.imageUrl.orEmpty(),
+                sellerId = item.sellerId.toString(),
+                sellerProductId = item.sellerProductId.toString()
+            )
+            val currentProduct = product.copy(
+                name = item.productName,
+                unit = item.unit,
+                price = item.pricePerUnit,
+                stockQuantity = item.stockAvailable,
+                imageUrl = item.imageUrl?.takeIf(String::isNotBlank) ?: product.imageUrl,
+                sellerId = item.sellerId.toString(),
+                sellerProductId = item.sellerProductId.toString()
+            )
+            CartItem(
+                id = item.id.toString(),
+                product = currentProduct,
+                quantity = item.quantity,
+                itemTotal = item.itemTotal
+            )
+        }
+        return CartSummary(
+            items = cartItems,
+            subtotal = subtotal,
+            deliveryFee = deliveryCharge,
+            discount = discountAmount,
+            grandTotal = totalAmount
+        )
+    }
+}
+
 data class SavedAddress(
     val id: String = "",
     val title: String = "Home",
@@ -230,7 +326,8 @@ data class SavedAddress(
     val isDefault: Boolean = false,
     val city: String = "",
     val pincode: String = "",
-    val state: String = ""
+    val state: String = "",
+    val capturedAsCurrentLocation: Boolean = false
 )
 
 enum class OrderStatus {
@@ -243,10 +340,11 @@ data class Order(
     val status: String = "NEW",
     val createdAt: String = "",
     val items: List<CartItem> = emptyList(),
+    val itemsCount: Int = 0,
     val totalAmount: Double = 0.0,
     val deliveryFee: Double = 0.0,
     val deliveryAddress: SavedAddress = SavedAddress(),
-    val sellerName: String = "Vegito Hub",
+    val sellerName: String = "",
     val sellerPhone: String = "",
     val sellerLat: Double? = null,
     val sellerLng: Double? = null,
@@ -255,7 +353,10 @@ data class Order(
     val deliveryPartnerName: String? = null,
     val deliveryPartnerPhone: String? = null,
     val deliveryPartnerLat: Double? = null,
-    val deliveryPartnerLng: Double? = null
+    val deliveryPartnerLng: Double? = null,
+    val isUrgent: Boolean = false,
+    val customerName: String? = null,
+    val customerPhone: String? = null
 )
 
 data class SavedShoppingList(
@@ -281,12 +382,14 @@ data class RestockSuggestion(
 
 data class SellerDashboardStats(
     @SerializedName(value = "is_online", alternate = ["is_available"]) val isOnline: Boolean = true,
-    @SerializedName(value = "today_sales", alternate = ["today_revenue"]) val todaySales: Double = 0.0,
+    @SerializedName(value = "today_sales", alternate = ["today_revenue", "sales_today"]) val todaySales: Double = 0.0,
     @SerializedName(value = "active_orders_count", alternate = ["live_orders"]) val activeOrdersCount: Int = 0,
-    @SerializedName(value = "new_orders_count", alternate = ["pending_orders"]) val newOrdersCount: Int = 0,
+    @SerializedName(value = "new_orders_count", alternate = ["pending_orders", "pending_today"]) val newOrdersCount: Int = 0,
     @SerializedName(value = "low_stock_count") val lowStockCount: Int = 0,
-    @SerializedName(value = "ready_orders") val readyOrdersCount: Int = 0,
-    @SerializedName(value = "today_orders") val todayOrdersCount: Int = 0,
+    @SerializedName(value = "ready_orders", alternate = ["ready_today"]) val readyOrdersCount: Int = 0,
+    @SerializedName(value = "today_orders", alternate = ["orders_today"]) val todayOrdersCount: Int = 0,
+    @SerializedName(value = "out_for_delivery_count", alternate = ["out_for_delivery_today", "active_batches_count"]) val outForDeliveryCount: Int = 0,
+    @SerializedName(value = "urgent_count", alternate = ["urgent_orders"]) val urgentCount: Int = 0,
     @SerializedName(value = "total_products") val totalProducts: Int = 0
 )
 
@@ -302,11 +405,14 @@ data class DeliveryTask(
     val customerLat: Double? = null, // Hidden until pickup OTP verified!
     val customerLng: Double? = null, // Hidden until pickup OTP verified!
     val customerAddress: String? = null, // Hidden until pickup OTP verified!
+    val customerName: String? = null,
+    val customerPhone: String? = null,
     val distanceKm: Double? = null,
     val status: String = "PENDING", // PENDING, ACCEPTED, PICKED_UP, DELIVERED
+    val orderStatus: String? = null,
     val isUrgent: Boolean = false,
     val isPickupVerified: Boolean = false,
-    val earnings: Double = 45.0
+    val earnings: Double = 0.0
 )
 
 data class B2BBulkQuoteRequest(
@@ -342,10 +448,16 @@ data class ApiErrorDetail(
 
 data class PaginatedData<T>(
     val items: List<T> = emptyList(),
-    val total: Int = 0,
+    val meta: PaginationMetaDto? = null
+)
+
+data class PaginationMetaDto(
+    @SerializedName("total_items") val totalItems: Int = 0,
     val page: Int = 1,
     @SerializedName("page_size") val pageSize: Int = 20,
-    val pages: Int = 1
+    @SerializedName("total_pages") val totalPages: Int = 0,
+    @SerializedName("has_next") val hasNext: Boolean = false,
+    @SerializedName("has_previous") val hasPrevious: Boolean = false
 )
 
 data class AddressCreateDto(
@@ -433,13 +545,18 @@ data class OrderResponseDto(
     @SerializedName("customer_longitude") val customerLongitude: Double? = null,
     @SerializedName("shop_name") val shopName: String? = null,
     @SerializedName("customer_name") val customerName: String? = null,
+    @SerializedName("customer_phone") val customerPhone: String? = null,
     @SerializedName("items_count") val itemsCount: Int? = null,
-    @SerializedName("placed_at") val placedAt: String? = null
+    @SerializedName("placed_at") val placedAt: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("is_urgent") val isUrgent: Boolean = false
 ) {
     fun toDomainOrder(): Order = Order(
         id = id.toString(),
         orderNumber = orderNumber.ifEmpty { "VEG-$id" },
         status = status,
+        createdAt = placedAt ?: createdAt.orEmpty(),
+        itemsCount = itemsCount ?: 0,
         totalAmount = totalAmount,
         deliveryFee = deliveryCharge,
         deliveryAddress = SavedAddress(
@@ -447,11 +564,14 @@ data class OrderResponseDto(
             latitude = customerLatitude ?: deliveryLatitude,
             longitude = customerLongitude ?: deliveryLongitude
         ),
-        sellerName = shopName ?: "Vegito Hub",
+        sellerName = shopName.orEmpty(),
         sellerLat = shopLatitude,
         sellerLng = shopLongitude,
         customerOtp = deliveryOtp,
-        pickupOtp = pickupOtp
+        pickupOtp = pickupOtp,
+        isUrgent = isUrgent,
+        customerName = customerName,
+        customerPhone = customerPhone
     )
 }
 
@@ -467,37 +587,39 @@ data class ProductDto(
     @SerializedName("is_in_stock") val isInStock: Boolean = true,
     val images: List<ProductImageDto> = emptyList(),
     val category: CategoryDto? = null,
-    @SerializedName("seller_products") val sellerProducts: List<SellerProductOfferDto> = emptyList()
+    @SerializedName("seller_products") val sellerProducts: List<SellerProductOfferDto> = emptyList(),
+    val freshness: FreshnessInfoDto? = null
 ) {
     fun toDomainProduct(): Product {
+        val purchasableOffer = sellerProducts.firstOrNull {
+            it.isAvailable && it.sellerProductId > 0 && it.sellerId > 0 &&
+                it.price > 0.0 && it.stockQuantity > 0.0
+        }
         val rawImg = images.firstOrNull()?.imageUrl?.trim() ?: ""
-        val catName = category?.name ?: if (categoryId == 2 || (categoryId in 56..60)) "Fruits" else "Vegetables"
+        val catName = category?.name.orEmpty()
         val normalizedImg = when {
             rawImg.startsWith("http://") || rawImg.startsWith("https://") -> rawImg
             rawImg.startsWith("data:image/") -> rawImg
-            rawImg.isNotBlank() && rawImg.startsWith("/") -> "http://127.0.0.1:8000" + rawImg
-            rawImg.isNotBlank() -> "http://127.0.0.1:8000/" + rawImg
-            catName.contains("Fruit", ignoreCase = true) -> "https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=600"
-            catName.contains("Leafy", ignoreCase = true) || catName.contains("Herbs", ignoreCase = true) -> "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=600"
-            catName.contains("Root", ignoreCase = true) || catName.contains("Tubers", ignoreCase = true) -> "https://images.unsplash.com/photo-1590779033100-9f60a05a013d?w=600"
-            else -> "https://images.unsplash.com/photo-1597362925123-77861d3fbac7?w=600"
+            rawImg.isNotBlank() && rawImg.startsWith("/") ->
+                com.vegito.app.BuildConfig.VEGITO_API_BASE_URL.trimEnd('/') + rawImg
+            rawImg.isNotBlank() ->
+                com.vegito.app.BuildConfig.VEGITO_API_BASE_URL.trimEnd('/') + "/" + rawImg
+            else -> ""
         }
-        val effectivePrice = minPrice ?: (sellerProducts.firstOrNull()?.price ?: 35.0)
-        val effectiveStock = sellerProducts.firstOrNull()?.stockQuantity ?: 50.0
-        val freshScore = if ((shelfLifeDays ?: 5) >= 6) 96 else 92
         return Product(
             id = id.toString(),
             name = name,
             category = catName,
-            price = effectivePrice,
+            price = purchasableOffer?.price ?: minPrice ?: 0.0,
             unit = unit.replace("1 ", "").trim(),
-            stockQuantity = effectiveStock,
-            freshnessPercentage = freshScore,
-            freshnessStatus = if (freshScore >= 95) "Ultra Fresh" else "Fresh",
+            stockQuantity = purchasableOffer?.stockQuantity ?: 0.0,
+            freshnessPercentage = purchasableOffer?.freshness?.score ?: freshness?.score ?: 0,
+            freshnessStatus = purchasableOffer?.freshness?.status ?: freshness?.status.orEmpty(),
             imageUrl = normalizedImg,
-            description = description ?: "Farm fresh $name",
-            sellerId = sellerProducts.firstOrNull()?.sellerId?.toString() ?: "1",
-            sellerName = sellerProducts.firstOrNull()?.sellerBusinessName ?: "Solapur Mandi"
+            description = description.orEmpty(),
+            sellerId = purchasableOffer?.sellerId?.takeIf { it > 0 }?.toString().orEmpty(),
+            sellerName = purchasableOffer?.sellerBusinessName.orEmpty(),
+            sellerProductId = purchasableOffer?.sellerProductId?.takeIf { it > 0 }?.toString().orEmpty()
         )
     }
 }
@@ -529,7 +651,14 @@ data class SellerProductOfferDto(
     @SerializedName("seller_business_name") val sellerBusinessName: String? = null,
     val price: Double = 0.0,
     @SerializedName("stock_quantity") val stockQuantity: Double = 0.0,
-    @SerializedName("is_available") val isAvailable: Boolean = true
+    @SerializedName("is_available") val isAvailable: Boolean = true,
+    val freshness: FreshnessInfoDto? = null
+)
+
+data class FreshnessInfoDto(
+    val score: Int = 0,
+    val status: String = "",
+    val badge: String = ""
 )
 
 data class PromotionDto(
@@ -551,25 +680,27 @@ data class PromotionDto(
 ) {
     fun toDomainOffer(): Offer {
         val normImg = when {
-            imageUrl.isNullOrBlank() -> "https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=600"
+            imageUrl.isNullOrBlank() -> null
             imageUrl.startsWith("http://") || imageUrl.startsWith("https://") -> imageUrl
-            imageUrl.startsWith("/") -> "http://127.0.0.1:8000" + imageUrl
-            else -> "http://127.0.0.1:8000/" + imageUrl
+            imageUrl.startsWith("/") ->
+                com.vegito.app.BuildConfig.VEGITO_API_BASE_URL.trimEnd('/') + imageUrl
+            else ->
+                com.vegito.app.BuildConfig.VEGITO_API_BASE_URL.trimEnd('/') + "/" + imageUrl
         }
         return Offer(
             id = id.toString(),
             title = title,
-            code = "VEGITO${discountPercent ?: 20}",
-            discountPercent = discountPercent ?: 15,
-            maxDiscount = ((originalPrice ?: price) - price).coerceAtLeast(10.0),
-            minOrderAmount = price,
-            description = description ?: "Special fresh produce deal",
+            code = badgeText.orEmpty(),
+            discountPercent = discountPercent ?: 0,
+            maxDiscount = ((originalPrice ?: price) - price).coerceAtLeast(0.0),
+            minOrderAmount = 0.0,
+            description = description.orEmpty(),
             imageUrl = normImg,
             productId = productId?.toString(),
             offerPrice = price,
-            originalPrice = originalPrice ?: (price * 1.2),
-            unit = unit ?: "kg",
-            freshness = freshnessPercent ?: 95,
+            originalPrice = originalPrice,
+            unit = unit,
+            freshness = freshnessPercent ?: 0,
             isFamilyPack = type == "BUNDLE"
         )
     }
@@ -726,11 +857,11 @@ data class DeliveryEarningsData(
     @SerializedName("this_week") val thisWeek: DeliveryEarningsPeriod = DeliveryEarningsPeriod(),
     @SerializedName("this_month") val thisMonth: DeliveryEarningsPeriod = DeliveryEarningsPeriod(),
     @SerializedName("total_lifetime") val totalLifetime: DeliveryEarningsPeriod = DeliveryEarningsPeriod(),
-    val totalEarnings: Double = 420.0,
-    val tips: Double = 35.0,
-    val surgeBonus: Double = 25.0,
-    val completedOrdersCount: Int = 6,
-    val basePay: Double = 360.0,
+    val totalEarnings: Double = 0.0,
+    val tips: Double = 0.0,
+    val surgeBonus: Double = 0.0,
+    val completedOrdersCount: Int = 0,
+    val basePay: Double = 0.0,
     val recentTrips: List<DeliveryTripSummary> = emptyList()
 )
 
@@ -790,10 +921,13 @@ data class DeliveryTaskBackendDto(
             customerAddress = if (pickupVerified) addrStr else null,
             customerLat = if (pickupVerified) (customerLatitude ?: deliveryAddress?.latitude) else null,
             customerLng = if (pickupVerified) (customerLongitude ?: deliveryAddress?.longitude) else null,
+            customerName = if (pickupVerified) customerName else null,
+            customerPhone = if (pickupVerified) customerPhone else null,
             status = status,
+            orderStatus = orderStatus,
             isUrgent = isUrgent,
             isPickupVerified = pickupVerified,
-            earnings = 35.0
+            earnings = 0.0
         )
     }
 }

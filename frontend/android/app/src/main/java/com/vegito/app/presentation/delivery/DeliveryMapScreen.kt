@@ -56,7 +56,7 @@ fun DeliveryMapScreen(
             title = { Text("Verify Mandi Pickup OTP") },
             text = {
                 Column {
-                    Text("Enter the 4-digit OTP from seller to verify crate pickup and unlock customer doorstep coordinates.")
+                    Text("Enter the OTP from seller to verify crate pickup and unlock customer doorstep coordinates.")
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = inputOtp,
@@ -91,7 +91,7 @@ fun DeliveryMapScreen(
             title = { Text("Verify Customer Doorstep OTP") },
             text = {
                 Column {
-                    Text("Enter customer's 4-digit OTP to complete doorstep delivery.")
+                    Text("Enter customer's delivery OTP to complete doorstep delivery.")
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = inputOtp,
@@ -273,7 +273,7 @@ fun DeliveryMapScreen(
                                 Column {
                                     Text("Customer Doorstep Drop", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     if (task.isPickupVerified) {
-                                        Text(task.customerAddress ?: "Solapur City Core", fontSize = 12.sp, color = VegitoPrimary)
+                                        Text(task.customerAddress ?: "Customer doorstep address unlocked", fontSize = 12.sp, color = VegitoPrimary)
                                     } else {
                                         Text("Locked until pickup verification", fontSize = 12.sp, color = Color.Gray)
                                     }

@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vegito.app.BuildConfig
 import com.vegito.app.data.model.UserProfile
 import com.vegito.app.ui.theme.VegitoPrimary
 
@@ -28,6 +29,7 @@ fun ProfileScreen(
     onNavigateOrders: () -> Unit = {},
     onNavigateFavorites: () -> Unit = {},
     onNavigateNotifications: () -> Unit = {},
+    onNavigateDeveloperTools: () -> Unit = {},
     onSwitchRole: (String) -> Unit,
     onLogout: () -> Unit
 ) {
@@ -125,6 +127,15 @@ fun ProfileScreen(
                     icon = Icons.Default.Notifications,
                     onClick = onNavigateNotifications
                 )
+                if (BuildConfig.DEBUG) {
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    ProfileMenuItem(
+                        title = "Developer Tools",
+                        subtitle = "Run the one-order backend integration preflight",
+                        icon = Icons.Default.Build,
+                        onClick = onNavigateDeveloperTools
+                    )
+                }
             }
         }
 

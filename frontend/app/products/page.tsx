@@ -47,13 +47,11 @@ export default function BrowseProductsPage() {
 
   const categories = useQuery({ queryKey: ["categories"], queryFn: getCategories });
   const products = useQuery({
-    queryKey: ["all-products", selectedCategory, search, locCoords.lat, locCoords.lon],
+    queryKey: ["all-products", selectedCategory, search],
     queryFn: () =>
       getProducts({
         categoryId: selectedCategory || undefined,
         search: search.trim() || undefined,
-        lat: locCoords.lat,
-        lon: locCoords.lon,
         pageSize: 100,
       }),
   });

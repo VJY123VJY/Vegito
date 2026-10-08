@@ -16,3 +16,4 @@ twilio>=9.0.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
 python-multipart>=0.0.9
+firebase-admin>=6.5.0

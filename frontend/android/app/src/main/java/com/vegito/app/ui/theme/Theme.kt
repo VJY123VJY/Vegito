@@ -7,24 +7,40 @@ import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
     primary = VegitoPrimaryLight,
-    secondary = VegitoSecondary,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFF0F3B2E),
+    onPrimaryContainer = Color(0xFFA5D6A7),
+    secondary = VegitoSecondaryLight,
+    onSecondary = Color.Black,
+    secondaryContainer = Color(0xFF4E2600),
+    onSecondaryContainer = Color(0xFFFFCC80),
     background = BackgroundDark,
-    surface = SurfaceDark,
-    onPrimary = Color.Black,
-    onSecondary = Color.White,
     onBackground = TextPrimaryDark,
-    onSurface = TextPrimaryDark
+    surface = SurfaceDark,
+    onSurface = TextPrimaryDark,
+    surfaceVariant = SurfaceDarkElevated,
+    onSurfaceVariant = TextSecondaryDark,
+    outline = BorderDark,
+    outlineVariant = Color(0xFF1E2620)
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = VegitoPrimary,
-    secondary = VegitoSecondary,
-    background = BackgroundLight,
-    surface = SurfaceLight,
     onPrimary = Color.White,
+    primaryContainer = VegitoMintSoft,
+    onPrimaryContainer = VegitoPrimaryDark,
+    secondary = VegitoSecondary,
     onSecondary = Color.White,
+    secondaryContainer = Color(0xFFFFF3E0),
+    onSecondaryContainer = Color(0xFFE65100),
+    background = BackgroundLight,
     onBackground = TextPrimaryLight,
-    onSurface = TextPrimaryLight
+    surface = SurfaceLight,
+    onSurface = TextPrimaryLight,
+    surfaceVariant = SurfaceLightElevated,
+    onSurfaceVariant = TextSecondaryLight,
+    outline = BorderLight,
+    outlineVariant = Color(0xFFECEFEA)
 )
 
 @Composable
