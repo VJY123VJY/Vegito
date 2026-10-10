@@ -152,14 +152,16 @@ const getStatusCount = (status: string) =>
           >
             
           
-             {[
-              { label: "New Orders", status: "NEW", count: summary.pending_orders ?? 0, bg: "#fef3c7", color: "#92400e" },
-              { label: "Accepted", status: "ACCEPTED", count: "-", bg: "#dbeafe", color: "#1e40af" },
-              { label:"Packing", status: "PACKING", count: "-", bg: "#ede9fe", color: "#6d28d9" },
-              { label: "Ready", status: "READY", count: "-", bg: "#d1fae5", color: "#065f46" },
-              { label: "Out for Delivery", status: "OUT_FOR_DELIVERY", count: summary.delivery_partners ?? 0, bg: "#cffafe", color: "#0e7490" },
-              { label: "Delivered", status: "DELIVERED", count: summary.orders ?? 0, bg: "#dcfce7", color: "#15803d" },
-            ].map((step) => (
+             
+           {[
+           { label: "New Orders", status: "NEW", count: getStatusCount("NEW"), bg: "#fef3c7", color: "#92400e" },
+           { label: "Accepted", status: "ACCEPTED", count: getStatusCount("ACCEPTED"), bg: "#dbeafe", color: "#1e40af" },
+           { label: "Packing", status: "PACKING", count: getStatusCount("PACKING"), bg: "#ede9fe", color: "#6d28d9" },
+           { label: "Ready", status: "READY", count: getStatusCount("READY"), bg: "#d1fae5", color: "#065f46" },
+           { label: "Out for Delivery", status: "OUT_FOR_DELIVERY", count: getStatusCount("OUT_FOR_DELIVERY"), bg: "#cffafe", color: "#0e7490" },
+           { label: "Delivered", status: "DELIVERED", count: getStatusCount("DELIVERED"), bg: "#dcfce7", color: "#15803d" },
+           ].map((step) => (
+
               <Link
                 key={step.label}
                 href={`/admin/orders?status=${step.status}`}
