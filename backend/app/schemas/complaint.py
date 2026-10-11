@@ -27,3 +27,4 @@ class ComplaintRead(BaseSchema):
     created_at: datetime.datetime
     resolved_at: Optional[datetime.datetime] = None
     customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None

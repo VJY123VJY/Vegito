@@ -183,3 +183,59 @@ export async function verifyDeliveryPartner(partnerId: number, isVerified: boole
   return data.data;
 }
 
+export interface GeographicSummaryItem {
+  area: string;
+  pincode?: string;
+  city: string;
+  order_count: number;
+  completed_count: number;
+  cancelled_count: number;
+  total_revenue: number;
+  unique_customers: number;
+}
+
+export async function getAdminGeographicAnalytics(range = "30d") {
+  const { data } = await api.get<ApiEnvelope<GeographicSummaryItem[]>>("/admin/analytics/geographic", {
+    params: { range },
+  });
+  return data.data;
+}
+
+export interface AdminComplaintItem {
+  id: number;
+  customer_id: number;
+  order_id?: number | null;
+  category: string;
+  subject?: string;
+  description: string;
+  status: string;
+  created_at: string;
+  resolved_at?: string | null;
+  resolution_notes?: string | null;
+  customer_name?: string;
+  customer_phone?: string;
+}
+
+export async function listAdminComplaints(params?: { status?: string; page?: number; page_size?: number }) {
+  const { data } = await api.get<ApiEnvelope<{ items: AdminComplaintItem[]; total: number; page: number; page_size: number }>>(
+    "/admin/complaints",
+    { params }
+  );
+  return data.data;
+}
+
+export async function resolveAdminComplaint(complaintId: number, payload: { status: string; resolution_notes?: string }) {
+  const { data } = await api.patch<ApiEnvelope<AdminComplaintItem>>(
+    `/admin/complaints/${complaintId}/resolve`,
+    payload
+  );
+  return data.data;
+}
+
+export async function updateAdminUserStatus(userId: number, isActive: boolean) {
+  const { data } = await api.patch<ApiEnvelope<any>>(`/admin/users/${userId}/status`, {
+    is_active: isActive,
+  });
+  return data.data;
+}
+

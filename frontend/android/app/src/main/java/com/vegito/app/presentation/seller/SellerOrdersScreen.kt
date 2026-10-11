@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 fun SellerOrdersScreen(
     orders: List<Order>,
     onBack: (() -> Unit)? = null,
+    onRefresh: (() -> Unit)? = null,
     onUpdateStatus: (orderId: String, newStatus: String) -> Unit,
     onVerifyPickupOtp: (orderId: String, otp: String) -> Unit
 ) {
@@ -37,7 +38,7 @@ fun SellerOrdersScreen(
     var processingOrderId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    val tabs = listOf("ALL", "NEW", "ACCEPTED", "PACKING", "READY")
+    val tabs = listOf("ALL", "NEW", "ACCEPTED", "PACKING", "READY", "DISPATCHED")
 
     // Filter orders according to selected tab
     val filteredOrders = remember(orders, selectedTab) {
@@ -46,6 +47,7 @@ fun SellerOrdersScreen(
             "ACCEPTED" -> orders.filter { it.status.uppercase() in listOf("ACCEPTED", "SELLER_ACCEPTED") }
             "PACKING" -> orders.filter { it.status.uppercase() in listOf("PACKING", "PREPARING") }
             "READY" -> orders.filter { it.status.uppercase() in listOf("READY", "READY_FOR_PICKUP") }
+            "DISPATCHED" -> orders.filter { it.status.uppercase() in listOf("PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED") }
             else -> orders
         }
 
@@ -120,6 +122,13 @@ fun SellerOrdersScreen(
                         }
                     }
                 },
+                actions = {
+                    if (onRefresh != null) {
+                        IconButton(onClick = onRefresh) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh Orders")
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
@@ -147,6 +156,7 @@ fun SellerOrdersScreen(
                         "ACCEPTED" -> orders.count { it.status.uppercase() in listOf("ACCEPTED", "SELLER_ACCEPTED") }
                         "PACKING" -> orders.count { it.status.uppercase() in listOf("PACKING", "PREPARING") }
                         "READY" -> orders.count { it.status.uppercase() in listOf("READY", "READY_FOR_PICKUP") }
+                        "DISPATCHED" -> orders.count { it.status.uppercase() in listOf("PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED") }
                         else -> orders.size
                     }
 

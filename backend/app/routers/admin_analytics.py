@@ -1,11 +1,11 @@
-﻿from typing import List
+from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import require_admin
 from app.models.user import User
-from app.schemas.admin_dashboard import TimeSeriesPoint, TopSellerSummary
+from app.schemas.admin_dashboard import TimeSeriesPoint, TopSellerSummary, GeographicSummary
 from app.schemas.common import APIResponse
 from app.services.analytics_service import AnalyticsService
 
@@ -57,4 +57,15 @@ def get_seller_performance_analytics(
     db: Session = Depends(get_db),
 ):
     data = AnalyticsService.get_top_sellers(db, limit=limit)
+    return APIResponse(data=data)
+
+
+@router.get("/geographic", response_model=APIResponse[List[GeographicSummary]], summary="Admin geographic order and revenue distribution")
+def get_geographic_analytics(
+    range: str = Query("30d", description="7d, 30d, 90d, 1y"),
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    days = parse_range(range)
+    data = AnalyticsService.get_geographic_analytics(db, range_days=days)
     return APIResponse(data=data)

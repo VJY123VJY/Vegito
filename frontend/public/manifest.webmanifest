@@ -1,8 +1,8 @@
 {
-  "name": "Vegito — Fresh Market, Simply Delivered",
-  "short_name": "Vegito",
-  "description": "Fresh vegetables and groceries from your local market straight to your doorstep in minutes.",
-  "start_url": "/customer",
+  "name": "Vegito — Admin Command Center",
+  "short_name": "Vegito Admin",
+  "description": "Solapur Operations Command Center & Platform Management Console.",
+  "start_url": "/admin",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

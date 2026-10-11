@@ -6,6 +6,7 @@ import com.google.android.gms.tasks.Tasks
 import com.google.firebase.FirebaseException
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
@@ -68,9 +69,12 @@ object FirebaseAuthManager {
         onInstantVerified: (firebaseIdToken: String) -> Unit,
         onError: (errorMessage: String) -> Unit
     ) {
+        val maskedPhone = if (phoneNumberE164.length >= 4) "******${phoneNumberE164.takeLast(4)}" else "******"
+        Log.i(TAG, "AUTH: phone verification started for $maskedPhone")
+
         val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
             override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-                Log.i(TAG, "Firebase instant verification completed")
+                Log.i(TAG, "AUTH: Firebase auto verification completed")
                 // Sign in immediately using the credential and extract Firebase ID token
                 auth.signInWithCredential(credential)
                     .addOnCompleteListener(activity) { signInTask ->
@@ -98,7 +102,7 @@ object FirebaseAuthManager {
             override fun onVerificationFailed(exception: FirebaseException) {
                 val errorCode = (exception as? com.google.firebase.auth.FirebaseAuthException)?.errorCode ?: "UNKNOWN_CODE"
                 val errorMsg = exception.message ?: "No error message"
-                Log.e(TAG, "EXCEPT_CLASS: ${exception.javaClass.name}, CODE: $errorCode, MESSAGE: $errorMsg", exception)
+                Log.e(TAG, "AUTH: Firebase verification failed: $errorCode, message: $errorMsg", exception)
                 val message = mapFirebaseError(exception)
                 onError(message)
             }
@@ -107,12 +111,12 @@ object FirebaseAuthManager {
                 verificationId: String,
                 token: PhoneAuthProvider.ForceResendingToken
             ) {
-                Log.i(TAG, "OTP sent successfully via Firebase")
+                Log.i(TAG, "AUTH: Firebase code sent")
                 onCodeSent(verificationId, token)
             }
 
             override fun onCodeAutoRetrievalTimeOut(verificationId: String) {
-                Log.d(TAG, "Firebase SMS auto-retrieval timed out")
+                Log.d(TAG, "AUTH: Firebase timeout")
             }
         }
 
@@ -126,7 +130,7 @@ object FirebaseAuthManager {
             optionsBuilder.setForceResendingToken(resendToken)
         }
 
-        Log.i(TAG, "OTP verification started")
+        Log.i(TAG, "AUTH: Firebase verification request sent")
         PhoneAuthProvider.verifyPhoneNumber(optionsBuilder.build())
     }
 
@@ -157,8 +161,13 @@ object FirebaseAuthManager {
             Log.w(TAG, "Too many verification requests")
             VerifyOtpResult.Error("Too many attempts. Please try again later.")
         } catch (e: Exception) {
-            Log.w(TAG, "Firebase OTP verification failed: ${e.javaClass.simpleName}")
-            val msg = mapFirebaseError(e)
+            val rootCause = if (e is java.util.concurrent.ExecutionException && e.cause is Exception) {
+                e.cause as Exception
+            } else {
+                e
+            }
+            Log.w(TAG, "Firebase OTP verification failed: ${e.javaClass.simpleName}, underlying cause: ${rootCause.javaClass.simpleName} (${rootCause.message ?: "no message"})")
+            val msg = mapFirebaseError(rootCause)
             VerifyOtpResult.Error(msg)
         }
     }
@@ -181,11 +190,16 @@ object FirebaseAuthManager {
      */
     fun mapFirebaseError(exception: Exception?): String {
         if (exception == null) return "Authentication error. Please try again."
-        val message = exception.message ?: ""
-        val errorCode = if (exception is FirebaseAuthException) exception.errorCode else ""
+        val unwrapped = if (exception is java.util.concurrent.ExecutionException && exception.cause is Exception) {
+            exception.cause as Exception
+        } else {
+            exception
+        }
+        val message = unwrapped.message ?: ""
+        val errorCode = if (unwrapped is FirebaseAuthException) unwrapped.errorCode else ""
 
         return when {
-            exception is FirebaseAuthInvalidCredentialsException -> {
+            unwrapped is FirebaseAuthInvalidCredentialsException -> {
                 if (message.contains("code", ignoreCase = true) || message.contains("sms", ignoreCase = true) || errorCode == "ERROR_INVALID_VERIFICATION_CODE") {
                     "Invalid OTP. Please check the 6-digit code and try again."
                 } else if (errorCode == "ERROR_INVALID_APP_CREDENTIAL" || message.contains("app credential", ignoreCase = true)) {

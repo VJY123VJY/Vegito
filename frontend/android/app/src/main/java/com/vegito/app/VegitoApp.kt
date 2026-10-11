@@ -1069,25 +1069,17 @@ fun VegitoApp() {
                             ) {
                                 false
                             } else {
+                                val targetSellerId = cartItems.firstOrNull()?.product?.sellerId?.toIntOrNull()
                                 val serverOrder = repository.createOrder(
                                     addressId = addrId,
+                                    sellerId = targetSellerId,
                                     paymentMethod = method
                                 )
                                 if (serverOrder == null) {
                                     false
                                 } else {
-                                    activeOrder = Order(
-                                        id = serverOrder.id.toString(),
-                                        orderNumber = serverOrder.orderNumber,
-                                        status = serverOrder.status,
-                                        totalAmount = serverOrder.totalAmount,
-                                        deliveryFee = serverOrder.deliveryCharge,
-                                        deliveryAddress = checkoutAddress,
-                                        sellerName = serverOrder.shopName.orEmpty(),
-                                        sellerLat = serverOrder.shopLatitude,
-                                        sellerLng = serverOrder.shopLongitude,
-                                        customerOtp = serverOrder.deliveryOtp.orEmpty(),
-                                        pickupOtp = serverOrder.pickupOtp
+                                    activeOrder = serverOrder.toDomainOrder().copy(
+                                        deliveryAddress = checkoutAddress
                                     )
                                     cartItems = emptyList()
                                     cartSummary = CartSummary()
@@ -1223,8 +1215,13 @@ fun VegitoApp() {
                         if (token != null) {
                             val st = repository.getSellerDashboardStats()
                             if (st != null) sellerStats = st
-                            val sOrders = repository.getSellerOrders()
-                            sellerOrdersList = sOrders
+                            sellerOrdersList = repository.getSellerOrders()
+                            while (currentRoute == "seller_dashboard") {
+                                delay(10_000L)
+                                val refreshedStats = repository.getSellerDashboardStats()
+                                if (refreshedStats != null) sellerStats = refreshedStats
+                                sellerOrdersList = repository.getSellerOrders()
+                            }
                         }
                     }
                     SellerDashboardScreen(
@@ -1234,6 +1231,13 @@ fun VegitoApp() {
                         onToggleOnline = { isOnline ->
                             sellerStats = sellerStats.copy(isOnline = isOnline)
                             scope.launch { repository.setSellerAvailability(isOnline) }
+                        },
+                        onRefresh = {
+                            scope.launch {
+                                val st = repository.getSellerDashboardStats()
+                                if (st != null) sellerStats = st
+                                sellerOrdersList = repository.getSellerOrders()
+                            }
                         },
                         onNavigateOrders = { navController.navigate("seller_orders") },
                         onNavigateProducts = { navController.navigate("seller_products") },
@@ -1264,6 +1268,13 @@ fun VegitoApp() {
                         onBack = {
                             if (!navController.popBackStack()) {
                                 navController.navigate("seller_dashboard")
+                            }
+                        },
+                        onRefresh = {
+                            scope.launch {
+                                sellerOrdersList = repository.getSellerOrders()
+                                val st = repository.getSellerDashboardStats()
+                                if (st != null) sellerStats = st
                             }
                         },
                         onUpdateStatus = { id, st ->

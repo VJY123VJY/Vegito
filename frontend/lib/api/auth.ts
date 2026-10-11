@@ -387,16 +387,10 @@ export function isLoggedIn(): boolean {
 
 export function getRoleRedirectPath(role: AuthRole | null): string {
   switch (role) {
-    case "CUSTOMER":
-      return "/customer";
-    case "SELLER":
-      return "/seller";
-    case "DELIVERY_PARTNER":
-      return "/delivery";
     case "ADMIN":
     case "SUPER_ADMIN":
       return "/admin";
     default:
-      return "/";
+      return "/unauthorized?reason=platform_separation";
   }
 }

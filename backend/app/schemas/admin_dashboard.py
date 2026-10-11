@@ -1,4 +1,4 @@
-﻿import datetime
+import datetime
 from decimal import Decimal
 from typing import Optional, List, Any, Dict
 from pydantic import BaseModel
@@ -57,6 +57,17 @@ class PendingSellerVerification(BaseModel):
     phone: str
     city: Optional[str] = None
     created_at: datetime.datetime
+
+
+class GeographicSummary(BaseModel):
+    area: str
+    pincode: Optional[str] = None
+    city: str = "Solapur"
+    order_count: int = 0
+    completed_count: int = 0
+    cancelled_count: int = 0
+    total_revenue: Decimal = Decimal("0.00")
+    unique_customers: int = 0
 
 
 class AdminDashboardResponse(BaseModel):

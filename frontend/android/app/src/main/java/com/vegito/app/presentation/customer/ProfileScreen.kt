@@ -152,7 +152,7 @@ fun ProfileScreen(
                     Text("Switch Workspace", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
                 Text(
-                    "Switch between customer shopping, seller store, delivery partner & admin operations",
+                    "Switch between customer shopping, seller store, and delivery partner mode",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
@@ -181,13 +181,6 @@ fun ProfileScreen(
                         modifier = Modifier.weight(1f)
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                FilterChip(
-                    selected = activeRole == "admin",
-                    onClick = { onSwitchRole("admin") },
-                    label = { Text("Admin Control Center") },
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
         }
 

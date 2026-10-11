@@ -80,28 +80,80 @@ object LocationHelper {
     suspend fun getFreshLocation(
         context: Context,
         allowApproximate: Boolean = true,
+        maxFreshAgeMillis: Long = 60_000L,
         onRecentLocation: ((LocationResult.Success) -> Unit)? = null
     ): LocationResult {
-        val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+        if (!hasFineLocationPermission(context) && !hasCoarseLocationPermission(context)) {
+            return LocationResult.PermissionDenied(isPermanentlyDenied = false)
+        }
 
-        // 1. Try last known location instantly (< 500ms)
-        val cachedLocation = try {
-            withTimeoutOrNull(1000L) {
+        if (!isLocationEnabled(context)) {
+            return LocationResult.GpsDisabled("Location services (GPS) are turned off.")
+        }
+
+        val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+        val now = System.currentTimeMillis()
+
+        // 1. Check last known location to see if we have an acceptable cached fix
+        var cachedSuccess: LocationResult.Success? = null
+        try {
+            val cachedLocation = withTimeoutOrNull(800L) {
                 suspendCancellableCoroutine<Location?> { cont ->
                     fusedClient.lastLocation
                         .addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
                         .addOnFailureListener { if (cont.isActive) cont.resume(null) }
                 }
             }
+
+            if (cachedLocation != null && isValidCoordinates(cachedLocation.latitude, cachedLocation.longitude)) {
+                val locAge = now - cachedLocation.time
+                val isFresh = locAge in 0..maxFreshAgeMillis
+                val isPrecise = hasFineLocationPermission(context) && (cachedLocation.accuracy <= 50f)
+                val success = cachedLocation.toLocationSuccess(context, isFreshFix = isFresh, isPrecise = isPrecise)
+                cachedSuccess = success
+                onRecentLocation?.invoke(success)
+
+                // If cached location is very fresh (< 15 seconds) and precise (< 30m), we can return it directly
+                if (locAge in 0..15_000L && cachedLocation.accuracy <= 30f) {
+                    return success
+                }
+            }
         } catch (e: Exception) {
-            null
+            Log.w(TAG, "Cached location lookup failed: ${e.message}")
         }
 
-        if (cachedLocation != null && isValidCoordinates(cachedLocation.latitude, cachedLocation.longitude)) {
-            return cachedLocation.toLocationSuccess(context, true, true)
+        // 2. Request active fresh GPS fix using getCurrentLocation
+        try {
+            val priority = if (hasFineLocationPermission(context)) {
+                com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY
+            } else {
+                com.google.android.gms.location.Priority.PRIORITY_BALANCED_POWER_ACCURACY
+            }
+
+            val cts = com.google.android.gms.tasks.CancellationTokenSource()
+            val freshLocation = withTimeoutOrNull(7000L) {
+                suspendCancellableCoroutine<Location?> { cont ->
+                    fusedClient.getCurrentLocation(priority, cts.token)
+                        .addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
+                        .addOnFailureListener { if (cont.isActive) cont.resume(null) }
+                    cont.invokeOnCancellation { cts.cancel() }
+                }
+            }
+
+            if (freshLocation != null && isValidCoordinates(freshLocation.latitude, freshLocation.longitude)) {
+                val isPrecise = hasFineLocationPermission(context) && (freshLocation.accuracy <= 60f)
+                return freshLocation.toLocationSuccess(context, isFreshFix = true, isPrecise = isPrecise)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "getCurrentLocation active request failed: ${e.message}")
         }
 
-        // 2. Try Android LocationManager provider fallback
+        // 3. Fallback to cached location if available
+        if (cachedSuccess != null) {
+            return cachedSuccess
+        }
+
+        // 4. Try Android LocationManager provider fallback
         val managerLocation = try {
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
             val gpsLoc = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
@@ -112,15 +164,13 @@ object LocationHelper {
         }
 
         if (managerLocation != null && isValidCoordinates(managerLocation.latitude, managerLocation.longitude)) {
-            return managerLocation.toLocationSuccess(context, true, true)
-        }
-
-        if (!isLocationEnabled(context)) {
-            return LocationResult.GpsDisabled("Location services (GPS) are turned off.")
+            val locAge = now - managerLocation.time
+            val isFresh = locAge in 0..maxFreshAgeMillis
+            return managerLocation.toLocationSuccess(context, isFreshFix = isFresh, isPrecise = managerLocation.accuracy <= 100f)
         }
 
         return LocationResult.Timeout(
-            "GPS fix could not be acquired. Please ensure location services are enabled or enter your address manually."
+            "GPS fix could not be acquired. Please ensure high accuracy location is turned on or enter your address manually."
         )
     }
 

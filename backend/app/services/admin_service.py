@@ -176,6 +176,7 @@ class AdminService:
         for c in complaints:
             read_obj = ComplaintRead.model_validate(c)
             read_obj.customer_name = c.customer.name if c.customer else None
+            read_obj.customer_phone = c.customer.phone if c.customer else None
             results.append(read_obj)
         return results, total_count
 
@@ -197,4 +198,5 @@ class AdminService:
         db.refresh(complaint)
         read_obj = ComplaintRead.model_validate(complaint)
         read_obj.customer_name = complaint.customer.name if complaint.customer else None
+        read_obj.customer_phone = complaint.customer.phone if complaint.customer else None
         return read_obj

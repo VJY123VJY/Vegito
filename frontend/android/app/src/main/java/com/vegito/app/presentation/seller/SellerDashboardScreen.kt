@@ -45,6 +45,7 @@ fun SellerDashboardScreen(
     onNavigateNotifications: () -> Unit,
     onNavigateB2B: () -> Unit,
     onLogout: () -> Unit,
+    onRefresh: (() -> Unit)? = null,
     onSwitchWorkspace: ((String) -> Unit)? = null,
     onNavigateDeliveryTasks: (() -> Unit)? = null
 ) {
@@ -101,6 +102,11 @@ fun SellerDashboardScreen(
                     }
                 },
                 actions = {
+                    if (onRefresh != null) {
+                        IconButton(onClick = onRefresh) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh Dashboard")
+                        }
+                    }
                     IconButton(onClick = onNavigateNotifications) {
                         Icon(Icons.Default.Notifications, contentDescription = "Notifications")
                     }

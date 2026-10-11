@@ -1,4 +1,4 @@
-﻿import datetime
+import datetime
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
@@ -10,8 +10,9 @@ from app.models.seller_product import SellerProduct
 from app.models.product import Product
 from app.models.user import User
 from app.models.seller_profile import SellerProfile
+from app.models.address import Address
 from app.core.constants import OrderStatus, PaymentStatus
-from app.schemas.admin_dashboard import TimeSeriesPoint, TopSellerSummary, TopProductSummary
+from app.schemas.admin_dashboard import TimeSeriesPoint, TopSellerSummary, TopProductSummary, GeographicSummary
 
 
 class AnalyticsService:
@@ -161,6 +162,46 @@ class AnalyticsService:
                 total_quantity_sold=Decimal(str(r.qty_sold or "0")),
                 total_revenue=Decimal(str(r.tot_rev or "0.00")),
                 in_stock=Decimal(str(r.in_stock or "0")),
+            )
+            for r in rows
+        ]
+
+    @staticmethod
+    def get_geographic_analytics(db: Session, range_days: int = 30) -> List[GeographicSummary]:
+        start = AnalyticsService._get_start_date(range_days)
+        # Group orders by Address pincode or city/area
+        rows = (
+            db.query(
+                func.coalesce(Address.landmark, Address.city, "Solapur Central").label("area"),
+                Address.pincode.label("pincode"),
+                func.coalesce(Address.city, "Solapur").label("city"),
+                func.count(Order.id).label("order_count"),
+                func.count(
+                    case((Order.status == OrderStatus.DELIVERED.value, 1), else_=None)
+                ).label("completed_count"),
+                func.count(
+                    case((Order.status.in_([OrderStatus.CANCELLED.value, OrderStatus.REJECTED.value]), 1), else_=None)
+                ).label("cancelled_count"),
+                func.coalesce(func.sum(Order.total_amount), 0).label("tot_rev"),
+                func.count(func.distinct(Order.customer_id)).label("unique_customers"),
+            )
+            .join(Address, Order.address_id == Address.id, isouter=True)
+            .filter(Order.placed_at >= start)
+            .group_by(Address.landmark, Address.city, Address.pincode)
+            .order_by(desc("tot_rev"))
+            .all()
+        )
+
+        return [
+            GeographicSummary(
+                area=r.area or "Solapur Central",
+                pincode=r.pincode or "413001",
+                city=r.city or "Solapur",
+                order_count=r.order_count or 0,
+                completed_count=r.completed_count or 0,
+                cancelled_count=r.cancelled_count or 0,
+                total_revenue=Decimal(str(r.tot_rev or "0.00")),
+                unique_customers=r.unique_customers or 0,
             )
             for r in rows
         ]

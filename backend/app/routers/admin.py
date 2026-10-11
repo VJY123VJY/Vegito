@@ -245,6 +245,7 @@ def get_inventory_alerts(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    from app.models.inventory import Inventory
     from app.models.seller_product import SellerProduct
     from app.models.seller_profile import SellerProfile
     from app.models.product import Product

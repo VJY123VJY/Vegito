@@ -1,5 +1,15 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function AddressesRedirect() {
-  redirect("/customer/addresses");
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/customer/addresses");
+  }, [router]);
+
+  return null;
 }
+

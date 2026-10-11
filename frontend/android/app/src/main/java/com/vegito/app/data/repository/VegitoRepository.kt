@@ -76,6 +76,12 @@ class VegitoRepository(private val apiService: VegitoApiService) {
                     ?: AuthResult.Failure("Authentication service returned an invalid response.")
             } else {
                 val errorBody = response.errorBody()?.string()
+                if (response.code() == 401) {
+                    val safeErrorPreview = errorBody?.take(500)
+                        ?.replace(Regex("(?i)\"(access_token|id_token|token|otp|password|secret|bearer)\"\\s*:\\s*\"[^\"]+\""), "\"$1\":\"[REDACTED]\"")
+                        ?.replace(Regex("(?i)bearer\\s+[A-Za-z0-9_.-]+"), "Bearer [REDACTED]")
+                    Log.w(TAG, "Auth HTTP 401 response body: $safeErrorPreview")
+                }
                 AuthResult.Failure(authErrorMessage(response.code(), errorBody))
             }
         } catch (error: IOException) {
@@ -499,25 +505,31 @@ class VegitoRepository(private val apiService: VegitoApiService) {
 
     suspend fun createOrder(
         addressId: Int,
+        sellerId: Int? = null,
         paymentMethod: String = "COD",
         couponCode: String? = null,
-        customerNote: String? = null
+        customerNote: String? = null,
+        idempotencyKey: String? = null
     ): OrderResponseDto? {
         return try {
+            val key = idempotencyKey ?: java.util.UUID.randomUUID().toString()
             val req = OrderCreateRequest(
                 addressId = addressId,
+                sellerId = sellerId,
                 paymentMethod = paymentMethod,
                 couponCode = couponCode,
-                customerNote = customerNote
+                customerNote = customerNote,
+                idempotencyKey = key
             )
             val response = apiService.createOrder(req)
             if (response.isSuccessful && response.body()?.success == true) {
                 response.body()?.data
             } else {
+                Log.w(TAG, "createOrder failed: HTTP ${response.code()} body=${response.errorBody()?.string()}")
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "createOrder error: ${e.message}")
+            Log.e(TAG, "createOrder error: ${e.message}", e)
             null
         }
     }

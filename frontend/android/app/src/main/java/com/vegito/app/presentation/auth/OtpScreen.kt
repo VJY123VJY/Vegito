@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vegito.app.ui.theme.*
@@ -175,9 +176,17 @@ fun OtpScreen(
             // Number Input Field
             OutlinedTextField(
                 value = otp,
-                onValueChange = { if (it.text.length <= 6) otp = it },
+                onValueChange = { input ->
+                    val digits = input.text.filter { it.isDigit() }.take(6)
+                    otp = TextFieldValue(digits, selection = TextRange(digits.length))
+                },
                 label = { Text("Enter 6-digit verification code") },
                 placeholder = { Text("e.g. 123456") },
+                supportingText = {
+                    if (otp.text.isNotEmpty() && otp.text.length < 6) {
+                        Text("${otp.text.length} of 6 digits entered — enter full code")
+                    }
+                },
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = VegitoPrimary) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
@@ -219,10 +228,10 @@ fun OtpScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Primary Verify Button
+            // Primary Verify Button (requires full 6-digit code for Firebase Phone Auth)
             Button(
-                onClick = { if (otp.text.length >= 4) onVerifyOtp(otp.text.trim()) },
-                enabled = !isLoading && otp.text.length >= 4,
+                onClick = { if (otp.text.length == 6) onVerifyOtp(otp.text.trim()) },
+                enabled = !isLoading && otp.text.length == 6,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)

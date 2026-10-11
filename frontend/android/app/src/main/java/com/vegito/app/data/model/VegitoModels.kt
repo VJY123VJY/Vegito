@@ -518,9 +518,11 @@ data class DeliveryFeeResponse(
 
 data class OrderCreateRequest(
     @SerializedName("address_id") val addressId: Int,
+    @SerializedName("seller_id") val sellerId: Int? = null,
     @SerializedName("payment_method") val paymentMethod: String = "COD",
     @SerializedName("coupon_code") val couponCode: String? = null,
-    @SerializedName("customer_note") val customerNote: String? = null
+    @SerializedName("customer_note") val customerNote: String? = null,
+    @SerializedName("idempotency_key") val idempotencyKey: String? = null
 )
 
 data class OrderStatusUpdateRequest(

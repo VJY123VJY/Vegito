@@ -19,17 +19,18 @@ export function RoleGuard({
   useEffect(() => {
     const token = getAuthToken();
     const role = getStoredRole();
+    const isAdminRoute = allow.includes("ADMIN") || allow.includes("SUPER_ADMIN");
+    const unauthRedirect = isAdminRoute ? "/admin/login" : "/unauthorized?reason=platform_separation";
+
     if (!token || !role) {
-      router.replace(redirectTo ?? "/auth/login");
+      router.replace(redirectTo ?? unauthRedirect);
       return;
     }
-    // In V1, the sole business operator is both SELLER and DELIVERY_PARTNER
     const isAllowed =
       allow.includes(role) ||
-      (role === "SELLER" && allow.includes("DELIVERY_PARTNER")) ||
-      (role === "DELIVERY_PARTNER" && allow.includes("SELLER")) ||
-      role === "ADMIN" ||
-      role === "SUPER_ADMIN";
+      (!isAdminRoute && role === "SELLER" && allow.includes("DELIVERY_PARTNER")) ||
+      (!isAdminRoute && role === "DELIVERY_PARTNER" && allow.includes("SELLER")) ||
+      (!isAdminRoute && (role === "ADMIN" || role === "SUPER_ADMIN"));
 
     if (!isAllowed) {
       router.replace(redirectTo ?? `/unauthorized?required=${allow.join(",")}&current=${role}`);
@@ -42,7 +43,7 @@ export function RoleGuard({
         if (!isMounted) return;
         if (!user) {
           clearSession();
-          router.replace(redirectTo ?? "/auth/login");
+          router.replace(redirectTo ?? unauthRedirect);
           return;
         }
 
@@ -54,8 +55,7 @@ export function RoleGuard({
         const isUserAllowed =
           allow.includes(realRole) ||
           authRoles.some((r) => allow.includes(r)) ||
-          realRole === "ADMIN" ||
-          realRole === "SUPER_ADMIN";
+          (!isAdminRoute && (realRole === "ADMIN" || realRole === "SUPER_ADMIN"));
 
         if (!isUserAllowed) {
           router.replace(redirectTo ?? `/unauthorized?required=${allow.join(",")}&current=${realRole}`);
@@ -67,7 +67,7 @@ export function RoleGuard({
       .catch(() => {
         if (!isMounted) return;
         clearSession();
-        router.replace(redirectTo ?? "/auth/login");
+        router.replace(redirectTo ?? unauthRedirect);
       });
 
     return () => {
