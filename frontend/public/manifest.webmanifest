@@ -37,21 +37,21 @@
   ],
   "shortcuts": [
     {
-      "name": "Shop Fresh Produce",
-      "short_name": "Shop",
-      "url": "/customer",
+      "name": "Admin Dashboard",
+      "short_name": "Dashboard",
+      "url": "/admin",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Seller Dashboard",
-      "short_name": "Seller",
-      "url": "/seller",
+      "name": "Live Order Monitoring",
+      "short_name": "Orders",
+      "url": "/admin/orders",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Delivery Partner",
+      "name": "Delivery Fleet Dispatch",
       "short_name": "Delivery",
-      "url": "/delivery",
+      "url": "/admin/delivery",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]

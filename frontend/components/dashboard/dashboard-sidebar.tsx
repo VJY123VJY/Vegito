@@ -89,21 +89,19 @@ const DELIVERY_ITEMS: NavItem[] = [
 
 const ADMIN_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/admin", icon: <LayoutDashboard size={18} /> },
+  { label: "Analytics", href: "/admin/analytics", icon: <TrendingUp size={18} /> },
   { label: "Orders", href: "/admin/orders", icon: <ClipboardList size={18} /> },
   { label: "Customers", href: "/admin/customers", icon: <Users size={18} /> },
   { label: "Sellers", href: "/admin/sellers", icon: <Store size={18} /> },
   { label: "Delivery Partners", href: "/admin/delivery", icon: <Truck size={18} /> },
   { label: "Products", href: "/admin/products", icon: <Package size={18} /> },
-  { label: "Market Prices", href: "/admin/market-prices", icon: <TrendingUp size={18} /> },
-  { label: "Offers & Deals", href: "/admin/promotions", icon: <Tag size={18} /> },
   { label: "Categories", href: "/admin/categories", icon: <Layers size={18} /> },
   { label: "Inventory", href: "/admin/inventory", icon: <ShoppingBasket size={18} /> },
-  { label: "Reviews", href: "/admin/reviews", icon: <MessageSquare size={18} /> },
-  { label: "Delivery Zones", href: "/admin/zones", icon: <MapPin size={18} /> },
-  { label: "Coupons", href: "/admin/coupons", icon: <Tag size={18} /> },
   { label: "Complaints", href: "/admin/complaints", icon: <ShieldAlert size={18} /> },
-  { label: "Payments", href: "/admin/payments", icon: <CreditCard size={18} /> },
-  { label: "Analytics", href: "/admin/analytics", icon: <TrendingUp size={18} /> },
+  { label: "Notifications", href: "/admin/notifications", icon: <Bell size={18} /> },
+  { label: "Market Prices", href: "/admin/market-prices", icon: <TrendingUp size={18} /> },
+  { label: "Promotions", href: "/admin/promotions", icon: <Tag size={18} /> },
+  { label: "Reviews", href: "/admin/reviews", icon: <MessageSquare size={18} /> },
   { label: "Settings", href: "/admin/settings", icon: <Settings size={18} /> },
 ];
 
@@ -118,11 +116,11 @@ const FARMER_ITEMS: NavItem[] = [
 ];
 
 const ROLE_CONFIG: Record<RoleType, { title: string; items: NavItem[]; authRoute: string }> = {
-  customer: { title: "Customer Portal", items: CUSTOMER_ITEMS, authRoute: "/auth/login" },
-  seller: { title: "Seller Central", items: SELLER_ITEMS, authRoute: "/auth/login" },
-  delivery: { title: "Delivery Fleet", items: DELIVERY_ITEMS, authRoute: "/auth/login" },
-  admin: { title: "Operations Admin", items: ADMIN_ITEMS, authRoute: "/auth/login" },
-  farmer: { title: "Farmer Market", items: FARMER_ITEMS, authRoute: "/auth/login" },
+  customer: { title: "Customer Portal", items: CUSTOMER_ITEMS, authRoute: "/admin/login" },
+  seller: { title: "Seller Central", items: SELLER_ITEMS, authRoute: "/admin/login" },
+  delivery: { title: "Delivery Fleet", items: DELIVERY_ITEMS, authRoute: "/admin/login" },
+  admin: { title: "Operations Admin", items: ADMIN_ITEMS, authRoute: "/admin/login" },
+  farmer: { title: "Farmer Market", items: FARMER_ITEMS, authRoute: "/admin/login" },
 };
 
 interface DashboardSidebarProps {
@@ -146,11 +144,11 @@ export function DashboardSidebar({
 }: DashboardSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const config = ROLE_CONFIG[role] || ROLE_CONFIG.customer;
+  const config = ROLE_CONFIG[role] || ROLE_CONFIG.admin;
 
   function handleLogout() {
     clearSession();
-    router.push("/auth/login");
+    router.push("/admin/login");
   }
 
   // Build className for the aside element

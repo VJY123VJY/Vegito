@@ -1,11 +1,14 @@
 "use client";
 
-import { RoleGuard } from "@/components/role/role-guard";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function SellerLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <RoleGuard allow={["SELLER", "ADMIN", "SUPER_ADMIN"]}>
-      {children}
-    </RoleGuard>
-  );
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/unauthorized?reason=platform_separation&from=/seller");
+  }, [router]);
+
+  return null;
 }

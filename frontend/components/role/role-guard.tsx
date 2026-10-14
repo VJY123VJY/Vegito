@@ -20,20 +20,22 @@ export function RoleGuard({
     const token = getAuthToken();
     const role = getStoredRole();
     const isAdminRoute = allow.includes("ADMIN") || allow.includes("SUPER_ADMIN");
-    const unauthRedirect = isAdminRoute ? "/admin/login" : "/unauthorized?reason=platform_separation";
 
-    if (!token || !role) {
-      router.replace(redirectTo ?? unauthRedirect);
+    // Strict Platform Separation: PWA hosts only Admin & Super Admin command centers.
+    if (!isAdminRoute) {
+      router.replace(redirectTo ?? "/unauthorized?reason=platform_separation");
       return;
     }
-    const isAllowed =
-      allow.includes(role) ||
-      (!isAdminRoute && role === "SELLER" && allow.includes("DELIVERY_PARTNER")) ||
-      (!isAdminRoute && role === "DELIVERY_PARTNER" && allow.includes("SELLER")) ||
-      (!isAdminRoute && (role === "ADMIN" || role === "SUPER_ADMIN"));
+
+    if (!token || !role) {
+      router.replace(redirectTo ?? "/admin/login");
+      return;
+    }
+
+    const isAllowed = role === "ADMIN" || role === "SUPER_ADMIN";
 
     if (!isAllowed) {
-      router.replace(redirectTo ?? `/unauthorized?required=${allow.join(",")}&current=${role}`);
+      router.replace(redirectTo ?? `/unauthorized?required=ADMIN&current=${role}`);
       return;
     }
 
@@ -43,7 +45,7 @@ export function RoleGuard({
         if (!isMounted) return;
         if (!user) {
           clearSession();
-          router.replace(redirectTo ?? unauthRedirect);
+          router.replace(redirectTo ?? "/admin/login");
           return;
         }
 
@@ -53,12 +55,13 @@ export function RoleGuard({
           : [realRole];
 
         const isUserAllowed =
-          allow.includes(realRole) ||
-          authRoles.some((r) => allow.includes(r)) ||
-          (!isAdminRoute && (realRole === "ADMIN" || realRole === "SUPER_ADMIN"));
+          realRole === "ADMIN" ||
+          realRole === "SUPER_ADMIN" ||
+          authRoles.includes("ADMIN") ||
+          authRoles.includes("SUPER_ADMIN");
 
         if (!isUserAllowed) {
-          router.replace(redirectTo ?? `/unauthorized?required=${allow.join(",")}&current=${realRole}`);
+          router.replace(redirectTo ?? `/unauthorized?required=ADMIN&current=${realRole}`);
           return;
         }
 
@@ -67,7 +70,7 @@ export function RoleGuard({
       .catch(() => {
         if (!isMounted) return;
         clearSession();
-        router.replace(redirectTo ?? unauthRedirect);
+        router.replace(redirectTo ?? "/admin/login");
       });
 
     return () => {

@@ -25,28 +25,14 @@ interface NavItem {
 }
 
 const ROLE_NAV: Record<string, NavItem[]> = {
-  CUSTOMER: [
-    { icon: House, label: "Home", href: "/customer" },
-    { icon: Tag, label: "Offers", href: "/customer/offers" },
-    { icon: ShoppingBasket, label: "Basket", href: "/customer/cart" },
-    { icon: Package, label: "Orders", href: "/customer/orders" },
-    { icon: UserRound, label: "Profile", href: "/customer/profile" },
-  ],
-  SELLER: [
-    { icon: LayoutDashboard, label: "Home", href: "/seller" },
-    { icon: Package, label: "Inventory", href: "/seller/inventory" },
-    { icon: ClipboardList, label: "Orders", href: "/seller/orders" },
-    { icon: Truck, label: "Deliver", href: "/seller/deliveries" },
-    { icon: Menu, label: "Menu", href: "#more" },
-  ],
-  DELIVERY_PARTNER: [
-    { icon: LayoutDashboard, label: "Fleet", href: "/delivery" },
-    { icon: ClipboardList, label: "Tasks", href: "/delivery/tasks" },
-    { icon: Truck, label: "Live", href: "/delivery/live-map" },
-    { icon: UserRound, label: "Profile", href: "/delivery/profile" },
-    { icon: Menu, label: "Menu", href: "#more" },
-  ],
   ADMIN: [
+    { icon: LayoutDashboard, label: "Admin", href: "/admin" },
+    { icon: ClipboardList, label: "Orders", href: "/admin/orders" },
+    { icon: Package, label: "Catalog", href: "/admin/products" },
+    { icon: Settings, label: "Settings", href: "/admin/settings" },
+    { icon: Menu, label: "Menu", href: "#more" },
+  ],
+  SUPER_ADMIN: [
     { icon: LayoutDashboard, label: "Admin", href: "/admin" },
     { icon: ClipboardList, label: "Orders", href: "/admin/orders" },
     { icon: Package, label: "Catalog", href: "/admin/products" },
@@ -63,14 +49,14 @@ export function BottomNavigation({
   onMoreClick?: () => void;
 }) {
   const pathname = usePathname();
-  const [role, setRole] = useState<AuthRole | "GUEST">("CUSTOMER");
+  const [role, setRole] = useState<AuthRole | "GUEST">("ADMIN");
 
   useEffect(() => {
     const stored = getStoredRole();
     if (stored) setRole(stored);
   }, []);
 
-  const items = ROLE_NAV[role] || ROLE_NAV.CUSTOMER;
+  const items = ROLE_NAV[role] || ROLE_NAV.ADMIN;
 
   return (
     <nav

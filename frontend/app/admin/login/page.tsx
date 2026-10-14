@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -14,12 +14,20 @@ import {
   Loader2,
   CheckCircle2,
 } from "lucide-react";
-import { loginWithPassword, saveSession } from "@/lib/api/auth";
+import { loginWithPassword, saveSession, getAuthToken, getStoredRole } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/client";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 
 export default function AdminLoginPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    const token = getAuthToken();
+    const role = getStoredRole();
+    if (token && (role === "ADMIN" || role === "SUPER_ADMIN")) {
+      router.replace("/admin");
+    }
+  }, [router]);
 
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");

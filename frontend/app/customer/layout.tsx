@@ -1,6 +1,14 @@
-import { RoleGuard } from "@/components/role/role-guard";
-import styles from "@/styles/customer-commerce.module.css";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
-  return <RoleGuard allow={["CUSTOMER"]}><div className={styles.page}>{children}</div></RoleGuard>;
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/unauthorized?reason=platform_separation&from=/customer");
+  }, [router]);
+
+  return null;
 }

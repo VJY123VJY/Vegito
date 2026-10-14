@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import Link from "next/link";
@@ -20,7 +20,7 @@ interface InventoryAlertProps {
   actionHref?: string;
 }
 
-export function InventoryAlert({ alerts, actionHref = "/seller/inventory" }: InventoryAlertProps) {
+export function InventoryAlert({ alerts, actionHref = "/admin/inventory" }: InventoryAlertProps) {
   if (!alerts || alerts.length === 0) return null;
 
   return (
