@@ -39,7 +39,7 @@ def list_products(
         lat=lat,
         lon=lon,
         seller_id=seller_id,
-        max_radius_km=20.0,
+        max_radius_km=float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 50.0)),
     )
     paginated = PaginatedResponse.create(products, total_count, pagination)
     return APIResponse(data=paginated)

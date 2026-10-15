@@ -357,6 +357,17 @@ class VegitoRepository(private val apiService: VegitoApiService) {
                 page += 1
             } while (page <= pageCount)
 
+            if (items.isEmpty() && (latitude != null || longitude != null)) {
+                Log.d(TAG, "No items returned with coordinates ($latitude, $longitude). Falling back to complete catalog.")
+                return getProductCatalog(
+                    categoryId = categoryId,
+                    categoryName = categoryName,
+                    search = search,
+                    latitude = null,
+                    longitude = null
+                )
+            }
+
             val filteredItems = if (!categoryName.isNullOrEmpty() &&
                 categoryName != "All Vegetables" &&
                 categoryName != "All Fruits"
@@ -412,6 +423,47 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         } catch (e: Exception) {
             Log.e(TAG, "getActiveOffers network failed: ${e.message}", e)
             emptyList()
+        }
+    }
+
+    suspend fun getMarketIntelligence(): List<MarketIntelligenceDto> {
+        return try {
+            val res = apiService.getMarketIntelligence()
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data.orEmpty()
+            } else {
+                Log.w(TAG, "getMarketIntelligence HTTP ${res.code()}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getMarketIntelligence network error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun getSellerMarketIntelligence(): List<MarketIntelligenceDto> {
+        return try {
+            val res = apiService.getSellerMarketIntelligence()
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data.orEmpty()
+            } else {
+                Log.w(TAG, "getSellerMarketIntelligence HTTP ${res.code()}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSellerMarketIntelligence network error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun publishSellerPrice(sellerProductId: Int, newPrice: Double): Boolean {
+        return try {
+            val payload = mapOf("seller_product_id" to sellerProductId, "price" to newPrice)
+            val res = apiService.publishSellerPrice(payload)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "publishSellerPrice error: ${e.message}")
+            false
         }
     }
 
@@ -648,6 +700,21 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         } catch (e: Exception) {
             Log.e(TAG, "getCustomerOrders error: ${e.message}")
             emptyList()
+        }
+    }
+
+    suspend fun getOrderDetail(orderId: Int): Order? {
+        return try {
+            val res = apiService.getOrderDetail(orderId)
+            if (res.isSuccessful && res.body()?.success == true && res.body()?.data != null) {
+                res.body()!!.data!!.toDomainOrder()
+            } else {
+                Log.w(TAG, "getOrderDetail for $orderId failed: HTTP ${res.code()}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getOrderDetail error for $orderId: ${e.message}")
+            null
         }
     }
 

@@ -9,10 +9,15 @@ import android.location.Geocoder
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult as GmsLocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -42,7 +47,7 @@ sealed class LocationResult {
     ) : LocationResult()
     data class PermissionDenied(val isPermanentlyDenied: Boolean = false) : LocationResult()
     data class Timeout(
-        val message: String = "GPS fix took too long. Please try again or enter your address manually."
+        val message: String = "GPS fix could not be acquired. Please ensure high-accuracy location is enabled or enter your address manually."
     ) : LocationResult()
     data class Error(val message: String) : LocationResult()
 }
@@ -71,16 +76,30 @@ object LocationHelper {
         if (lat == null || lng == null) return false
         if (lat.isNaN() || lng.isNaN()) return false
         if (lat.isInfinite() || lng.isInfinite()) return false
-        if (lat == 0.0 && lng == 0.0) return false
+        if (kotlin.math.abs(lat) < 1e-5 && kotlin.math.abs(lng) < 1e-5) return false
         if (lat < -90.0 || lat > 90.0) return false
         return !(lng < -180.0 || lng > 180.0)
+    }
+
+    /**
+     * Accurately determines location age in milliseconds using monotonic elapsed realtime when available.
+     */
+    fun getLocationAgeMillis(location: Location): Long {
+        val elapsedNanos = location.elapsedRealtimeNanos
+        val nowElapsedNanos = SystemClock.elapsedRealtimeNanos()
+        val ageMillis = (nowElapsedNanos - elapsedNanos) / 1_000_000L
+        return if (ageMillis >= 0) {
+            ageMillis
+        } else {
+            (System.currentTimeMillis() - location.time).coerceAtLeast(0L)
+        }
     }
 
     @SuppressLint("MissingPermission")
     suspend fun getFreshLocation(
         context: Context,
         allowApproximate: Boolean = true,
-        maxFreshAgeMillis: Long = 60_000L,
+        maxFreshAgeMillis: Long = 30_000L,
         onRecentLocation: ((LocationResult.Success) -> Unit)? = null
     ): LocationResult {
         if (!hasFineLocationPermission(context) && !hasCoarseLocationPermission(context)) {
@@ -92,12 +111,12 @@ object LocationHelper {
         }
 
         val fusedClient = LocationServices.getFusedLocationProviderClient(context)
-        val now = System.currentTimeMillis()
 
-        // 1. Check last known location to see if we have an acceptable cached fix
+        // 1. Inspect cached location
         var cachedSuccess: LocationResult.Success? = null
+        var cachedAgeMillis: Long = Long.MAX_VALUE
         try {
-            val cachedLocation = withTimeoutOrNull(800L) {
+            val cachedLocation = withTimeoutOrNull(1000L) {
                 suspendCancellableCoroutine<Location?> { cont ->
                     fusedClient.lastLocation
                         .addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
@@ -106,32 +125,33 @@ object LocationHelper {
             }
 
             if (cachedLocation != null && isValidCoordinates(cachedLocation.latitude, cachedLocation.longitude)) {
-                val locAge = now - cachedLocation.time
-                val isFresh = locAge in 0..maxFreshAgeMillis
+                cachedAgeMillis = getLocationAgeMillis(cachedLocation)
+                val isFresh = cachedAgeMillis in 0..maxFreshAgeMillis
                 val isPrecise = hasFineLocationPermission(context) && (cachedLocation.accuracy <= 50f)
                 val success = cachedLocation.toLocationSuccess(context, isFreshFix = isFresh, isPrecise = isPrecise)
                 cachedSuccess = success
                 onRecentLocation?.invoke(success)
 
-                // If cached location is very fresh (< 15 seconds) and precise (< 30m), we can return it directly
-                if (locAge in 0..15_000L && cachedLocation.accuracy <= 30f) {
+                // If cached location is extremely fresh (< 15 seconds) and highly accurate (<= 30m), use it immediately
+                if (cachedAgeMillis in 0..15_000L && cachedLocation.accuracy <= 30f) {
+                    Log.i(TAG, "Using fresh high-accuracy cached fix (${cachedAgeMillis}ms old, acc=${cachedLocation.accuracy}m)")
                     return success
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Cached location lookup failed: ${e.message}")
+            Log.w(TAG, "Cached location check failed: ${e.message}")
         }
 
-        // 2. Request active fresh GPS fix using getCurrentLocation
-        try {
-            val priority = if (hasFineLocationPermission(context)) {
-                com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY
-            } else {
-                com.google.android.gms.location.Priority.PRIORITY_BALANCED_POWER_ACCURACY
-            }
+        // 2. Request active fresh GPS fix via getCurrentLocation
+        val priority = if (hasFineLocationPermission(context)) {
+            Priority.PRIORITY_HIGH_ACCURACY
+        } else {
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        }
 
+        try {
             val cts = com.google.android.gms.tasks.CancellationTokenSource()
-            val freshLocation = withTimeoutOrNull(7000L) {
+            val freshLocation = withTimeoutOrNull(10_000L) {
                 suspendCancellableCoroutine<Location?> { cont ->
                     fusedClient.getCurrentLocation(priority, cts.token)
                         .addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
@@ -141,19 +161,61 @@ object LocationHelper {
             }
 
             if (freshLocation != null && isValidCoordinates(freshLocation.latitude, freshLocation.longitude)) {
-                val isPrecise = hasFineLocationPermission(context) && (freshLocation.accuracy <= 60f)
-                return freshLocation.toLocationSuccess(context, isFreshFix = true, isPrecise = isPrecise)
+                val age = getLocationAgeMillis(freshLocation)
+                if (age <= 60_000L) {
+                    val isPrecise = hasFineLocationPermission(context) && (freshLocation.accuracy <= 60f)
+                    Log.i(TAG, "Acquired fresh active fix: lat=${freshLocation.latitude}, lng=${freshLocation.longitude}, acc=${freshLocation.accuracy}m")
+                    return freshLocation.toLocationSuccess(context, isFreshFix = true, isPrecise = isPrecise)
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "getCurrentLocation active request failed: ${e.message}")
         }
 
-        // 3. Fallback to cached location if available
-        if (cachedSuccess != null) {
-            return cachedSuccess
+        // 3. Active fallback: single-shot location update request (wakes up GPS chips on cold start)
+        try {
+            val singleUpdateLocation = withTimeoutOrNull(6000L) {
+                suspendCancellableCoroutine<Location?> { cont ->
+                    val request = LocationRequest.Builder(priority, 1000L)
+                        .setMaxUpdates(1)
+                        .setDurationMillis(5000L)
+                        .build()
+
+                    val callback = object : LocationCallback() {
+                        override fun onLocationResult(result: GmsLocationResult) {
+                            val loc = result.lastLocation
+                            fusedClient.removeLocationUpdates(this)
+                            if (cont.isActive) cont.resume(loc)
+                        }
+                    }
+
+                    fusedClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
+                        .addOnFailureListener {
+                            if (cont.isActive) cont.resume(null)
+                        }
+
+                    cont.invokeOnCancellation {
+                        fusedClient.removeLocationUpdates(callback)
+                    }
+                }
+            }
+
+            if (singleUpdateLocation != null && isValidCoordinates(singleUpdateLocation.latitude, singleUpdateLocation.longitude)) {
+                val isPrecise = hasFineLocationPermission(context) && (singleUpdateLocation.accuracy <= 60f)
+                Log.i(TAG, "Acquired single-update GPS fix: acc=${singleUpdateLocation.accuracy}m")
+                return singleUpdateLocation.toLocationSuccess(context, isFreshFix = true, isPrecise = isPrecise)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Single-update location request failed: ${e.message}")
         }
 
-        // 4. Try Android LocationManager provider fallback
+        // 4. If active requests timed out, evaluate cached fix strictly
+        if (cachedSuccess != null && cachedAgeMillis <= 60_000L) {
+            Log.w(TAG, "Using recently cached fix (${cachedAgeMillis}ms old) as non-fresh fallback")
+            return cachedSuccess.copy(isFreshFix = false)
+        }
+
+        // 5. Try Android LocationManager provider fallback (only if recent < 60s)
         val managerLocation = try {
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
             val gpsLoc = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
@@ -164,13 +226,15 @@ object LocationHelper {
         }
 
         if (managerLocation != null && isValidCoordinates(managerLocation.latitude, managerLocation.longitude)) {
-            val locAge = now - managerLocation.time
-            val isFresh = locAge in 0..maxFreshAgeMillis
-            return managerLocation.toLocationSuccess(context, isFreshFix = isFresh, isPrecise = managerLocation.accuracy <= 100f)
+            val locAge = getLocationAgeMillis(managerLocation)
+            if (locAge <= 60_000L) {
+                Log.i(TAG, "Using LocationManager fallback (${locAge}ms old)")
+                return managerLocation.toLocationSuccess(context, isFreshFix = false, isPrecise = managerLocation.accuracy <= 100f)
+            }
         }
 
         return LocationResult.Timeout(
-            "GPS fix could not be acquired. Please ensure high accuracy location is turned on or enter your address manually."
+            "GPS satellite fix could not be acquired in time. Please turn on high-accuracy GPS or enter your address manually."
         )
     }
 
@@ -187,18 +251,23 @@ object LocationHelper {
                     }
                     val match = addresses?.firstOrNull()
                     if (match != null && isValidCoordinates(match.latitude, match.longitude)) {
+                        val city = match.locality ?: match.subAdminArea ?: ""
+                        val state = match.adminArea ?: ""
+                        val pincode = match.postalCode ?: ""
+                        val area = match.subLocality ?: match.thoroughfare ?: match.featureName ?: ""
                         return@withContext LocationResult.Success(
                             latitude = match.latitude,
                             longitude = match.longitude,
                             addressLine = addressStr,
-                            city = match.locality ?: "Solapur",
-                            state = match.adminArea ?: "Maharashtra",
-                            pincode = match.postalCode ?: "413001",
-                            area = match.subLocality ?: "Solapur City",
+                            city = city,
+                            state = state,
+                            pincode = pincode,
+                            area = area,
                             accuracyMeters = 20f,
                             capturedAtEpochMillis = System.currentTimeMillis(),
                             isFreshFix = true,
-                            isPrecise = true
+                            isPrecise = true,
+                            isAddressMatch = true
                         )
                     }
                 }
@@ -224,14 +293,14 @@ object LocationHelper {
         isPrecise: Boolean = true
     ): LocationResult.Success =
         withContext(Dispatchers.IO) {
-            var addressLine = "Current device location"
-            var city = "Solapur"
-            var state = "Maharashtra"
-            var pincode = "413001"
-            var area = "Solapur City"
+            var addressLine: String? = null
+            var city = ""
+            var state = ""
+            var pincode = ""
+            var area = ""
 
             try {
-                withTimeoutOrNull(2500L) {
+                withTimeoutOrNull(3000L) {
                     if (Geocoder.isPresent()) {
                         val geocoder = Geocoder(context, Locale.getDefault())
                         val addresses = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -242,12 +311,12 @@ object LocationHelper {
                         }
                         val bestMatch = addresses?.firstOrNull()
                         if (bestMatch != null) {
-                            if (!bestMatch.locality.isNullOrBlank()) city = bestMatch.locality!!
-                            if (!bestMatch.adminArea.isNullOrBlank()) state = bestMatch.adminArea!!
-                            if (!bestMatch.postalCode.isNullOrBlank()) pincode = bestMatch.postalCode!!
-                            if (!bestMatch.subLocality.isNullOrBlank()) area = bestMatch.subLocality!!
+                            city = bestMatch.locality ?: bestMatch.subAdminArea ?: ""
+                            state = bestMatch.adminArea ?: ""
+                            pincode = bestMatch.postalCode ?: ""
+                            area = bestMatch.subLocality ?: bestMatch.thoroughfare ?: bestMatch.featureName ?: ""
                             if (bestMatch.maxAddressLineIndex >= 0) {
-                                addressLine = bestMatch.getAddressLine(0) ?: addressLine
+                                addressLine = bestMatch.getAddressLine(0)
                             }
                         }
                     }
@@ -256,14 +325,24 @@ object LocationHelper {
                 Log.w(TAG, "Reverse geocode failed: ${e.message}")
             }
 
+            // Construct truthful, non-fabricated address line if geocoder was unavailable
+            val finalAddressLine = addressLine?.ifBlank { null }
+                ?: listOf(area, city, state, pincode).filter { it.isNotBlank() }.joinToString(", ").ifBlank {
+                    "GPS: ${String.format(Locale.US, "%.5f, %.5f", lat, lng)}"
+                }
+
+            val finalArea = area.ifBlank {
+                if (city.isNotBlank()) city else "Current Location"
+            }
+
             LocationResult.Success(
                 latitude = lat,
                 longitude = lng,
-                addressLine = addressLine,
+                addressLine = finalAddressLine,
                 city = city,
                 state = state,
                 pincode = pincode,
-                area = area,
+                area = finalArea,
                 accuracyMeters = accuracyMeters,
                 capturedAtEpochMillis = capturedAtEpochMillis,
                 isFreshFix = isFreshFix,

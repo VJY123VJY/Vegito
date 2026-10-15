@@ -1,6 +1,9 @@
+import logging
 from typing import List, Optional, Tuple
 
 from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload, selectinload
@@ -147,7 +150,7 @@ class ProductService:
         lat: Optional[float] = None,
         lon: Optional[float] = None,
         seller_id: Optional[int] = None,
-        max_radius_km: float = 20.0,
+        max_radius_km: float = 50.0,
     ) -> Tuple[List[ProductRead], int]:
         """
         Lists canonical products with aggregated seller offers.
@@ -241,11 +244,20 @@ class ProductService:
 
 
         # If location filter or specific seller filter is active, filter products to eligible ones
+        location_filter_applied = False
         if (lat is not None and lon is not None) or seller_id is not None:
-            raw_products = [
+            filtered_by_location = [
                 p for p in raw_products
                 if any(_is_offer_eligible(sp)[0] for sp in p.seller_products)
             ]
+            if filtered_by_location or seller_id is not None:
+                raw_products = filtered_by_location
+                location_filter_applied = True
+            else:
+                logger.info(
+                    "No seller offers within %s km of (%s, %s). Showing available marketplace catalog.",
+                    max_radius_km, lat, lon
+                )
 
         # Relevance scoring for search queries
         if clean_search and not TaxonomyService.get_category_intent(clean_search):
@@ -307,7 +319,7 @@ class ProductService:
 
             for sp in p.seller_products:
                 eligible, dist_val = _is_offer_eligible(sp)
-                if not eligible:
+                if location_filter_applied and not eligible:
                     continue
 
                 inventory = sp.inventory

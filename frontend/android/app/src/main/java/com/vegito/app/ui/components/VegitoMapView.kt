@@ -35,15 +35,15 @@ private const val MAPBOX_TOKEN = "pk.eyJ1IjoidmlqYXkxMjN2aWpheSIsImEiOiJjbXU0OHh
 @Composable
 fun VegitoMapView(
     modifier: Modifier = Modifier,
-    riderLat: Double?,
-    riderLng: Double?,
-    shopLat: Double,
-    shopLng: Double,
+    riderLat: Double? = null,
+    riderLng: Double? = null,
+    shopLat: Double? = null,
+    shopLng: Double? = null,
     customerLat: Double? = null,
     customerLng: Double? = null,
-    shopName: String,
-    customerAddress: String,
-    statusText: String,
+    shopName: String = "Shop",
+    customerAddress: String = "Customer Address",
+    statusText: String = "",
     showRoute: Boolean = true,
     interactive: Boolean = true,
     onGpsClick: (() -> Unit)? = null
@@ -56,12 +56,20 @@ fun VegitoMapView(
         riderLat, riderLng, shopLat, shopLng, customerLat, customerLng,
         shopName, customerAddress, statusText
     ) {
-        val hasCustomer = customerLat != null && customerLng != null
+        val hasCustomer = customerLat != null && customerLng != null && com.vegito.app.utils.LocationHelper.isValidCoordinates(customerLat, customerLng)
+        val hasShop = shopLat != null && shopLng != null && com.vegito.app.utils.LocationHelper.isValidCoordinates(shopLat, shopLng)
+        val hasRider = riderLat != null && riderLng != null && com.vegito.app.utils.LocationHelper.isValidCoordinates(riderLat, riderLng)
+
+        val shopLatStr = if (hasShop) shopLat.toString() else "null"
+        val shopLngStr = if (hasShop) shopLng.toString() else "null"
         val customerLatStr = if (hasCustomer) customerLat.toString() else "null"
         val customerLngStr = if (hasCustomer) customerLng.toString() else "null"
-        val hasRider = riderLat != null && riderLng != null
-        val riderLatStr = if (hasRider) riderLat.toString() else "0"
-        val riderLngStr = if (hasRider) riderLng.toString() else "0"
+        val riderLatStr = if (hasRider) riderLat.toString() else "null"
+        val riderLngStr = if (hasRider) riderLng.toString() else "null"
+
+        val safeShopName = shopName.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"").replace("\n", " ").trim()
+        val safeCustomerAddress = customerAddress.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"").replace("\n", " ").trim()
+        val safeStatusText = statusText.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"").replace("\n", " ").trim()
 
         """
         <!DOCTYPE html>
@@ -129,7 +137,11 @@ fun VegitoMapView(
                 var riderMarker, shopMarker, destMarker;
                 var routePolyline;
 
-                var initialCenter = [$shopLat, $shopLng];
+                var hasShop = $hasShop;
+                var hasCust = $hasCustomer;
+                var hasRider = $hasRider;
+
+                var initialCenter = hasCust ? [$customerLatStr, $customerLngStr] : (hasShop ? [$shopLatStr, $shopLngStr] : (hasRider ? [$riderLatStr, $riderLngStr] : [20.5937, 78.9629]));
                 map = L.map('map', {
                     zoomControl: false,
                     attributionControl: false
@@ -150,17 +162,18 @@ fun VegitoMapView(
                 });
 
                 // Shop / Mandi Marker
-                var shopIconHtml = L.divIcon({
-                    html: '<div class="shop-icon">🏪</div>',
-                    className: '',
-                    iconSize: [34, 34],
-                    iconAnchor: [17, 17]
-                });
-                shopMarker = L.marker([$shopLat, $shopLng], { icon: shopIconHtml }).addTo(map);
-                shopMarker.bindPopup('<b>$shopName</b><br>APMC Mandi Yard');
+                if (hasShop) {
+                    var shopIconHtml = L.divIcon({
+                        html: '<div class="shop-icon">🏪</div>',
+                        className: '',
+                        iconSize: [34, 34],
+                        iconAnchor: [17, 17]
+                    });
+                    shopMarker = L.marker([$shopLatStr, $shopLngStr], { icon: shopIconHtml }).addTo(map);
+                    shopMarker.bindPopup('<b>$safeShopName</b><br>Store Location');
+                }
 
                 // Customer Destination Marker
-                var hasCust = $customerLatStr !== null && $customerLngStr !== null;
                 if (hasCust) {
                     var destIconHtml = L.divIcon({
                         html: '<div class="dest-icon">📍</div>',
@@ -169,10 +182,9 @@ fun VegitoMapView(
                         iconAnchor: [17, 17]
                     });
                     destMarker = L.marker([$customerLatStr, $customerLngStr], { icon: destIconHtml }).addTo(map);
-                    destMarker.bindPopup('<b>$customerAddress</b><br>Delivery Doorstep');
+                    destMarker.bindPopup('<b>$safeCustomerAddress</b><br>Delivery Doorstep');
                 }
 
-                var hasRider = $hasRider;
                 if (hasRider) {
                     var riderIconHtml = L.divIcon({
                         html: '<div class="rider-icon">🛵</div>',
@@ -181,15 +193,15 @@ fun VegitoMapView(
                         iconAnchor: [19, 19]
                     });
                     riderMarker = L.marker([$riderLatStr, $riderLngStr], { icon: riderIconHtml }).addTo(map);
-                    riderMarker.bindPopup('<b>Delivery Partner</b><br>$statusText');
+                    riderMarker.bindPopup('<b>Delivery Partner</b><br>$safeStatusText');
                 }
 
                 // Polyline Route
-                var waypoints = [[$shopLat, $shopLng]];
+                var waypoints = [];
+                if (hasShop) waypoints.push([$shopLatStr, $shopLngStr]);
                 if (hasRider) waypoints.push([$riderLatStr, $riderLngStr]);
-                if (hasCust) {
-                    waypoints.push([$customerLatStr, $customerLngStr]);
-                }
+                if (hasCust) waypoints.push([$customerLatStr, $customerLngStr]);
+
                 if (waypoints.length > 1) {
                     routePolyline = L.polyline(waypoints, {
                         color: '#2E7D32',
@@ -200,14 +212,18 @@ fun VegitoMapView(
                 }
 
                 // Auto-fit all markers
-                var bounds = L.latLngBounds(waypoints);
-                map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+                if (waypoints.length > 0) {
+                    var bounds = L.latLngBounds(waypoints);
+                    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+                }
 
                 // Function to update rider position dynamically
                 window.updateRider = function(lat, lng) {
                     if (riderMarker) {
                         riderMarker.setLatLng([lat, lng]);
-                        var updatedPoints = [[$shopLat, $shopLng], [lat, lng]];
+                        var updatedPoints = [];
+                        if (hasShop) updatedPoints.push([$shopLatStr, $shopLngStr]);
+                        updatedPoints.push([lat, lng]);
                         if (hasCust) updatedPoints.push([$customerLatStr, $customerLngStr]);
                         if (routePolyline) routePolyline.setLatLngs(updatedPoints);
                     }

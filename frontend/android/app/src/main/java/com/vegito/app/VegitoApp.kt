@@ -17,10 +17,11 @@ import android.util.Log
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.firebase.auth.PhoneAuthProvider
 import com.vegito.app.BuildConfig
-import com.vegito.app.data.auth.FirebaseAuthManager
+import com.vegito.app.utils.PhoneUtils
 import com.vegito.app.data.local.SessionManager
+import com.vegito.app.data.auth.FirebaseAuthManager
+import com.google.firebase.auth.PhoneAuthProvider
 import com.vegito.app.data.demo.DemoOrderRunner
 import com.vegito.app.data.model.*
 import com.vegito.app.data.remote.RetrofitClient
@@ -326,9 +327,9 @@ fun VegitoApp() {
 
     var pendingPhoneForOtp by remember { mutableStateOf("") }
     var pendingRoleForOtp by remember { mutableStateOf("customer") }
+    var pendingRegistrationData by remember { mutableStateOf<UnifiedRegisterRequestDto?>(null) }
     var pendingVerificationId by remember { mutableStateOf<String?>(null) }
     var pendingResendToken by remember { mutableStateOf<PhoneAuthProvider.ForceResendingToken?>(null) }
-    var pendingRegistrationData by remember { mutableStateOf<UnifiedRegisterRequestDto?>(null) }
     var authDevOtp by remember { mutableStateOf<String?>(null) }
     var isAuthLoading by remember { mutableStateOf(false) }
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
@@ -382,8 +383,6 @@ fun VegitoApp() {
         isAuthLoading = false
         sessionManager.saveTokenResponse(tokenData)
         pendingRegistrationData = null
-        pendingVerificationId = null
-        pendingResendToken = null
 
         val resolvedRole = tokenData.role.lowercase()
         if (pendingProductForCart != null && resolvedRole == "customer") {
@@ -437,9 +436,9 @@ fun VegitoApp() {
             onInstantVerified = { idToken ->
                 completeFirebaseBackendLogin(idToken, role)
             },
-            onError = { firebaseErrorMsg ->
+            onError = { errorMsg ->
                 isAuthLoading = false
-                authErrorMessage = firebaseErrorMsg
+                authErrorMessage = errorMsg
             }
         )
     }
@@ -467,7 +466,6 @@ fun VegitoApp() {
     }
 
     fun performLogout() {
-        FirebaseAuthManager.signOut()
         sessionManager.clearSession()
         sessionManager.clearSelectedAddress()
         cartItems = emptyList()
@@ -487,8 +485,6 @@ fun VegitoApp() {
         activeDeliveryTaskForMap = null
         adminSellersList = emptyList()
         adminDeliveryPartnersList = emptyList()
-        pendingVerificationId = null
-        pendingResendToken = null
         navController.navigate("login") {
             popUpTo(0) { inclusive = true }
         }
@@ -595,7 +591,7 @@ fun VegitoApp() {
         ) { paddingValues ->
             NavHost(
                 navController = navController,
-                startDestination = if (token != null && FirebaseAuthManager.auth.currentUser != null) {
+                startDestination = if (token != null && sessionManager.getUser() != null) {
                     when (activeRole.lowercase()) {
                         "seller" -> "seller_dashboard"
                         "delivery_partner" -> "delivery_dashboard"
@@ -760,42 +756,30 @@ fun VegitoApp() {
                             isAuthLoading = true
                             authErrorMessage = null
                             scope.launch {
-                                if (vId == "BACKEND_OTP_FALLBACK") {
-                                    when (val verifyRes = repository.verifyOtp(pendingPhoneForOtp, otpCode, pendingRoleForOtp)) {
-                                        is VegitoRepository.AuthResult.Success -> {
-                                            completeBackendOtpLogin(verifyRes.data)
-                                        }
-                                        is VegitoRepository.AuthResult.Failure -> {
-                                            isAuthLoading = false
-                                            authErrorMessage = verifyRes.message
-                                        }
-                                    }
-                                } else {
-                                    when (val verifyResult = FirebaseAuthManager.verifyOtpAndGetIdToken(vId, otpCode)) {
-                                        is FirebaseAuthManager.VerifyOtpResult.Success -> {
-                                            val regData = pendingRegistrationData
-                                            if (regData != null) {
-                                                when (val regRes = repository.registerUser(regData)) {
-                                                    is VegitoRepository.AuthResult.Success -> {
+                                when (val verifyResult = FirebaseAuthManager.verifyOtpAndGetIdToken(vId, otpCode)) {
+                                    is FirebaseAuthManager.VerifyOtpResult.Success -> {
+                                        val regData = pendingRegistrationData
+                                        if (regData != null) {
+                                            when (val regRes = repository.registerUser(regData)) {
+                                                is VegitoRepository.AuthResult.Success -> {
+                                                    completeFirebaseBackendLogin(verifyResult.firebaseIdToken, pendingRoleForOtp)
+                                                }
+                                                is VegitoRepository.AuthResult.Failure -> {
+                                                    if (regRes.message.contains("already registered", ignoreCase = true)) {
                                                         completeFirebaseBackendLogin(verifyResult.firebaseIdToken, pendingRoleForOtp)
-                                                    }
-                                                    is VegitoRepository.AuthResult.Failure -> {
-                                                        if (regRes.message.contains("already registered", ignoreCase = true)) {
-                                                            completeFirebaseBackendLogin(verifyResult.firebaseIdToken, pendingRoleForOtp)
-                                                        } else {
-                                                            isAuthLoading = false
-                                                            authErrorMessage = regRes.message
-                                                        }
+                                                    } else {
+                                                        isAuthLoading = false
+                                                        authErrorMessage = regRes.message
                                                     }
                                                 }
-                                            } else {
-                                                completeFirebaseBackendLogin(verifyResult.firebaseIdToken, pendingRoleForOtp)
                                             }
+                                        } else {
+                                            completeFirebaseBackendLogin(verifyResult.firebaseIdToken, pendingRoleForOtp)
                                         }
-                                        is FirebaseAuthManager.VerifyOtpResult.Error -> {
-                                            isAuthLoading = false
-                                            authErrorMessage = verifyResult.message
-                                        }
+                                    }
+                                    is FirebaseAuthManager.VerifyOtpResult.Error -> {
+                                        isAuthLoading = false
+                                        authErrorMessage = verifyResult.message
                                     }
                                 }
                             }
@@ -1078,8 +1062,14 @@ fun VegitoApp() {
                                 if (serverOrder == null) {
                                     false
                                 } else {
-                                    activeOrder = serverOrder.toDomainOrder().copy(
-                                        deliveryAddress = checkoutAddress
+                                    val domainOrder = serverOrder.toDomainOrder()
+                                    val authoritativeDeliveryAddress = if (LocationHelper.isValidCoordinates(domainOrder.deliveryAddress.latitude, domainOrder.deliveryAddress.longitude)) {
+                                        domainOrder.deliveryAddress
+                                    } else {
+                                        checkoutAddress
+                                    }
+                                    activeOrder = domainOrder.copy(
+                                        deliveryAddress = authoritativeDeliveryAddress
                                     )
                                     cartItems = emptyList()
                                     cartSummary = CartSummary()
@@ -1106,6 +1096,22 @@ fun VegitoApp() {
                         },
                         onTrackOrder = { ord ->
                             activeOrder = ord
+                            scope.launch {
+                                ord.id.toIntOrNull()?.let { id ->
+                                    val full = repository.getOrderDetail(id)
+                                    if (full != null) {
+                                        val merged = if (LocationHelper.isValidCoordinates(full.deliveryAddress.latitude, full.deliveryAddress.longitude)) {
+                                            full.deliveryAddress
+                                        } else if (LocationHelper.isValidCoordinates(ord.deliveryAddress.latitude, ord.deliveryAddress.longitude)) {
+                                            full.deliveryAddress.copy(
+                                                latitude = ord.deliveryAddress.latitude,
+                                                longitude = ord.deliveryAddress.longitude
+                                            )
+                                        } else full.deliveryAddress
+                                        activeOrder = full.copy(deliveryAddress = merged)
+                                    }
+                                }
+                            }
                             navController.navigate("customer_tracking")
                         },
                         onRefresh = {
@@ -1147,6 +1153,26 @@ fun VegitoApp() {
 
                 composable("customer_tracking") {
                     val ordToTrack = activeOrder ?: customerOrdersList.firstOrNull()
+
+                    LaunchedEffect(ordToTrack?.id) {
+                        ordToTrack?.id?.toIntOrNull()?.let { id ->
+                            val full = repository.getOrderDetail(id)
+                            if (full != null) {
+                                val currentAddr = ordToTrack.deliveryAddress
+                                val merged = if (LocationHelper.isValidCoordinates(full.deliveryAddress.latitude, full.deliveryAddress.longitude)) {
+                                    full.deliveryAddress
+                                } else if (LocationHelper.isValidCoordinates(currentAddr.latitude, currentAddr.longitude)) {
+                                    full.deliveryAddress.copy(
+                                        latitude = currentAddr.latitude,
+                                        longitude = currentAddr.longitude,
+                                        addressLine = if (full.deliveryAddress.addressLine.isNotBlank()) full.deliveryAddress.addressLine else currentAddr.addressLine
+                                    )
+                                } else full.deliveryAddress
+                                activeOrder = full.copy(deliveryAddress = merged)
+                            }
+                        }
+                    }
+
                     if (ordToTrack == null) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("No genuine order is available to track.")

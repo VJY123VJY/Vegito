@@ -13,6 +13,7 @@ import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 
 object FirebaseAuthManager {
@@ -22,19 +23,6 @@ object FirebaseAuthManager {
 
     val auth: FirebaseAuth
         get() = FirebaseAuth.getInstance()
-
-    sealed interface SendOtpResult {
-        data class CodeSent(
-            val verificationId: String,
-            val resendToken: PhoneAuthProvider.ForceResendingToken?
-        ) : SendOtpResult
-
-        data class InstantVerification(
-            val firebaseIdToken: String
-        ) : SendOtpResult
-
-        data class Error(val message: String) : SendOtpResult
-    }
 
     sealed interface VerifyOtpResult {
         data class Success(val firebaseIdToken: String) : VerifyOtpResult
@@ -75,7 +63,6 @@ object FirebaseAuthManager {
         val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
             override fun onVerificationCompleted(credential: PhoneAuthCredential) {
                 Log.i(TAG, "AUTH: Firebase auto verification completed")
-                // Sign in immediately using the credential and extract Firebase ID token
                 auth.signInWithCredential(credential)
                     .addOnCompleteListener(activity) { signInTask ->
                         if (signInTask.isSuccessful) {
@@ -100,7 +87,7 @@ object FirebaseAuthManager {
             }
 
             override fun onVerificationFailed(exception: FirebaseException) {
-                val errorCode = (exception as? com.google.firebase.auth.FirebaseAuthException)?.errorCode ?: "UNKNOWN_CODE"
+                val errorCode = (exception as? FirebaseAuthException)?.errorCode ?: "UNKNOWN_CODE"
                 val errorMsg = exception.message ?: "No error message"
                 Log.e(TAG, "AUTH: Firebase verification failed: $errorCode, message: $errorMsg", exception)
                 val message = mapFirebaseError(exception)
@@ -161,7 +148,7 @@ object FirebaseAuthManager {
             Log.w(TAG, "Too many verification requests")
             VerifyOtpResult.Error("Too many attempts. Please try again later.")
         } catch (e: Exception) {
-            val rootCause = if (e is java.util.concurrent.ExecutionException && e.cause is Exception) {
+            val rootCause = if (e is ExecutionException && e.cause is Exception) {
                 e.cause as Exception
             } else {
                 e
@@ -190,7 +177,7 @@ object FirebaseAuthManager {
      */
     fun mapFirebaseError(exception: Exception?): String {
         if (exception == null) return "Authentication error. Please try again."
-        val unwrapped = if (exception is java.util.concurrent.ExecutionException && exception.cause is Exception) {
+        val unwrapped = if (exception is ExecutionException && exception.cause is Exception) {
             exception.cause as Exception
         } else {
             exception
@@ -208,11 +195,14 @@ object FirebaseAuthManager {
                     "Please enter a valid 10-digit Indian mobile number."
                 }
             }
-            exception is FirebaseTooManyRequestsException || errorCode == "ERROR_TOO_MANY_REQUESTS" -> {
+            unwrapped is FirebaseTooManyRequestsException || errorCode == "ERROR_TOO_MANY_REQUESTS" -> {
                 "Too many verification attempts. Please wait a few minutes before trying again."
             }
-            message.contains("quota", ignoreCase = true) || message.contains("billing", ignoreCase = true) || errorCode == "ERROR_QUOTA_EXCEEDED" -> {
-                "Firebase SMS quota reached for project vegito-e35a1. Please verify SMS limit/billing in Firebase Console."
+            errorCode == "ERROR_BILLING_NOT_ENABLED" || message.contains("BILLING_NOT_ENABLED", ignoreCase = true) -> {
+                "Real SMS delivery is not enabled. Please use a registered Firebase test phone number to log in."
+            }
+            errorCode == "ERROR_QUOTA_EXCEEDED" || message.contains("QUOTA_EXCEEDED", ignoreCase = true) || message.contains("quota", ignoreCase = true) || message.contains("billing", ignoreCase = true) -> {
+                "SMS quota exceeded. Please use a registered Firebase test phone number or try again later."
             }
             message.contains("play integrity", ignoreCase = true) || message.contains("safety_net", ignoreCase = true) || message.contains("recaptcha", ignoreCase = true) -> {
                 "Device verification required. Ensure Google Play Services are updated and enabled."
@@ -224,10 +214,10 @@ object FirebaseAuthManager {
                 "OTP session expired. Please request a new OTP."
             }
             errorCode.isNotBlank() -> {
-                "Firebase Auth error [$errorCode]: ${message.take(120)}"
+                "Authentication error [$errorCode]. Please try again."
             }
             message.isNotBlank() -> {
-                "Authentication error: ${message.take(120)}"
+                "Authentication error. Please try again."
             }
             else -> {
                 "Authentication error (${exception.javaClass.simpleName}). Please try again."

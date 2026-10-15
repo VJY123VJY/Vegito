@@ -20,7 +20,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vegito.app.presentation.auth.components.VegitoBrandMark
 import com.vegito.app.ui.theme.VegitoPrimary
+import com.vegito.app.ui.theme.bounceClick
 
 @Composable
 fun OnboardingScreen(
@@ -45,43 +47,49 @@ fun OnboardingScreen(
                 .padding(24.dp),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(28.dp),
+                    .padding(26.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Brand Mark Logo
+                VegitoBrandMark(sizeDp = 80)
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
                     text = "VEGITO",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Black,
                     color = VegitoPrimary,
-                    letterSpacing = 2.sp
+                    letterSpacing = 2.5.sp
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "Fresh groceries. Fast delivery.",
-                    fontSize = 14.sp,
+                    text = "Freshness, delivered to you.",
+                    fontSize = 13.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(26.dp))
 
                 // Primary [ CREATE ACCOUNT ] button
                 Button(
                     onClick = onCreateAccount,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(14.dp),
+                        .height(52.dp)
+                        .bounceClick(scaleDown = 0.96f) { },
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                 ) {
                     Row(
@@ -95,23 +103,24 @@ fun OnboardingScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(22.dp))
 
                 Text(
                     text = "Or choose your role",
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Customer Button
                 OutlinedButton(
                     onClick = onStartShopping,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .height(48.dp)
+                        .bounceClick(scaleDown = 0.97f) { },
                     shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.2.dp, VegitoPrimary)
                 ) {
@@ -120,8 +129,8 @@ fun OnboardingScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp), tint = VegitoPrimary)
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp), tint = VegitoPrimary)
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("CUSTOMER", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = VegitoPrimary)
                     }
                 }
@@ -133,7 +142,8 @@ fun OnboardingScreen(
                     onClick = onSellOnVegito,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .height(48.dp)
+                        .bounceClick(scaleDown = 0.97f) { },
                     shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.2.dp, VegitoPrimary)
                 ) {
@@ -142,8 +152,8 @@ fun OnboardingScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Store, contentDescription = null, modifier = Modifier.size(20.dp), tint = VegitoPrimary)
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Icon(Icons.Default.Store, contentDescription = null, modifier = Modifier.size(18.dp), tint = VegitoPrimary)
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("SELLER", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = VegitoPrimary)
                     }
                 }
@@ -155,7 +165,8 @@ fun OnboardingScreen(
                     onClick = onDeliverWithVegito,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .height(48.dp)
+                        .bounceClick(scaleDown = 0.97f) { },
                     shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.2.dp, VegitoPrimary)
                 ) {
@@ -164,17 +175,17 @@ fun OnboardingScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.DeliveryDining, contentDescription = null, modifier = Modifier.size(20.dp), tint = VegitoPrimary)
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Icon(Icons.Default.DeliveryDining, contentDescription = null, modifier = Modifier.size(18.dp), tint = VegitoPrimary)
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("DELIVERY PARTNER", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = VegitoPrimary)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Text(
                     text = "Already have an account?",
@@ -182,21 +193,22 @@ fun OnboardingScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Button(
                     onClick = onLogin,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .height(48.dp)
+                        .bounceClick(scaleDown = 0.97f) { },
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
-                    Text("LOGIN", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = VegitoPrimary)
+                    Text("SIGN IN", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = VegitoPrimary)
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }

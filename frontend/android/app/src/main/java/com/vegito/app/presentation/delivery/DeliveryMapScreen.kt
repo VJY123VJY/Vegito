@@ -152,8 +152,10 @@ fun DeliveryMapScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Live Interactive Navigation Map
-                if (riderLat != null && riderLng != null && task.sellerLat != null && task.sellerLng != null) {
+                val hasLocationData = (riderLat != null && riderLng != null) ||
+                    LocationHelper.isValidCoordinates(task.sellerLat, task.sellerLng) ||
+                    (task.isPickupVerified && LocationHelper.isValidCoordinates(task.customerLat, task.customerLng))
+                if (hasLocationData) {
                     VegitoMapView(
                         modifier = Modifier
                             .fillMaxWidth()

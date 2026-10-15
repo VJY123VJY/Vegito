@@ -80,8 +80,8 @@ fun RegisterScreen(
 
     // Customer Specific Fields
     var customerAddress by remember { mutableStateOf("") }
-    var customerCity by remember { mutableStateOf("Solapur") }
-    var customerPincode by remember { mutableStateOf("413001") }
+    var customerCity by remember { mutableStateOf("") }
+    var customerPincode by remember { mutableStateOf("") }
     var customerCurrentLocation by remember { mutableStateOf<LocationResult.Success?>(null) }
     var isDetectingCustomerLocation by remember { mutableStateOf(false) }
     var showCustomerManualAddress by remember { mutableStateOf(false) }
@@ -91,8 +91,8 @@ fun RegisterScreen(
     var sellerBusinessType by remember { mutableStateOf("Grocery / Fresh Produce Store") }
     var sellerBusinessTypeExpanded by remember { mutableStateOf(false) }
     var sellerShopAddress by remember { mutableStateOf("") }
-    var sellerCity by remember { mutableStateOf("Solapur") }
-    var sellerPincode by remember { mutableStateOf("413001") }
+    var sellerCity by remember { mutableStateOf("") }
+    var sellerPincode by remember { mutableStateOf("") }
     var sellerGstNumber by remember { mutableStateOf("") }
     var sellerShopLocation by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var sellerLocationAccuracy by remember { mutableStateOf<Float?>(null) }
@@ -243,10 +243,12 @@ fun RegisterScreen(
             // STEP 1 — ROLE SELECTION
             // ==============================================================
             if (currentStep == RegisterStep.ROLE_SELECTION) {
+                Spacer(modifier = Modifier.height(8.dp))
+                com.vegito.app.presentation.auth.components.VegitoBrandMark(sizeDp = 68)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Create Your Account",
+                    text = "Let’s get you started.",
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground,
@@ -254,13 +256,13 @@ fun RegisterScreen(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Choose your account type",
-                    fontSize = 15.sp,
+                    text = "Your everyday essentials are just a few steps away.",
+                    fontSize = 14.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(28.dp))
 
                 // Role Options List
                 val roles = listOf(
@@ -1117,8 +1119,8 @@ fun RegisterScreen(
                                         role = "DELIVERY_PARTNER",
                                         email = email.trim().ifBlank { null },
                                         address = dLoc?.addressLine,
-                                        city = dLoc?.city ?: "Solapur",
-                                        pincode = dLoc?.pincode ?: "413001",
+                                        city = dLoc?.city.orEmpty(),
+                                        pincode = dLoc?.pincode.orEmpty(),
                                         latitude = dLoc?.latitude,
                                         longitude = dLoc?.longitude,
                                         vehicleType = deliveryVehicleType,

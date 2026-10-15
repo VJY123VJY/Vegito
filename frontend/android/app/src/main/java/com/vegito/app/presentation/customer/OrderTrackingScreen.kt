@@ -185,9 +185,10 @@ fun OrderTrackingScreen(
             shape = RoundedCornerShape(20.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
         ) {
-            if (order.sellerLat != null && order.sellerLng != null &&
-                order.deliveryAddress.latitude != null && order.deliveryAddress.longitude != null
-            ) {
+            val hasValidLocation = (order.deliveryAddress.latitude != null && order.deliveryAddress.longitude != null) ||
+                (order.sellerLat != null && order.sellerLng != null) ||
+                (order.deliveryPartnerLat != null && order.deliveryPartnerLng != null)
+            if (hasValidLocation) {
                 com.vegito.app.ui.components.VegitoMapView(
                     modifier = Modifier.fillMaxSize(),
                     riderLat = order.deliveryPartnerLat,
@@ -199,7 +200,7 @@ fun OrderTrackingScreen(
                     shopName = order.sellerName,
                     customerAddress = order.deliveryAddress.addressLine,
                     statusText = order.status,
-                    showRoute = true
+                    showRoute = order.sellerLat != null && order.deliveryAddress.latitude != null
                 )
             } else {
                 Box(

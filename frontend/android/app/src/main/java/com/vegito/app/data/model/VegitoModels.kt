@@ -32,8 +32,8 @@ data class SellerProfileDto(
     val phone: String? = null,
     val email: String? = null,
     val address: String? = null,
-    val city: String? = "Solapur",
-    val pincode: String? = "413001",
+    val city: String? = null,
+    val pincode: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
     @SerializedName("updated_at") val updatedAt: String? = null
@@ -108,8 +108,8 @@ data class UnifiedRegisterRequestDto(
     val role: String = "CUSTOMER",
     val email: String? = null,
     val address: String? = null,
-    val city: String = "Solapur",
-    val pincode: String = "413001",
+    val city: String = "",
+    val pincode: String = "",
     val latitude: Double? = null,
     val longitude: Double? = null,
     @SerializedName("business_name") val businessName: String? = null,
@@ -200,7 +200,11 @@ data class Product(
     val sellerName: String = "",
     val harvestDate: String? = null,
     val isFavorite: Boolean = false,
-    val sellerProductId: String = ""
+    val sellerProductId: String = "",
+    val marketReferencePrice: Double? = null,
+    val marketTrend: String? = null,
+    val marketSource: String? = null,
+    val marketDate: String? = null
 ) {
     val isPurchasable: Boolean
         get() = sellerProductId.toIntOrNull() != null &&
@@ -467,7 +471,7 @@ data class AddressCreateDto(
     val city: String,
     val state: String = "Maharashtra",
     val country: String = "India",
-    val pincode: String = "413001",
+    val pincode: String = "",
     val latitude: Double? = null,
     val longitude: Double? = null,
     @SerializedName("address_type") val addressType: String = "HOME",
@@ -489,13 +493,13 @@ data class AddressDto(
     @SerializedName("is_default") val isDefault: Boolean = false
 ) {
     fun toSavedAddress(): SavedAddress {
-        val fullLine = listOfNotNull(addressLine1, addressLine2, landmark, city, pincode)
+        val streetLine = listOfNotNull(addressLine1, addressLine2, landmark)
             .filter { it.isNotBlank() }
             .joinToString(", ")
         return SavedAddress(
             id = id.toString(),
             title = addressType ?: "Home",
-            addressLine = fullLine.ifBlank { addressLine1 },
+            addressLine = streetLine.ifBlank { addressLine1 },
             landmark = landmark,
             latitude = latitude,
             longitude = longitude,
@@ -551,30 +555,52 @@ data class OrderResponseDto(
     @SerializedName("items_count") val itemsCount: Int? = null,
     @SerializedName("placed_at") val placedAt: String? = null,
     @SerializedName("created_at") val createdAt: String? = null,
-    @SerializedName("is_urgent") val isUrgent: Boolean = false
+    @SerializedName("is_urgent") val isUrgent: Boolean = false,
+    @SerializedName("address") val address: AddressDto? = null,
+    @SerializedName("delivery_partner_name") val deliveryPartnerName: String? = null,
+    @SerializedName("delivery_partner_phone") val deliveryPartnerPhone: String? = null,
+    @SerializedName("delivery_partner_lat") val deliveryPartnerLat: Double? = null,
+    @SerializedName("delivery_partner_lng") val deliveryPartnerLng: Double? = null
 ) {
-    fun toDomainOrder(): Order = Order(
-        id = id.toString(),
-        orderNumber = orderNumber.ifEmpty { "VEG-$id" },
-        status = status,
-        createdAt = placedAt ?: createdAt.orEmpty(),
-        itemsCount = itemsCount ?: 0,
-        totalAmount = totalAmount,
-        deliveryFee = deliveryCharge,
-        deliveryAddress = SavedAddress(
-            addressLine = customerDeliveryAddress.orEmpty(),
-            latitude = customerLatitude ?: deliveryLatitude,
-            longitude = customerLongitude ?: deliveryLongitude
-        ),
-        sellerName = shopName.orEmpty(),
-        sellerLat = shopLatitude,
-        sellerLng = shopLongitude,
-        customerOtp = deliveryOtp,
-        pickupOtp = pickupOtp,
-        isUrgent = isUrgent,
-        customerName = customerName,
-        customerPhone = customerPhone
-    )
+    fun toDomainOrder(): Order {
+        val resolvedAddress: SavedAddress = if (address != null) {
+            val saved = address.toSavedAddress()
+            saved.copy(
+                latitude = customerLatitude ?: deliveryLatitude ?: saved.latitude,
+                longitude = customerLongitude ?: deliveryLongitude ?: saved.longitude,
+                addressLine = customerDeliveryAddress?.ifBlank { null } ?: saved.addressLine
+            )
+        } else {
+            SavedAddress(
+                addressLine = customerDeliveryAddress.orEmpty(),
+                latitude = customerLatitude ?: deliveryLatitude,
+                longitude = customerLongitude ?: deliveryLongitude
+            )
+        }
+
+        return Order(
+            id = id.toString(),
+            orderNumber = orderNumber.ifEmpty { "VEG-$id" },
+            status = status,
+            createdAt = placedAt ?: createdAt.orEmpty(),
+            itemsCount = itemsCount ?: 0,
+            totalAmount = totalAmount,
+            deliveryFee = deliveryCharge,
+            deliveryAddress = resolvedAddress,
+            sellerName = shopName.orEmpty(),
+            sellerLat = shopLatitude,
+            sellerLng = shopLongitude,
+            customerOtp = deliveryOtp,
+            pickupOtp = pickupOtp,
+            isUrgent = isUrgent,
+            customerName = customerName,
+            customerPhone = customerPhone,
+            deliveryPartnerName = deliveryPartnerName,
+            deliveryPartnerPhone = deliveryPartnerPhone,
+            deliveryPartnerLat = deliveryPartnerLat,
+            deliveryPartnerLng = deliveryPartnerLng
+        )
+    }
 }
 
 data class ProductDto(
@@ -590,7 +616,8 @@ data class ProductDto(
     val images: List<ProductImageDto> = emptyList(),
     val category: CategoryDto? = null,
     @SerializedName("seller_products") val sellerProducts: List<SellerProductOfferDto> = emptyList(),
-    val freshness: FreshnessInfoDto? = null
+    val freshness: FreshnessInfoDto? = null,
+    @SerializedName("market_price") val marketPrice: MarketPriceInfoDto? = null
 ) {
     fun toDomainProduct(): Product {
         val purchasableOffer = sellerProducts.firstOrNull {
@@ -621,10 +648,48 @@ data class ProductDto(
             description = description.orEmpty(),
             sellerId = purchasableOffer?.sellerId?.takeIf { it > 0 }?.toString().orEmpty(),
             sellerName = purchasableOffer?.sellerBusinessName.orEmpty(),
-            sellerProductId = purchasableOffer?.sellerProductId?.takeIf { it > 0 }?.toString().orEmpty()
+            sellerProductId = purchasableOffer?.sellerProductId?.takeIf { it > 0 }?.toString().orEmpty(),
+            marketReferencePrice = marketPrice?.referencePrice?.takeIf { it > 0.0 },
+            marketTrend = marketPrice?.trend,
+            marketSource = marketPrice?.source,
+            marketDate = marketPrice?.updatedDate
         )
     }
 }
+
+data class MarketPriceInfoDto(
+    @SerializedName("reference_price") val referencePrice: Double = 0.0,
+    @SerializedName("suggested_range_min") val suggestedRangeMin: Double = 0.0,
+    @SerializedName("suggested_range_max") val suggestedRangeMax: Double = 0.0,
+    val unit: String = "1 KG",
+    val market: String = "Solapur APMC Mandi",
+    val trend: String = "STABLE",
+    @SerializedName("demand_signal") val demandSignal: String? = "NORMAL",
+    val source: String? = "MSAMB / Solapur APMC",
+    @SerializedName("updated_date") val updatedDate: String? = null
+)
+
+data class MarketIntelligenceDto(
+    val id: Int = 0,
+    @SerializedName("product_id") val productId: Int = 0,
+    @SerializedName("product_name") val productName: String? = null,
+    val market: String = "Solapur APMC Mandi",
+    val district: String = "Solapur",
+    val state: String = "Maharashtra",
+    @SerializedName("reference_price") val referencePrice: Double = 0.0,
+    @SerializedName("previous_price") val previousPrice: Double? = null,
+    @SerializedName("suggested_range_min") val suggestedRangeMin: Double = 0.0,
+    @SerializedName("suggested_range_max") val suggestedRangeMax: Double = 0.0,
+    val unit: String = "1 KG",
+    val trend: String = "STABLE",
+    @SerializedName("demand_signal") val demandSignal: String? = "NORMAL",
+    @SerializedName("supply_signal") val supplySignal: String? = "NORMAL",
+    val source: String = "MSAMB / Solapur APMC",
+    @SerializedName("source_url") val sourceUrl: String? = null,
+    val confidence: Double = 1.0,
+    @SerializedName("market_date") val marketDate: String? = null,
+    val timestamp: String? = null
+)
 
 data class ProductImageDto(
     val id: Int = 0,
@@ -958,7 +1023,7 @@ data class AdminSellerItemDto(
     val phone: String? = null,
     val rating: Double = 0.0,
     @SerializedName("total_orders") val totalOrders: Int = 0,
-    val city: String? = "Solapur"
+    val city: String? = null
 )
 
 data class AdminDeliveryPartnerItemDto(

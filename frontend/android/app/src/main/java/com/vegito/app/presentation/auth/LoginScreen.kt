@@ -1,48 +1,27 @@
 package com.vegito.app.presentation.auth
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeliveryDining
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Store
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vegito.app.data.model.UnifiedRegisterRequestDto
+import com.vegito.app.presentation.auth.components.AuthErrorMessage
+import com.vegito.app.presentation.auth.components.PhoneNumberInput
+import com.vegito.app.presentation.auth.components.PrimaryAuthButton
+import com.vegito.app.presentation.auth.components.RoleSelectorTabs
+import com.vegito.app.presentation.auth.components.VegitoAuthHeader
 import com.vegito.app.ui.theme.VegitoPrimary
 
 @Composable
@@ -73,149 +52,165 @@ fun LoginScreen(
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .imePadding(),
-        contentAlignment = Alignment.Center
+            .imePadding()
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = "VEGITO",
-                fontSize = 30.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 2.sp,
-                color = VegitoPrimary
+            Spacer(Modifier.height(16.dp))
+
+            // Brand Section & Welcome Headline
+            VegitoAuthHeader(
+                title = "Fresh groceries start here.",
+                subtitle = "Sign in with your mobile number to discover farm-fresh produce and daily essentials.",
+                showLogo = true
             )
-            Spacer(Modifier.height(6.dp))
+
+            Spacer(Modifier.height(28.dp))
+
+            // Role Selector: Customer, Seller, Delivery Partner
             Text(
-                text = "Fresh groceries. Fast delivery.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 14.sp
-            )
-            Spacer(Modifier.height(34.dp))
-            Text(
-                text = "Welcome back",
-                style = MaterialTheme.typography.headlineSmall,
+                text = "CONTINUE AS",
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Select your role",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(18.dp))
 
-            listOf(
-                Triple("customer", "Customer", Icons.Default.Person),
-                Triple("seller", "Seller", Icons.Default.Store),
-                Triple("delivery_partner", "Delivery Partner", Icons.Default.DeliveryDining)
-            ).forEach { (role, label, icon) ->
-                val selected = selectedRole == role
-                if (selected) {
-                    Button(
-                        onClick = { selectedRole = role; localError = null },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.material3.Icon(
-                                icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = Color.White
-                            )
-                            Spacer(Modifier.size(10.dp))
-                            Text(label, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = { selectedRole = role; localError = null },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.material3.Icon(
-                                icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = VegitoPrimary
-                            )
-                            Spacer(Modifier.size(10.dp))
-                            Text(label, color = MaterialTheme.colorScheme.onSurface)
-                        }
-                    }
+            RoleSelectorTabs(
+                selectedRole = selectedRole,
+                onRoleSelected = {
+                    selectedRole = it
+                    localError = null
                 }
-                Spacer(Modifier.height(10.dp))
-            }
+            )
 
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = phone,
-                onValueChange = { value ->
-                    val digits = value.filter(Char::isDigit).take(10)
-                    phone = digits
+            Spacer(Modifier.height(24.dp))
+
+            // Phone Number Input with +91 Country Badge and instant validation
+            Text(
+                text = "MOBILE NUMBER",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            )
+
+            PhoneNumberInput(
+                phone = phone,
+                onPhoneChange = {
+                    phone = it
                     localError = null
                 },
-                label = { Text("Mobile number") },
-                prefix = { Text("+91 ") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
+                enabled = !isLoading,
+                isError = localError != null || errorMessage != null,
+                errorMessage = localError,
+                onImeAction = {
+                    if (phone.length == 10 && phone.matches(Regex("^[6-9]\\d{9}$"))) {
+                        onSendOtp(phone, selectedRole)
+                    } else {
+                        localError = "Please enter a valid 10-digit mobile number starting with 6-9."
+                    }
+                }
             )
 
-            (errorMessage ?: localError)?.let { message ->
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.fillMaxWidth()
+            // Error Display (API/Firebase or local)
+            val activeError = errorMessage ?: localError
+            if (activeError != null) {
+                Spacer(Modifier.height(14.dp))
+                AuthErrorMessage(
+                    message = activeError,
+                    onDismiss = { localError = null }
                 )
             }
 
-            Spacer(Modifier.height(18.dp))
-            Button(
+            Spacer(Modifier.height(24.dp))
+
+            // Primary Action Button
+            val isPhoneValid = phone.length == 10 && phone.matches(Regex("^[6-9]\\d{9}$"))
+            PrimaryAuthButton(
+                text = "Continue with OTP",
                 onClick = {
-                    if (phone.length != 10 || !phone.matches(Regex("^[6-9]\\d{9}$"))) {
-                        localError = "Enter a valid mobile number"
-                    } else {
+                    if (isPhoneValid) {
                         localError = null
                         onSendOtp(phone, selectedRole)
+                    } else {
+                        localError = "Please enter a valid 10-digit mobile number."
                     }
                 },
-                enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
+                enabled = isPhoneValid,
+                isLoading = isLoading
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            // Registration Navigation
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
+                Text(
+                    text = "New to Vegito?",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 14.sp
+                )
+                TextButton(
+                    onClick = {
+                        onNavigateRegisterWithRole?.invoke(selectedRole) ?: onNavigateRegister()
+                    },
+                    enabled = !isLoading
+                ) {
+                    Text(
+                        text = "Create Account",
+                        color = VegitoPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
                     )
-                } else {
-                    Text("Continue with OTP", fontWeight = FontWeight.Bold)
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
-            TextButton(
-                onClick = {
-                    onNavigateRegisterWithRole?.invoke(selectedRole) ?: onNavigateRegister()
-                },
-                enabled = !isLoading
+            Spacer(Modifier.height(16.dp))
+
+            // Trust & Security Notice
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("New to Vegito? Register", color = VegitoPrimary)
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = "Secure",
+                        tint = VegitoPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Secured with phone verification • No password required",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
+
+            Spacer(Modifier.height(24.dp))
         }
     }
 }

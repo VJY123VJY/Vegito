@@ -70,6 +70,19 @@ interface VegitoApiService {
     @GET("/api/v1/promotions")
     suspend fun getActiveOffers(): Response<ApiResponse<List<PromotionDto>>>
 
+    // MARKET INTELLIGENCE & SOLAPUR APMC
+    @GET("/api/v1/market-intelligence")
+    suspend fun getMarketIntelligence(): Response<ApiResponse<List<MarketIntelligenceDto>>>
+
+    @GET("/api/v1/market-intelligence/product/{product_id}")
+    suspend fun getProductMarketPrice(@Path("product_id") productId: Int): Response<ApiResponse<MarketIntelligenceDto>>
+
+    @GET("/api/v1/seller/market-intelligence")
+    suspend fun getSellerMarketIntelligence(): Response<ApiResponse<List<MarketIntelligenceDto>>>
+
+    @POST("/api/v1/seller/publish-price")
+    suspend fun publishSellerPrice(@Body payload: Map<String, Any>): Response<ApiResponse<Map<String, Any>>>
+
     // CUSTOMER CART
     @GET("/api/v1/cart")
     suspend fun getCart(): Response<ApiResponse<CartReadDto>>

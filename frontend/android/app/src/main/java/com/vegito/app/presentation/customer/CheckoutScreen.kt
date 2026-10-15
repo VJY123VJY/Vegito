@@ -162,46 +162,18 @@ fun CheckoutScreen(
                                 isPlacingOrder = true
                                 orderError = null
                                 try {
-                                    var addressToPlace = currentAddress
-                                    if (addressToPlace?.capturedAsCurrentLocation == true) {
-                                        isRefreshingLocation = true
-                                        val refreshedAddress = onRefreshCurrentLocation()
-                                        isRefreshingLocation = false
-                                        if (refreshedAddress == null || !LocationHelper.isValidCoordinates(
-                                                refreshedAddress.latitude,
-                                                refreshedAddress.longitude
-                                            )
-                                        ) {
-                                            orderError = "Could not refresh your current location. Please select it again or choose a saved address."
-                                            showLocationSheet = true
-                                            return@launch
-                                        }
-
-                                        addressToPlace = refreshedAddress
-                                        currentAddress = refreshedAddress
-                                        isCheckingEligibility = true
-                                        val freshEligibility = onCheckDeliveryEligibility(refreshedAddress)
-                                        isCheckingEligibility = false
-                                        eligibilityResponse = freshEligibility
-                                        eligibilityError = when {
-                                            freshEligibility == null ->
-                                                "Could not verify delivery eligibility. Please try again."
-                                            !freshEligibility.isDeliverable && !freshEligibility.sellerOnline ->
-                                                "This store is currently offline. Please try again later."
-                                            !freshEligibility.isDeliverable ->
-                                                "This location is outside the selected store's delivery area (${String.format("%.1f", freshEligibility.distanceKm)} km away)."
-                                            else -> null
-                                        }
-                                        if (freshEligibility?.isDeliverable != true) {
-                                            orderError = eligibilityError
-                                                ?: "Delivery is not available at this location."
-                                            return@launch
-                                        }
+                                    val addressToPlace = currentAddress
+                                    if (addressToPlace == null || !LocationHelper.isValidCoordinates(
+                                            addressToPlace.latitude,
+                                            addressToPlace.longitude
+                                        )
+                                    ) {
+                                        orderError = "Please select a valid delivery address with coordinates."
+                                        showLocationSheet = true
+                                        return@launch
                                     }
 
-                                    val placed = addressToPlace?.let {
-                                        onPlaceOrder(paymentMethod, it)
-                                    } ?: false
+                                    val placed = onPlaceOrder(paymentMethod, addressToPlace)
                                     if (!placed) {
                                         orderError = "Your order could not be placed. Please try again."
                                     }
