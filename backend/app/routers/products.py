@@ -1,6 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
+from app.config import settings
 from app.database import get_db
 from app.dependencies import require_admin
 from app.models.user import User
