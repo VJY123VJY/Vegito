@@ -108,4 +108,73 @@ class AuthAndRegistrationTest {
         val normalizedWithCountryCode = PhoneUtils.normalizePhoneNumber("+919309424359")
         assertEquals("+919309424359", normalizedWithCountryCode)
     }
+
+    @Test
+    fun testNetworkErrorClassification() {
+        val connectErr = java.net.ConnectException("Failed to connect to /127.0.0.1:8000")
+        val (catConnect, msgConnect) = com.vegito.app.data.repository.VegitoRepository.classifyNetworkError(connectErr)
+        assertEquals("CONNECTION_REFUSED", catConnect)
+        assertTrue(msgConnect.contains("Cannot connect to Vegito server"))
+
+        val dnsErr = java.net.UnknownHostException("api.vegito.com")
+        val (catDns, msgDns) = com.vegito.app.data.repository.VegitoRepository.classifyNetworkError(dnsErr)
+        assertEquals("DNS_FAILURE", catDns)
+        assertTrue(msgDns.contains("Unable to resolve"))
+
+        val timeoutErr = java.net.SocketTimeoutException("timeout")
+        val (catTimeout, msgTimeout) = com.vegito.app.data.repository.VegitoRepository.classifyNetworkError(timeoutErr)
+        assertEquals("TIMEOUT", catTimeout)
+        assertTrue(msgTimeout.contains("timed out"))
+
+        val sslErr = javax.net.ssl.SSLHandshakeException("handshake failed")
+        val (catSsl, msgSsl) = com.vegito.app.data.repository.VegitoRepository.classifyNetworkError(sslErr)
+        assertEquals("TLS_ERROR", catSsl)
+        assertTrue(msgSsl.contains("Secure connection to Vegito failed"))
+
+        val noRouteErr = java.net.NoRouteToHostException("no route")
+        val (catRoute, msgRoute) = com.vegito.app.data.repository.VegitoRepository.classifyNetworkError(noRouteErr)
+        assertEquals("NO_ROUTE", catRoute)
+        assertTrue(msgRoute.contains("No network route"))
+    }
+
+    @Test
+    fun testAuthErrorMessageMapping() {
+        // Status code fallbacks when body has no custom message
+        assertTrue(com.vegito.app.data.repository.VegitoRepository.authErrorMessage(400, null).contains("check the entered information"))
+        assertTrue(com.vegito.app.data.repository.VegitoRepository.authErrorMessage(401, null).contains("Invalid credentials"))
+        assertTrue(com.vegito.app.data.repository.VegitoRepository.authErrorMessage(403, null).contains("not authorized"))
+        assertTrue(com.vegito.app.data.repository.VegitoRepository.authErrorMessage(404, null).contains("endpoint was not found"))
+        assertTrue(com.vegito.app.data.repository.VegitoRepository.authErrorMessage(422, null).contains("Invalid request parameters"))
+        assertTrue(com.vegito.app.data.repository.VegitoRepository.authErrorMessage(429, null).contains("Too many attempts"))
+        assertTrue(com.vegito.app.data.repository.VegitoRepository.authErrorMessage(500, null).contains("internal error"))
+        assertTrue(com.vegito.app.data.repository.VegitoRepository.authErrorMessage(503, null).contains("temporarily unavailable"))
+    }
+
+    @Test
+    fun testBackendMessageParsing() {
+        // Backend error response format: {"error": {"message": "Invalid mobile number format."}}
+        val json1 = "{\"success\":false,\"error\":{\"code\":\"BAD_REQUEST\",\"message\":\"Invalid mobile number format.\"},\"detail\":\"Invalid mobile number format.\"}"
+        assertEquals("Invalid mobile number format.", com.vegito.app.data.repository.VegitoRepository.parseBackendMessage(json1))
+
+        // Backend detail string: {"detail": "SMS delivery to this number is restricted."}
+        val json2 = "{\"detail\":\"SMS delivery to this number is restricted.\"}"
+        assertEquals("SMS delivery to this number is restricted.", com.vegito.app.data.repository.VegitoRepository.parseBackendMessage(json2))
+
+        // FastAPI validation details: {"detail":[{"loc":["body","phone"],"msg":"Phone field is required"}]}
+        val json3 = "{\"detail\":[{\"loc\":[\"body\",\"phone\"],\"msg\":\"Phone field is required\"}]}"
+        assertEquals("Phone field is required", com.vegito.app.data.repository.VegitoRepository.parseBackendMessage(json3))
+
+        // Custom error with details array: {"error":{"message":"Validation error","details":[{"msg":"Invalid 10-digit number"}]}}
+        val json4 = "{\"error\":{\"message\":\"Validation error\",\"details\":[{\"msg\":\"Invalid 10-digit number\"}]}}"
+        assertEquals("Invalid 10-digit number", com.vegito.app.data.repository.VegitoRepository.parseBackendMessage(json4))
+    }
+
+    @Test
+    fun testSanitizeLogMessage() {
+        val sensitive = "{\"phone\":\"9309424359\",\"otp\":\"123456\",\"token\":\"jwt.abc.xyz\"}"
+        val sanitized = com.vegito.app.data.repository.VegitoRepository.sanitizeLogMessage(sensitive)
+        assertFalse(sanitized!!.contains("123456"))
+        assertFalse(sanitized.contains("jwt.abc.xyz"))
+        assertFalse(sanitized.contains("9309424359"))
+    }
 }

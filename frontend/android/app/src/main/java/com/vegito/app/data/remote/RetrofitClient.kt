@@ -1,5 +1,6 @@
 package com.vegito.app.data.remote
 
+import android.os.Build
 import android.util.Log
 import com.vegito.app.BuildConfig
 import com.vegito.app.data.local.SessionManager
@@ -8,12 +9,51 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.IOException
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
     private const val TAG = "VegitoHttp"
-    private val baseUrl = BuildConfig.VEGITO_API_BASE_URL
+
+    val isRunningOnEmulator: Boolean by lazy {
+        try {
+            val fingerprint = Build.FINGERPRINT ?: ""
+            val model = Build.MODEL ?: ""
+            val hardware = Build.HARDWARE ?: ""
+            val product = Build.PRODUCT ?: ""
+            fingerprint.startsWith("generic") ||
+                    fingerprint.startsWith("unknown") ||
+                    model.contains("google_sdk") ||
+                    model.contains("Emulator") ||
+                    model.contains("Android SDK built for x86") ||
+                    hardware.contains("goldfish") ||
+                    hardware.contains("ranchu") ||
+                    product.contains("sdk_gphone") ||
+                    product.contains("sdk")
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun resolveBaseUrl(): String {
+        val configured = BuildConfig.VEGITO_API_BASE_URL
+        if (BuildConfig.DEBUG && isRunningOnEmulator) {
+            if (configured.contains("127.0.0.1")) {
+                val rewritten = configured.replace("127.0.0.1", "10.0.2.2")
+                Log.i(TAG, "Android Emulator detected: adjusted local dev base URL to $rewritten")
+                return rewritten
+            }
+            if (configured.contains("localhost")) {
+                val rewritten = configured.replace("localhost", "10.0.2.2")
+                Log.i(TAG, "Android Emulator detected: adjusted local dev base URL to $rewritten")
+                return rewritten
+            }
+        }
+        return configured
+    }
+
+    private val baseUrl by lazy { resolveBaseUrl() }
 
     private var sessionManager: SessionManager? = null
 
@@ -41,16 +81,22 @@ object RetrofitClient {
     }
 
     private val safeLoggingInterceptor = Interceptor { chain ->
-        val request = chain.request()
+        val originalRequest = chain.request()
+        val requestId = originalRequest.header("X-Request-ID")
+            ?: ("req_" + UUID.randomUUID().toString().take(8))
+        val request = originalRequest.newBuilder()
+            .header("X-Request-ID", requestId)
+            .build()
         val path = request.url.encodedPath
         val startNanos = System.nanoTime()
         try {
             val response = chain.proceed(request)
             val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos)
-            Log.d(TAG, "${request.url.host} ${request.method} $path -> ${response.code} (${elapsedMs}ms)")
+            Log.d(TAG, "[$requestId] ${request.url.host} ${request.method} $path -> ${response.code} (${elapsedMs}ms)")
             response
         } catch (error: IOException) {
-            Log.w(TAG, "${request.url.host} ${request.method} $path failed (${error.javaClass.simpleName})")
+            val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos)
+            Log.w(TAG, "[$requestId] ${request.url.host} ${request.method} $path failed after ${elapsedMs}ms (${error.javaClass.simpleName})")
             throw error
         }
     }
@@ -67,8 +113,11 @@ object RetrofitClient {
             if (!BuildConfig.DEBUG || !isLocal) {
                 throw initialError
             }
-            val alternativeHosts = listOf("127.0.0.1", "192.168.1.9", "10.0.2.2")
-                .filter { it != currentHost }
+            val alternativeHosts = (if (isRunningOnEmulator) {
+                listOf("10.0.2.2", "127.0.0.1", "192.168.1.9")
+            } else {
+                listOf("192.168.1.9", "127.0.0.1", "10.0.2.2")
+            }).filter { it != currentHost }
 
             for (altHost in alternativeHosts) {
                 try {
@@ -77,8 +126,8 @@ object RetrofitClient {
                     val response = chain.proceed(newRequest)
                     Log.i(TAG, "Local dev failover: re-routed from $currentHost to $altHost successfully (${response.code})")
                     return@Interceptor response
-                } catch (_: IOException) {
-                    // Try next candidate
+                } catch (failoverError: IOException) {
+                    Log.d(TAG, "Local dev failover to $altHost failed (${failoverError.javaClass.simpleName})")
                 }
             }
             throw initialError
@@ -100,7 +149,6 @@ object RetrofitClient {
             .build()
 
     val apiService: VegitoApiService by lazy {
-
         Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(okHttpClient)

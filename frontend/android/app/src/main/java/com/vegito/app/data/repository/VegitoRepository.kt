@@ -12,6 +12,118 @@ import retrofit2.Response
 class VegitoRepository(private val apiService: VegitoApiService) {
     companion object {
         private const val TAG = "VegitoRepository"
+
+        fun classifyNetworkError(error: IOException): Pair<String, String> {
+            return when (error) {
+                is java.net.ConnectException -> {
+                    "CONNECTION_REFUSED" to "Cannot connect to Vegito server. Please ensure the backend server is running and accessible."
+                }
+                is java.net.UnknownHostException -> {
+                    "DNS_FAILURE" to "Unable to resolve Vegito server address. Please verify your network and DNS settings."
+                }
+                is java.net.SocketTimeoutException -> {
+                    "TIMEOUT" to "Connection to Vegito server timed out. Please try again."
+                }
+                is javax.net.ssl.SSLException -> {
+                    "TLS_ERROR" to "Secure connection to Vegito failed (TLS/SSL certificate error)."
+                }
+                is java.net.NoRouteToHostException -> {
+                    "NO_ROUTE" to "No network route to Vegito server. Please check your network connection."
+                }
+                else -> {
+                    "NETWORK_IO" to "Unable to reach Vegito server (${error.javaClass.simpleName}). Please check your connection."
+                }
+            }
+        }
+
+        fun sanitizeLogMessage(message: String?): String? {
+            if (message.isNullOrBlank()) return null
+            return message.take(500)
+                .replace(Regex("(?i)\"(access_token|id_token|token|otp|code|password|secret|bearer)\"\\s*:\\s*\"[^\"]+\""), "\"$1\":\"[REDACTED]\"")
+                .replace(Regex("(?i)bearer\\s+[A-Za-z0-9_.-]+"), "Bearer [REDACTED]")
+                .replace(Regex("\\b\\d{10,12}\\b"), "[PHONE_REDACTED]")
+        }
+
+        fun authErrorMessage(statusCode: Int, responseBody: String?): String {
+            val backendMessage = parseBackendMessage(responseBody)
+            if (!backendMessage.isNullOrBlank()) {
+                return backendMessage
+            }
+            return when (statusCode) {
+                400 -> "Please check the entered information and try again."
+                401 -> "Invalid credentials or verification code. Please try again."
+                403 -> "You are not authorized for this account role."
+                404 -> "Requested authentication endpoint was not found on the backend."
+                409 -> "This mobile number is already registered. Please sign in."
+                422 -> "Invalid request parameters. Please verify the mobile number."
+                429 -> "Too many attempts. Please wait a minute before requesting another code."
+                500 -> "Vegito server encountered an internal error. Please try again later."
+                502 -> "Vegito server is unreachable (Bad Gateway)."
+                503 -> "Verification service is temporarily unavailable. Please try again."
+                504 -> "Server response timed out (Gateway Timeout). Please try again."
+                in 500..599 -> "Vegito server is temporarily busy (HTTP $statusCode). Please try again in a moment."
+                else -> "Request failed (HTTP $statusCode). Please try again."
+            }
+        }
+
+        fun parseBackendMessage(responseBody: String?): String? {
+            if (responseBody.isNullOrBlank()) return null
+            return try {
+                val root = JsonParser.parseString(responseBody)
+                if (!root.isJsonObject) return null
+                val json = root.asJsonObject
+
+                val error = json.get("error")
+
+                // 1. Check "error.details" array for specific field validation errors
+                val details = if (error?.isJsonObject == true) error.asJsonObject.get("details") else json.get("details")
+                if (details?.isJsonArray == true && details.asJsonArray.size() > 0) {
+                    val firstDetail = details.asJsonArray.get(0)
+                    if (firstDetail.isJsonObject) {
+                        val msg = firstDetail.asJsonObject.get("msg")
+                        if (msg?.isJsonPrimitive == true && msg.asJsonPrimitive.isString) {
+                            val str = msg.asString.trim()
+                            if (str.isNotEmpty()) return str
+                        }
+                    }
+                }
+
+                // 2. Check "error.message"
+                if (error?.isJsonObject == true) {
+                    val message = error.asJsonObject.get("message")
+                    if (message?.isJsonPrimitive == true && message.asJsonPrimitive.isString) {
+                        val str = message.asString.trim()
+                        if (str.isNotEmpty()) return str
+                    }
+                }
+
+                // 3. Check root "message"
+                val rootMsg = json.get("message")
+                if (rootMsg?.isJsonPrimitive == true && rootMsg.asJsonPrimitive.isString) {
+                    val str = rootMsg.asString.trim()
+                    if (str.isNotEmpty()) return str
+                }
+
+                // 4. Check "detail" (string or array)
+                val detail = json.get("detail")
+                if (detail?.isJsonPrimitive == true && detail.asJsonPrimitive.isString) {
+                    val str = detail.asString.trim()
+                    if (str.isNotEmpty()) return str
+                } else if (detail?.isJsonArray == true && detail.asJsonArray.size() > 0) {
+                    val firstErr = detail.asJsonArray.get(0)
+                    if (firstErr.isJsonObject) {
+                        val msg = firstErr.asJsonObject.get("msg")
+                        if (msg?.isJsonPrimitive == true && msg.asJsonPrimitive.isString) {
+                            return msg.asString
+                        }
+                    }
+                }
+                null
+            } catch (error: Exception) {
+                Log.w(TAG, "Authentication error response parsing failed (${error.javaClass.simpleName})")
+                null
+            }
+        }
     }
 
     sealed interface AuthResult<out T> {
@@ -57,8 +169,9 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         } catch (error: CancellationException) {
             throw error
         } catch (error: IOException) {
-            Log.w(TAG, "Demo session verification failed (${error.javaClass.simpleName})")
-            DemoSessionResult.Failure(null, "Unable to reach the configured Vegito API.")
+            val (category, userMessage) = classifyNetworkError(error)
+            Log.w(TAG, "Demo session verification network failure category=$category (${error.javaClass.simpleName})")
+            DemoSessionResult.Failure(null, userMessage)
         } catch (error: JsonParseException) {
             Log.e(TAG, "Demo session response parsing failed (${error.javaClass.simpleName})")
             DemoSessionResult.Failure(null, "The API returned an invalid session response.")
@@ -68,6 +181,7 @@ class VegitoRepository(private val apiService: VegitoApiService) {
     private suspend fun <T : Any> authRequest(
         call: suspend () -> Response<ApiResponse<T>>
     ): AuthResult<T> {
+        val requestId = "req_" + java.util.UUID.randomUUID().toString().take(8)
         return try {
             val response = call()
             val body = response.body()
@@ -76,83 +190,18 @@ class VegitoRepository(private val apiService: VegitoApiService) {
                     ?: AuthResult.Failure("Authentication service returned an invalid response.")
             } else {
                 val errorBody = response.errorBody()?.string()
-                if (response.code() == 401) {
-                    val safeErrorPreview = errorBody?.take(500)
-                        ?.replace(Regex("(?i)\"(access_token|id_token|token|otp|password|secret|bearer)\"\\s*:\\s*\"[^\"]+\""), "\"$1\":\"[REDACTED]\"")
-                        ?.replace(Regex("(?i)bearer\\s+[A-Za-z0-9_.-]+"), "Bearer [REDACTED]")
-                    Log.w(TAG, "Auth HTTP 401 response body: $safeErrorPreview")
-                }
-                AuthResult.Failure(authErrorMessage(response.code(), errorBody))
+                val statusCode = response.code()
+                val safeErrorPreview = sanitizeLogMessage(errorBody)
+                Log.w(TAG, "[$requestId] Auth HTTP $statusCode failure: $safeErrorPreview")
+                AuthResult.Failure(authErrorMessage(statusCode, errorBody))
             }
         } catch (error: IOException) {
-            Log.w(TAG, "Authentication request failed (${error.javaClass.simpleName})")
-            AuthResult.Failure("Unable to reach Vegito. Check your internet connection.")
+            val (category, userMessage) = classifyNetworkError(error)
+            Log.w(TAG, "[$requestId] Auth network failure category=$category (${error.javaClass.simpleName})")
+            AuthResult.Failure(userMessage)
         } catch (error: JsonParseException) {
-            Log.e(TAG, "Authentication response parsing failed (${error.javaClass.simpleName})")
-            AuthResult.Failure("Vegito returned an unexpected response. Please try again.")
-        }
-    }
-
-    private fun authErrorMessage(statusCode: Int, responseBody: String?): String {
-        val backendMessage = parseBackendMessage(responseBody)
-        if (!backendMessage.isNullOrBlank()) {
-            return backendMessage
-        }
-        return when (statusCode) {
-            400, 422 -> "Please check the entered information and try again."
-            401 -> "Invalid credentials or verification code. Please try again."
-            403 -> "You are not authorized for this account role."
-            404 -> "Account not found with this mobile number. Please register first."
-            409 -> "This mobile number is already registered. Please sign in."
-            429 -> "Too many attempts. Please wait a minute before requesting another code."
-            503 -> "Verification service is temporarily unavailable. Please try again."
-            in 500..599 -> "Vegito server is temporarily busy. Please try again in a moment."
-            else -> "Request failed (HTTP $statusCode). Please try again."
-        }
-    }
-
-    private fun parseBackendMessage(responseBody: String?): String? {
-        if (responseBody.isNullOrBlank()) return null
-        return try {
-            val root = JsonParser.parseString(responseBody)
-            if (!root.isJsonObject) return null
-            val json = root.asJsonObject
-
-            // 1. Check "error.message"
-            val error = json.get("error")
-            if (error?.isJsonObject == true) {
-                val message = error.asJsonObject.get("message")
-                if (message?.isJsonPrimitive == true && message.asJsonPrimitive.isString) {
-                    val str = message.asString.trim()
-                    if (str.isNotEmpty()) return str
-                }
-            }
-
-            // 2. Check root "message"
-            val rootMsg = json.get("message")
-            if (rootMsg?.isJsonPrimitive == true && rootMsg.asJsonPrimitive.isString) {
-                val str = rootMsg.asString.trim()
-                if (str.isNotEmpty()) return str
-            }
-
-            // 3. Check "detail" (string or array)
-            val detail = json.get("detail")
-            if (detail?.isJsonPrimitive == true && detail.asJsonPrimitive.isString) {
-                val str = detail.asString.trim()
-                if (str.isNotEmpty()) return str
-            } else if (detail?.isJsonArray == true && detail.asJsonArray.size() > 0) {
-                val firstErr = detail.asJsonArray.get(0)
-                if (firstErr.isJsonObject) {
-                    val msg = firstErr.asJsonObject.get("msg")
-                    if (msg?.isJsonPrimitive == true && msg.asJsonPrimitive.isString) {
-                        return msg.asString
-                    }
-                }
-            }
-            null
-        } catch (error: Exception) {
-            Log.w(TAG, "Authentication error response parsing failed (${error.javaClass.simpleName})")
-            null
+            Log.e(TAG, "[$requestId] Auth response parsing failed (${error.javaClass.simpleName})")
+            AuthResult.Failure("Vegito returned an unexpected response format. Please try again.")
         }
     }
 
