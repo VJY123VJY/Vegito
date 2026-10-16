@@ -20,8 +20,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vegito.app.BuildConfig
 import com.vegito.app.utils.PhoneUtils
 import com.vegito.app.data.local.SessionManager
-import com.vegito.app.data.auth.FirebaseAuthManager
-import com.google.firebase.auth.PhoneAuthProvider
 import com.vegito.app.data.demo.DemoOrderRunner
 import com.vegito.app.data.model.*
 import com.vegito.app.data.remote.RetrofitClient
@@ -328,8 +326,6 @@ fun VegitoApp() {
     var pendingPhoneForOtp by remember { mutableStateOf("") }
     var pendingRoleForOtp by remember { mutableStateOf("customer") }
     var pendingRegistrationData by remember { mutableStateOf<UnifiedRegisterRequestDto?>(null) }
-    var pendingVerificationId by remember { mutableStateOf<String?>(null) }
-    var pendingResendToken by remember { mutableStateOf<PhoneAuthProvider.ForceResendingToken?>(null) }
     var authDevOtp by remember { mutableStateOf<String?>(null) }
     var isAuthLoading by remember { mutableStateOf(false) }
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
@@ -337,47 +333,6 @@ fun VegitoApp() {
     var selectedCategoryForSearch by remember { mutableStateOf<String?>(null) }
     var activeOrder by remember { mutableStateOf<Order?>(null) }
     var previousCustomerId by remember { mutableStateOf(sessionManager.getUser()?.id) }
-
-    fun completeFirebaseBackendLogin(firebaseIdToken: String, desiredRole: String?) {
-        scope.launch {
-            isAuthLoading = true
-            authErrorMessage = null
-            when (val loginRes = repository.loginWithFirebase(firebaseIdToken, desiredRole)) {
-                is VegitoRepository.AuthResult.Success -> {
-                    isAuthLoading = false
-                    val tokenData = loginRes.data
-                    sessionManager.saveTokenResponse(tokenData)
-                    pendingRegistrationData = null
-                    pendingVerificationId = null
-                    pendingResendToken = null
-
-                    val resolvedRole = tokenData.role.lowercase()
-                    if (pendingProductForCart != null && resolvedRole == "customer") {
-                        addProductToCart(pendingProductForCart!!, pendingQuantityForCart)
-                        pendingProductForCart = null
-                        pendingQuantityForCart = 1.0
-                        navController.navigate("customer_cart") {
-                            popUpTo("onboarding") { inclusive = true }
-                        }
-                    } else {
-                        val target = when (resolvedRole) {
-                            "seller" -> "seller_dashboard"
-                            "delivery_partner" -> "delivery_dashboard"
-                            "admin" -> "admin_dashboard"
-                            else -> "customer_home"
-                        }
-                        navController.navigate(target) {
-                            popUpTo("onboarding") { inclusive = true }
-                        }
-                    }
-                }
-                is VegitoRepository.AuthResult.Failure -> {
-                    isAuthLoading = false
-                    authErrorMessage = loginRes.message
-                }
-            }
-        }
-    }
 
     fun completeBackendOtpLogin(tokenData: TokenResponseDto) {
         isAuthLoading = false
@@ -405,13 +360,8 @@ fun VegitoApp() {
         }
     }
 
-    fun triggerFirebaseSendOtp(phone: String, role: String, isResend: Boolean = false) {
-        val act = context as? Activity
-        if (act == null) {
-            authErrorMessage = "Activity context is unavailable. Please restart app."
-            return
-        }
-        val normalized = FirebaseAuthManager.normalizePhoneNumber(phone)
+    fun triggerTwilioSendOtp(phone: String, role: String, isResend: Boolean = false) {
+        val normalized = PhoneUtils.normalizePhoneNumber(phone)
         if (normalized == null) {
             authErrorMessage = "Enter a valid 10-digit mobile number."
             return
@@ -421,26 +371,21 @@ fun VegitoApp() {
         pendingPhoneForOtp = phone
         pendingRoleForOtp = role
 
-        FirebaseAuthManager.sendVerificationCode(
-            activity = act,
-            phoneNumberE164 = normalized,
-            resendToken = if (isResend) pendingResendToken else null,
-            onCodeSent = { verificationId, token ->
-                isAuthLoading = false
-                pendingVerificationId = verificationId
-                pendingResendToken = token
-                if (!isResend) {
-                    navController.navigate("otp")
+        scope.launch {
+            when (val result = repository.sendOtp(phone, role)) {
+                is VegitoRepository.AuthResult.Success -> {
+                    isAuthLoading = false
+                    authDevOtp = result.data.devOtp
+                    if (!isResend) {
+                        navController.navigate("otp")
+                    }
                 }
-            },
-            onInstantVerified = { idToken ->
-                completeFirebaseBackendLogin(idToken, role)
-            },
-            onError = { errorMsg ->
-                isAuthLoading = false
-                authErrorMessage = errorMsg
+                is VegitoRepository.AuthResult.Failure -> {
+                    isAuthLoading = false
+                    authErrorMessage = result.message
+                }
             }
-        )
+        }
     }
 
     LaunchedEffect(token, activeRole) {
@@ -665,7 +610,7 @@ fun VegitoApp() {
                     pendingRegistrationData = reqDto
                     pendingPhoneForOtp = reqDto.phone
                     pendingRoleForOtp = reqDto.role.lowercase()
-                    triggerFirebaseSendOtp(reqDto.phone, reqDto.role.lowercase())
+                    triggerTwilioSendOtp(reqDto.phone, reqDto.role.lowercase())
                 }
 
                 composable("login") {
@@ -678,7 +623,7 @@ fun VegitoApp() {
                             pendingRoleForOtp = role
                             pendingRegistrationData = null
                             authErrorMessage = null
-                            triggerFirebaseSendOtp(phone, role)
+                            triggerTwilioSendOtp(phone, role)
                         },
                         onPasswordLogin = { phone, pass, role ->
                             isAuthLoading = true
@@ -745,41 +690,70 @@ fun VegitoApp() {
                         },
                         onResendOtp = {
                             authErrorMessage = null
-                            triggerFirebaseSendOtp(pendingPhoneForOtp, pendingRoleForOtp, isResend = true)
+                            triggerTwilioSendOtp(pendingPhoneForOtp, pendingRoleForOtp, isResend = true)
                         },
                         onVerifyOtp = { otpCode ->
-                            val vId = pendingVerificationId
-                            if (vId.isNullOrBlank()) {
-                                authErrorMessage = "Verification session expired. Please request a new OTP."
+                            if (otpCode.length < 4) {
+                                authErrorMessage = "Please enter the 6-digit verification code."
                                 return@OtpScreen
                             }
                             isAuthLoading = true
                             authErrorMessage = null
                             scope.launch {
-                                when (val verifyResult = FirebaseAuthManager.verifyOtpAndGetIdToken(vId, otpCode)) {
-                                    is FirebaseAuthManager.VerifyOtpResult.Success -> {
-                                        val regData = pendingRegistrationData
-                                        if (regData != null) {
-                                            when (val regRes = repository.registerUser(regData)) {
+                                val regData = pendingRegistrationData
+                                if (regData != null) {
+                                    when (val regRes = repository.registerUser(regData)) {
+                                        is VegitoRepository.AuthResult.Success -> {
+                                            when (val verifyRes = repository.verifyOtp(
+                                                phone = pendingPhoneForOtp,
+                                                otp = otpCode,
+                                                role = pendingRoleForOtp,
+                                                name = regData.name
+                                            )) {
                                                 is VegitoRepository.AuthResult.Success -> {
-                                                    completeFirebaseBackendLogin(verifyResult.firebaseIdToken, pendingRoleForOtp)
+                                                    completeBackendOtpLogin(verifyRes.data)
                                                 }
                                                 is VegitoRepository.AuthResult.Failure -> {
-                                                    if (regRes.message.contains("already registered", ignoreCase = true)) {
-                                                        completeFirebaseBackendLogin(verifyResult.firebaseIdToken, pendingRoleForOtp)
-                                                    } else {
-                                                        isAuthLoading = false
-                                                        authErrorMessage = regRes.message
-                                                    }
+                                                    isAuthLoading = false
+                                                    authErrorMessage = verifyRes.message
                                                 }
                                             }
-                                        } else {
-                                            completeFirebaseBackendLogin(verifyResult.firebaseIdToken, pendingRoleForOtp)
+                                        }
+                                        is VegitoRepository.AuthResult.Failure -> {
+                                            if (regRes.message.contains("already registered", ignoreCase = true)) {
+                                                when (val verifyRes = repository.verifyOtp(
+                                                    phone = pendingPhoneForOtp,
+                                                    otp = otpCode,
+                                                    role = pendingRoleForOtp,
+                                                    name = regData.name
+                                                )) {
+                                                    is VegitoRepository.AuthResult.Success -> {
+                                                        completeBackendOtpLogin(verifyRes.data)
+                                                    }
+                                                    is VegitoRepository.AuthResult.Failure -> {
+                                                        isAuthLoading = false
+                                                        authErrorMessage = verifyRes.message
+                                                    }
+                                                }
+                                            } else {
+                                                isAuthLoading = false
+                                                authErrorMessage = regRes.message
+                                            }
                                         }
                                     }
-                                    is FirebaseAuthManager.VerifyOtpResult.Error -> {
-                                        isAuthLoading = false
-                                        authErrorMessage = verifyResult.message
+                                } else {
+                                    when (val verifyRes = repository.verifyOtp(
+                                        phone = pendingPhoneForOtp,
+                                        otp = otpCode,
+                                        role = pendingRoleForOtp
+                                    )) {
+                                        is VegitoRepository.AuthResult.Success -> {
+                                            completeBackendOtpLogin(verifyRes.data)
+                                        }
+                                        is VegitoRepository.AuthResult.Failure -> {
+                                            isAuthLoading = false
+                                            authErrorMessage = verifyRes.message
+                                        }
                                     }
                                 }
                             }

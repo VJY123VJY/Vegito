@@ -22,7 +22,7 @@ Vegito V1 operates with a single configured shop and seller account where the op
 
 ```
 1. Customer Login / Session
-   File & Function: `VegitoApp.kt` -> `SessionManager` / `FirebaseAuthManager`
+   File & Function: `VegitoApp.kt` -> `SessionManager` / `triggerTwilioSendOtp`
    API: `POST /api/v1/auth/verify-otp` or `POST /api/v1/auth/login-password`
    Authenticated User ID: `user.id` (Customer role)
 

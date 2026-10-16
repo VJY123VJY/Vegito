@@ -157,17 +157,6 @@ class VegitoRepository(private val apiService: VegitoApiService) {
     }
 
     // AUTHENTICATION
-    suspend fun loginWithFirebase(
-        firebaseIdToken: String,
-        role: String? = null
-    ): AuthResult<TokenResponseDto> {
-        return authRequest {
-            apiService.loginWithFirebase(
-                bearerToken = "Bearer $firebaseIdToken",
-                request = FirebaseLoginRequestDto(role = role)
-            )
-        }
-    }
 
     suspend fun sendOtp(phone: String, role: String? = null): AuthResult<SendOtpResponseDto> {
         val req = OtpRequest(phone = phone, role = role)

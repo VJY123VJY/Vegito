@@ -1,7 +1,6 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
-apply plugin: 'com.google.gms.google-services'
 
 def vegitoApiBaseUrl = findProperty("vegitoApiBaseUrl") ?: System.getenv("VEGITO_API_BASE_URL")
 
@@ -80,13 +79,6 @@ dependencies {
             dir: 'libs'
     )
 
-
-    // ============================================================
-    // FIREBASE
-    // ============================================================
-    implementation platform('com.google.firebase:firebase-bom:33.7.0')
-    implementation 'com.google.firebase:firebase-auth-ktx'
-    implementation 'com.google.firebase:firebase-messaging-ktx'
 
     // ============================================================
     // ANDROIDX

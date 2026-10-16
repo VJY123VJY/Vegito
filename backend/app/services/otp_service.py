@@ -1,43 +1,50 @@
+import time
 import logging
+from typing import Dict, Optional
 from twilio.base.exceptions import TwilioRestException
 from twilio.rest import Client
 from app.config import settings
-from app.core.exceptions import BadRequestException, ServiceUnavailableException
+from app.core.exceptions import (
+    BadRequestException,
+    ServiceUnavailableException,
+    TooManyRequestsException,
+)
 
 logger = logging.getLogger("vegito.auth.otp")
 
-# ============================================================================
-# IMPORTANT: This OtpService uses Twilio Verify.
-# It is NOT part of the active customer authentication flow.
-# Customer authentication uses Firebase Phone Auth exclusively:
-#   Android → PhoneAuthProvider.verifyPhoneNumber() → Firebase → ID Token
-#   FastAPI → POST /auth/firebase → verify_firebase_id_token() → JWT
-#
-# OtpService is retained for:
-#   - Delivery partner pickup OTP verification (order handoff)
-#   - Admin portal legacy support
-#   - Future B2B use cases
-#
-# DO NOT call OtpService.send_otp / verify_otp for customer login/register.
-# DO NOT set OTP_DEV_MODE=true or OTP_TEST_MODE=true in production .env.
-# ============================================================================
+# In-memory cooldown tracker: phone -> timestamp
+_last_sent_timestamps: Dict[str, float] = {}
+RESEND_COOLDOWN_SECONDS = 30
 
+
+def _mask_phone(phone: str) -> str:
+    cleaned = (phone or "").strip()
+    if len(cleaned) >= 4:
+        return f"******{cleaned[-4:]}"
+    return "******"
 
 
 class OtpService:
     @staticmethod
+    def clear_rate_limits():
+        _last_sent_timestamps.clear()
+
+    @staticmethod
     def is_twilio_configured() -> bool:
-        return all(
-            (
-                settings.TWILIO_ACCOUNT_SID,
-                settings.TWILIO_AUTH_TOKEN,
-                settings.TWILIO_VERIFY_SERVICE_SID,
-            )
+        return bool(
+            settings.TWILIO_ACCOUNT_SID
+            and settings.TWILIO_AUTH_TOKEN
+            and settings.TWILIO_VERIFY_SERVICE_SID
         )
 
     @staticmethod
     def to_e164(phone: str) -> str:
-        return phone if phone.startswith("+") else f"+91{phone}"
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        if phone.startswith("+"):
+            return phone
+        if digits.startswith("91") and len(digits) == 12:
+            return f"+{digits}"
+        return f"+91{digits}"
 
     @staticmethod
     def _twilio_client() -> Client:
@@ -45,76 +52,106 @@ class OtpService:
 
     @staticmethod
     def send_otp(phone: str) -> dict:
-        is_test_mode = getattr(settings, "OTP_TEST_MODE", False) or getattr(settings, "OTP_DEV_MODE", False)
-        dev_code = getattr(settings, "OTP_DEV_CODE", "123456")
+        e164_phone = OtpService.to_e164(phone)
+        masked = _mask_phone(phone)
+
+        # Rate limiting: 30-second resend cooldown per phone number
+        now = time.time()
+        last_sent = _last_sent_timestamps.get(e164_phone, 0.0)
+        elapsed = now - last_sent
+        if elapsed < RESEND_COOLDOWN_SECONDS:
+            remaining = int(RESEND_COOLDOWN_SECONDS - elapsed)
+            raise TooManyRequestsException(
+                f"Please wait {remaining} seconds before requesting another verification code."
+            )
 
         if not OtpService.is_twilio_configured():
+            is_test_mode = getattr(settings, "OTP_TEST_MODE", False) or getattr(settings, "OTP_DEV_MODE", False)
             if is_test_mode:
-                logger.info("Twilio not configured but OTP dev/test mode active. Returning dev OTP %s for %s", dev_code, phone)
+                dev_code = getattr(settings, "OTP_DEV_CODE", None) or "123456"
+                logger.info("Twilio not configured; fallback test mode active for %s", masked)
+                _last_sent_timestamps[e164_phone] = now
                 return {"dev_otp": dev_code, "fallback": True}
-            raise ServiceUnavailableException("Verification service is not configured.")
+            raise ServiceUnavailableException("SMS verification service is not configured.")
 
         try:
             OtpService._twilio_client().verify.v2.services(
                 settings.TWILIO_VERIFY_SERVICE_SID
-            ).verifications.create(to=OtpService.to_e164(phone), channel="sms")
-            return {"dev_otp": dev_code if is_test_mode else None, "fallback": False}
+            ).verifications.create(to=e164_phone, channel="sms")
+            _last_sent_timestamps[e164_phone] = now
+            logger.info("Twilio Verify SMS requested for %s", masked)
+            return {"fallback": False}
         except TwilioRestException as exc:
             logger.warning(
-                "Twilio Verify send failed code=%s status=%s message=%s",
+                "Twilio Verify send failed for %s code=%s status=%s: %s",
+                masked,
                 exc.code,
                 exc.status,
                 exc.msg,
             )
-            if is_test_mode:
-                logger.info("Falling back to dev OTP %s for %s", dev_code, phone)
-                return {"dev_otp": dev_code, "fallback": True}
+            if exc.code == 60200:
+                raise BadRequestException("Invalid mobile number format. Please check the number and try again.") from exc
+            elif exc.code == 60203:
+                raise TooManyRequestsException(
+                    "Too many verification requests. Please wait a few minutes before trying again."
+                ) from exc
+            elif exc.code == 21608:
+                raise BadRequestException(
+                    "SMS delivery to this number is restricted by the carrier or provider settings."
+                ) from exc
             raise ServiceUnavailableException(
                 "Verification service is temporarily unavailable. Please try again."
             ) from exc
         except Exception as exc:
-            logger.warning("Twilio client error: %s", exc)
-            if is_test_mode:
-                return {"dev_otp": dev_code, "fallback": True}
+            logger.warning("Twilio client error for %s: %s", masked, type(exc).__name__)
             raise ServiceUnavailableException(
                 "Verification service is temporarily unavailable. Please try again."
             ) from exc
 
     @staticmethod
     def verify_otp(phone: str, otp_code: str) -> bool:
-        is_test_mode = getattr(settings, "OTP_TEST_MODE", False) or getattr(settings, "OTP_DEV_MODE", False)
-        dev_code = getattr(settings, "OTP_DEV_CODE", "123456")
         clean_code = (otp_code or "").strip()
+        e164_phone = OtpService.to_e164(phone)
+        masked = _mask_phone(phone)
 
-        if is_test_mode and clean_code == dev_code:
-            logger.info("OTP verified via dev/test mode for %s", phone)
-            return True
+        if not clean_code or len(clean_code) < 4:
+            raise BadRequestException("Please enter a valid 6-digit verification code.")
 
         if not OtpService.is_twilio_configured():
+            is_test_mode = getattr(settings, "OTP_TEST_MODE", False) or getattr(settings, "OTP_DEV_MODE", False)
+            dev_code = getattr(settings, "OTP_DEV_CODE", None) or "123456"
             if is_test_mode and clean_code == dev_code:
+                logger.info("OTP verified via fallback test mode for %s", masked)
                 return True
-            raise ServiceUnavailableException("Verification service is not configured.")
+            raise ServiceUnavailableException("SMS verification service is not configured.")
 
         try:
             result = OtpService._twilio_client().verify.v2.services(
                 settings.TWILIO_VERIFY_SERVICE_SID
-            ).verification_checks.create(to=OtpService.to_e164(phone), code=clean_code)
+            ).verification_checks.create(to=e164_phone, code=clean_code)
         except TwilioRestException as exc:
             logger.warning(
-                "Twilio Verify check failed code=%s status=%s",
+                "Twilio Verify check failed for %s code=%s status=%s",
+                masked,
                 exc.code,
                 exc.status,
             )
-            if is_test_mode and clean_code == dev_code:
-                return True
             if exc.code == 20404:
-                raise BadRequestException("Invalid or expired OTP code.") from exc
+                raise BadRequestException("Invalid or expired verification code. Please request a new code.") from exc
+            elif exc.code == 60202:
+                raise BadRequestException("Maximum verification attempts reached. Please request a new code.") from exc
+            raise ServiceUnavailableException(
+                "Verification service is temporarily unavailable. Please try again."
+            ) from exc
+        except Exception as exc:
+            logger.warning("Twilio verify client error for %s: %s", masked, type(exc).__name__)
             raise ServiceUnavailableException(
                 "Verification service is temporarily unavailable. Please try again."
             ) from exc
 
         if result.status != "approved":
-            if is_test_mode and clean_code == dev_code:
-                return True
-            raise BadRequestException("Invalid or expired OTP code.")
+            logger.warning("Twilio Verify status was '%s' (not approved) for %s", result.status, masked)
+            raise BadRequestException("Invalid verification code. Please check the code and try again.")
+
+        logger.info("Twilio Verify check approved for %s", masked)
         return True

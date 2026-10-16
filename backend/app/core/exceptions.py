@@ -49,3 +49,9 @@ class ValidationException(VegitoException):
 class ServiceUnavailableException(VegitoException):
     def __init__(self, message: str = "Service temporarily unavailable", details: Optional[Any] = None):
         super().__init__(message=message, status_code=503, code="SERVICE_UNAVAILABLE", details=details)
+
+
+class TooManyRequestsException(VegitoException):
+    def __init__(self, message: str = "Too many requests. Please try again later.", details: Optional[Any] = None):
+        super().__init__(message=message, status_code=429, code="TOO_MANY_REQUESTS", details=details)
+

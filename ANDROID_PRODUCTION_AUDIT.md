@@ -7,14 +7,14 @@ The Vegito Android application (`com.vegito.app`) is a native Kotlin application
 - **Language**: Kotlin 2.0.21, Coroutines, StateFlow.
 - **UI Framework**: Jetpack Compose (Material 3, Material Icons Extended).
 - **Network**: Retrofit 2.11.0 with Gson converter and OkHttp Logging Interceptor.
-- **Authentication**: Firebase Auth (Phone OTP) + Backend JWT token exchange via `SessionManager`.
+- **Authentication**: Twilio Verify OTP + Backend JWT token exchange via `SessionManager`.
 - **Location & Maps**: Google Play Services Fused Location Provider and Mapbox / custom Map views (`VegitoMapView`).
 - **Build System**: Gradle 8.x with Android Gradle Plugin 8.13.0, compile/target SDK 36, min SDK 24.
 
 ## 3. Core Modules & Features Audit
 - **Authentication (`presentation/auth`)**:
   - `LoginScreen`, `OtpScreen`, `RegisterScreen`, `OnboardingScreen`.
-  - Integrates `FirebaseAuthManager` for phone number authentication and OTP verification.
+  - Integrates Twilio Verify OTP backend endpoints via `VegitoRepository` for phone authentication and verification.
 - **Customer Experience (`presentation/customer`)**:
   - `CustomerHomeScreen`, `ProductDetailScreen`, `CartScreen`, `CheckoutScreen`, `OrderTrackingScreen`, `AddressesScreen`, `FavoritesScreen`, `SearchScreen`.
   - Supports product catalog browsing, cart management, address selection, order placement, and tracking.
@@ -30,10 +30,10 @@ The Vegito Android application (`com.vegito.app`) is a native Kotlin application
   - `VegitoRepository` coordinates API calls to `VegitoApiService`.
   - `SessionManager` manages secure token and role storage (Customer, Seller, Delivery Partner, Admin).
 
-## 4. Production Authentication & Firebase OTP
-- **Firebase Configuration**: Verified `google-services.json` tied to project `vegito-e35a1`.
-- **Error Handling**: Explicit handling added in `FirebaseAuthManager.kt` for `BILLING_NOT_ENABLED` (SMS on Spark vs Blaze plan), `TOO_MANY_ATTEMPTS_TRY_LATER`, and quota limits with actionable guidance.
-- **Backend Token Exchange**: Validated fresh Firebase ID token extraction and backend exchange via Retrofit headers.
+## 4. Production Authentication & Twilio Verify OTP
+- **Twilio Configuration**: Verified active Twilio Verify Service `Vegito OTP` (`VA01aa618a98b9f28e52b775757d6254cc`).
+- **Error Handling & Rate Limiting**: Backend rate-limiting with 30-second resend cooldown per phone number (HTTP 429), safe error mapping for carrier restrictions and expired codes.
+- **Session Exchange**: Server-authoritative OTP verification and JWT session generation. No secrets or client-trusted verification on Android.
 
 ## 5. Location & Map Tracking Flow
 - **Bug A Root Cause**: Stale cached fixes returning without freshness checks, monotonic clock verification missing, and hardcoded "Solapur" / "413001" fallback values in reverse geocoding.

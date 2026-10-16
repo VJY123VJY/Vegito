@@ -7,11 +7,6 @@ import retrofit2.http.*
 interface VegitoApiService {
 
     // AUTH
-    @POST("/api/v1/auth/firebase")
-    suspend fun loginWithFirebase(
-        @Header("Authorization") bearerToken: String,
-        @Body request: FirebaseLoginRequestDto? = null
-    ): Response<ApiResponse<TokenResponseDto>>
 
     @POST("/api/v1/auth/send-otp")
     suspend fun sendOtp(@Body request: OtpRequest): Response<ApiResponse<SendOtpResponseDto>>

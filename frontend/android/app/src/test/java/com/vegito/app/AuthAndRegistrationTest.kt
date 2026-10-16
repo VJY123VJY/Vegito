@@ -71,43 +71,41 @@ class AuthAndRegistrationTest {
     }
 
     @Test
-    fun testFirebaseAuthManagerNormalizePhoneNumber() {
-        // Test registered test number formatting
-        assertEquals("+919876543210", com.vegito.app.data.auth.FirebaseAuthManager.normalizePhoneNumber("9876543210"))
-        assertEquals("+919876543210", com.vegito.app.data.auth.FirebaseAuthManager.normalizePhoneNumber("+919876543210"))
-        assertEquals("+919876543210", com.vegito.app.data.auth.FirebaseAuthManager.normalizePhoneNumber("919876543210"))
+    fun testOtpRequestAndResponseDtos() {
+        val otpReq = com.vegito.app.data.model.OtpRequest(phone = "9876543210", role = "customer")
+        assertEquals("9876543210", otpReq.phone)
+        assertEquals("customer", otpReq.role)
 
-        // Malformed / invalid numbers
-        assertNull(com.vegito.app.data.auth.FirebaseAuthManager.normalizePhoneNumber("12345"))
-        assertNull(com.vegito.app.data.auth.FirebaseAuthManager.normalizePhoneNumber("5999999999"))
+        val otpVerifyReq = com.vegito.app.data.model.OtpVerifyRequest(
+            phone = "9876543210",
+            otp = "123456",
+            role = "customer",
+            name = "Test User"
+        )
+        assertEquals("9876543210", otpVerifyReq.phone)
+        assertEquals("123456", otpVerifyReq.otp)
+        assertEquals("customer", otpVerifyReq.role)
+        assertEquals("Test User", otpVerifyReq.name)
+
+        val json = com.google.gson.Gson().toJson(otpVerifyReq)
+        assertTrue(json.contains("\"otp\":\"123456\""))
+        assertTrue(json.contains("\"phone\":\"9876543210\""))
     }
 
     @Test
-    fun testFirebaseAuthManagerErrorMappingNoIndiscriminateBlazeWarning() {
-        // BILLING_NOT_ENABLED error mapping
-        val billingError = Exception("An internal error has occurred. [ BILLING_NOT_ENABLED ]")
-        val billingMsg = com.vegito.app.data.auth.FirebaseAuthManager.mapFirebaseError(billingError)
-        assertEquals("Real SMS delivery is not enabled. Please use a registered Firebase test phone number to log in.", billingMsg)
-        assertFalse("Must not show Blaze warning banner", billingMsg.contains("Firebase Blaze plan required"))
+    fun testPhoneUtilsMasking() {
+        assertEquals("******4359", PhoneUtils.maskPhoneNumber("9309424359"))
+        assertEquals("******3210", PhoneUtils.maskPhoneNumber("+919876543210"))
+        assertEquals("******", PhoneUtils.maskPhoneNumber("123"))
+    }
 
-        // QUOTA_EXCEEDED error mapping
-        val quotaError = Exception("QUOTA_EXCEEDED : Exceeded quota.")
-        val quotaMsg = com.vegito.app.data.auth.FirebaseAuthManager.mapFirebaseError(quotaError)
-        assertEquals("SMS quota exceeded. Please use a registered Firebase test phone number or try again later.", quotaMsg)
+    @Test
+    fun testIndianPhoneNumberE164Formatting() {
+        // Specifically verify formatting for 9309424359
+        val normalized = PhoneUtils.normalizePhoneNumber("9309424359")
+        assertEquals("+919309424359", normalized)
 
-        // Invalid code mapping
-        val codeError = Exception("The verification code is invalid")
-        val codeMsg = com.vegito.app.data.auth.FirebaseAuthManager.mapFirebaseError(codeError)
-        assertEquals("Authentication error. Please try again.", codeMsg)
-
-        // Network error mapping
-        val netError = Exception("A network error occurred. Please check your internet connection.")
-        val netMsg = com.vegito.app.data.auth.FirebaseAuthManager.mapFirebaseError(netError)
-        assertEquals("Network connection unavailable. Please check your internet connection.", netMsg)
-
-        // Session expired error mapping
-        val expireError = Exception("The sms code session has expired")
-        val expireMsg = com.vegito.app.data.auth.FirebaseAuthManager.mapFirebaseError(expireError)
-        assertEquals("OTP session expired. Please request a new OTP.", expireMsg)
+        val normalizedWithCountryCode = PhoneUtils.normalizePhoneNumber("+919309424359")
+        assertEquals("+919309424359", normalizedWithCountryCode)
     }
 }

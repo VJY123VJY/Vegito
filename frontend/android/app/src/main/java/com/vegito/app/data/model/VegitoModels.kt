@@ -72,11 +72,6 @@ data class SwitchWorkspaceDto(
     @SerializedName("target_role") val targetRole: String
 )
 
-data class FirebaseLoginRequestDto(
-    val role: String? = null,
-    @SerializedName("id_token") val idToken: String? = null
-)
-
 data class OtpRequest(
     val phone: String,
     val role: String? = null

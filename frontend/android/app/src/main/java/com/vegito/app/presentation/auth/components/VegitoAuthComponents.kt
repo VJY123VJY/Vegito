@@ -476,7 +476,7 @@ fun PrimaryAuthButton(
 }
 
 /**
- * Standardized Error Banner with explicit guidance for common Firebase / Auth errors.
+ * Standardized Error Banner with explicit guidance for common Auth errors.
  */
 @Composable
 fun AuthErrorMessage(

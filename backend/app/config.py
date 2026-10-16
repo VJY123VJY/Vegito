@@ -64,13 +64,6 @@ class Settings(BaseSettings):
     TWILIO_VERIFY_SERVICE_SID: str = ""
 
     # =========================
-    # Firebase Admin SDK
-    # =========================
-    FIREBASE_PROJECT_ID: str = "vegito-e35a1"
-    FIREBASE_SERVICE_ACCOUNT_JSON: str = ""
-    FIREBASE_CREDENTIALS_PATH: str = ""
-
-    # =========================
     # Delivery
     # =========================
     DELIVERY_ASSIGNMENT_RADIUS_KM: float = 50.0

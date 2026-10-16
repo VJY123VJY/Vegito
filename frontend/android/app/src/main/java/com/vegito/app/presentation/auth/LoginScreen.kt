@@ -125,7 +125,7 @@ fun LoginScreen(
                 }
             )
 
-            // Error Display (API/Firebase or local)
+            // Error Display (API or local)
             val activeError = errorMessage ?: localError
             if (activeError != null) {
                 Spacer(Modifier.height(14.dp))

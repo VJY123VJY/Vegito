@@ -14,7 +14,7 @@
   - `/admin/products/page.tsx` (Catalog Oversight & Low-stock Alerts)
   - `/admin/market-prices/page.tsx` (APMC Yard Market Intelligence)
   - `/admin/promotions/page.tsx`, `/admin/reviews/page.tsx`
-- **Native Android Application**: Independent native Android app (`com.vegito.app`) for customers, sellers, and delivery partners using Jetpack Compose, Retrofit, and Firebase Auth.
+- **Native Android Application**: Independent native Android app (`com.vegito.app`) for customers, sellers, and delivery partners using Jetpack Compose, Retrofit, and Twilio Verify OTP.
 
 ---
 
