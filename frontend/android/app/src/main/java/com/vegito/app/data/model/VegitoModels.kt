@@ -600,6 +600,21 @@ data class OrderResponseDto(
     }
 }
 
+data class NearbySellerDto(
+    val id: Int = 0,
+    @SerializedName("user_id") val userId: Int = 0,
+    @SerializedName("business_name") val businessName: String = "",
+    @SerializedName("business_type") val businessType: String? = null,
+    val address: String? = null,
+    @SerializedName("distance_km") val distanceKm: Double = 0.0,
+    @SerializedName("is_verified") val isVerified: Boolean = true,
+    val rating: Double = 0.0,
+    @SerializedName("total_orders") val totalOrders: Int = 0,
+    @SerializedName("active_products_count") val activeProductsCount: Int = 0,
+    @SerializedName("is_available") val isAvailable: Boolean = true,
+    @SerializedName("is_deliverable") val isDeliverable: Boolean = true
+)
+
 data class LiveLocationDto(
     val lat: Double = 0.0,
     val lng: Double = 0.0,

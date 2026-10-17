@@ -53,6 +53,8 @@ class CustomerRegisterRequest(BaseModel):
     address: Optional[str] = None
     city: Optional[str] = "Solapur"
     pincode: Optional[str] = "413001"
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class SellerRegisterRequest(BaseModel):

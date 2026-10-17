@@ -70,9 +70,9 @@ class Settings(BaseSettings):
     # Delivery
     # =========================
     DELIVERY_ASSIGNMENT_RADIUS_KM: float = 50.0
-    MIN_DELIVERY_DISTANCE_KM: float = 1.0
-    MIN_DELIVERY_RADIUS_KM: float = 1.0
-    DELIVERY_MAX_DISTANCE_KM: float = 50.0
+    MIN_DELIVERY_DISTANCE_KM: float = 0.0
+    MIN_DELIVERY_RADIUS_KM: float = 0.0
+    DELIVERY_MAX_DISTANCE_KM: float = 20.0
     ALLOW_SAME_BUILDING_DELIVERY: bool = True
 
 

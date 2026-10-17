@@ -341,7 +341,8 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         categoryName: String? = null,
         search: String? = null,
         latitude: Double? = null,
-        longitude: Double? = null
+        longitude: Double? = null,
+        sellerId: Int? = null
     ): CatalogResult {
         return try {
             val items = mutableListOf<Product>()
@@ -355,7 +356,8 @@ class VegitoRepository(private val apiService: VegitoApiService) {
                     page = page,
                     pageSize = 100,
                     latitude = latitude,
-                    longitude = longitude
+                    longitude = longitude,
+                    sellerId = sellerId
                 )
                 val body = response.body()
                 val pageData = body?.data
@@ -639,6 +641,21 @@ class VegitoRepository(private val apiService: VegitoApiService) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "getUserAddresses error: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun getNearbySellers(latitude: Double, longitude: Double): List<NearbySellerDto> {
+        return try {
+            val response = apiService.getNearbySellers(lat = latitude, lon = longitude)
+            if (response.isSuccessful && response.body()?.success == true) {
+                response.body()?.data ?: emptyList()
+            } else {
+                Log.w(TAG, "getNearbySellers returned ${response.code()}: ${response.errorBody()?.string()}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getNearbySellers error: ${e.message}")
             emptyList()
         }
     }

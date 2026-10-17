@@ -108,6 +108,66 @@ def setup_inbuilt_accounts():
             sp.is_available = True
             print(f"Updated SellerProfile ID={sp.id}")
 
+        # Stock Pune Test Seller with active products
+        from app.models.product import Product
+        from app.models.seller_product import SellerProduct
+        from app.models.inventory import Inventory
+
+        products = db.query(Product).filter(Product.is_active == True).all()
+        sample_prices = {
+            sp_item.product_id: sp_item.price
+            for sp_item in db.query(SellerProduct).filter(SellerProduct.seller_id == 1302).all()
+        }
+
+        stocked_count = 0
+        for prod in products:
+            existing_sp = db.query(SellerProduct).filter(
+                SellerProduct.seller_id == seller_user.id,
+                SellerProduct.product_id == prod.id
+            ).first()
+
+            item_price = sample_prices.get(prod.id, Decimal("40.00"))
+            if not existing_sp:
+                new_sp = SellerProduct(
+                    seller_id=seller_user.id,
+                    product_id=prod.id,
+                    price=item_price,
+                    stock_quantity=Decimal("100.000"),
+                    minimum_order_quantity=Decimal("1.000"),
+                    is_available=True,
+                    added_date=datetime.date.today(),
+                    harvest_date=datetime.date.today(),
+                    storage_condition="Fresh Ambient / Refrigerated",
+                    origin="Pune Mandi & Narayangaon Farms",
+                )
+                db.add(new_sp)
+                db.flush()
+                inv = Inventory(
+                    seller_product_id=new_sp.id,
+                    quantity=Decimal("100.000"),
+                    reserved_quantity=Decimal("0.000"),
+                    low_stock_threshold=Decimal("5.000")
+                )
+                db.add(inv)
+                stocked_count += 1
+            else:
+                existing_sp.is_available = True
+                existing_sp.stock_quantity = Decimal("100.000")
+                existing_sp.price = item_price
+                inv = db.query(Inventory).filter(Inventory.seller_product_id == existing_sp.id).first()
+                if not inv:
+                    inv = Inventory(
+                        seller_product_id=existing_sp.id,
+                        quantity=Decimal("100.000"),
+                        reserved_quantity=Decimal("0.000"),
+                        low_stock_threshold=Decimal("5.000")
+                    )
+                    db.add(inv)
+                else:
+                    inv.quantity = Decimal("100.000")
+        db.flush()
+        print(f"Stocked/Updated {stocked_count} products for Seller {seller_user.id} ({sp.business_name})")
+
         # ── 2. SETUP DELIVERY PARTNER: 9876543210 ─────────────────────────────────
         phone_delivery = "+919876543210"
         deliv_user = db.query(User).filter(User.phone.like("%9876543210%")).first()

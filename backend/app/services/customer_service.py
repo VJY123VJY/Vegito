@@ -47,39 +47,6 @@ class CustomerService:
     @staticmethod
     def create_address(db: Session, user: User, address_in: AddressCreate) -> Address:
         # Validate 20 KM radius against real seller shop location
-        max_km = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))
-        if address_in.latitude is not None and address_in.longitude is not None:
-            seller = (
-                db.query(SellerProfile)
-                .join(User, SellerProfile.user_id == User.id)
-                .filter(
-                    User.is_active == True,
-                    SellerProfile.latitude.isnot(None),
-                    SellerProfile.longitude.isnot(None),
-                )
-                .order_by(SellerProfile.id.desc())
-                .first()
-            )
-            if not seller:
-                seller = (
-                    db.query(SellerProfile)
-                    .filter(SellerProfile.latitude.isnot(None), SellerProfile.longitude.isnot(None))
-                    .order_by(SellerProfile.id.desc())
-                    .first()
-                )
-            if seller:
-                s_lat, s_lon = LocationService.resolve_seller_coordinates(db, seller.user_id, fallback_to_default=False)
-                if s_lat is not None and s_lon is not None:
-                    dist = LocationService.calculate_distance(
-                        float(address_in.latitude), float(address_in.longitude), s_lat, s_lon
-                    )
-                    if dist > max_km:
-                        raise BadRequestException(
-                            message=f"This address is outside our {int(max_km)} km delivery area (Distance: {dist:.1f} km from {seller.business_name}). Vegito currently delivers within {int(max_km)} km of our seller.",
-                            code="DELIVERY_OUT_OF_RANGE",
-                            details={"distance_km": round(dist, 2), "max_distance_km": max_km, "seller_name": seller.business_name}
-                        )
-
         # If this is the user's first address or marked default, ensure single default
         existing_count = db.query(Address).filter(Address.user_id == user.id).count()
         is_default = address_in.is_default or existing_count == 0

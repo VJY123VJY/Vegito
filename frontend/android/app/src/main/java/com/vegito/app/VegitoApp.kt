@@ -103,17 +103,31 @@ fun VegitoApp() {
 
     var showGlobalLocationSheet by remember { mutableStateOf(false) }
 
+    var nearbySellers by remember { mutableStateOf<List<NearbySellerDto>>(emptyList()) }
+    var selectedSellerId by remember { mutableStateOf<Int?>(null) }
+
     val catalogLocation = selectedAddress?.takeIf {
         LocationHelper.isValidCoordinates(it.latitude, it.longitude)
     }
 
-    LaunchedEffect(token, activeRole, catalogLocation) {
+    LaunchedEffect(token, activeRole, catalogLocation, selectedSellerId) {
         isCatalogLoading = true
         catalogError = null
         catalogEmptyMessage = null
         val lat = catalogLocation?.latitude
         val lon = catalogLocation?.longitude
-        when (val result = repository.getProductCatalog(latitude = lat, longitude = lon)) {
+
+        if (lat != null && lon != null) {
+            val sellers = repository.getNearbySellers(lat, lon)
+            nearbySellers = sellers
+            if (selectedSellerId != null && sellers.none { it.id == selectedSellerId }) {
+                selectedSellerId = null
+            }
+        } else {
+            nearbySellers = emptyList()
+        }
+
+        when (val result = repository.getProductCatalog(latitude = lat, longitude = lon, sellerId = selectedSellerId)) {
             is VegitoRepository.CatalogResult.Success -> {
                 productsList = result.products
                 catalogEmptyMessage = if (result.totalCount == 0) {
@@ -127,7 +141,7 @@ fun VegitoApp() {
                 }
                 Log.i(
                     "VegitoCatalog",
-                    "Loaded ${result.products.size} parsed products for location ($lat, $lon) (${result.totalCount} total across ${result.pageCount} pages)"
+                    "Loaded ${result.products.size} parsed products for location ($lat, $lon) sellerId=$selectedSellerId (${result.totalCount} total across ${result.pageCount} pages)"
                 )
             }
             is VegitoRepository.CatalogResult.Failure -> {
@@ -411,27 +425,36 @@ fun VegitoApp() {
     }
 
     fun performLogout() {
-        sessionManager.clearSession()
-        sessionManager.clearSelectedAddress()
-        cartItems = emptyList()
-        cartSummary = CartSummary()
-        customerOrdersList = emptyList()
-        savedAddressesList = emptyList()
-        favoriteProductIds = emptySet()
-        notificationsList = emptyList()
-        activeOrder = null
-        sellerProfile = null
-        sellerOrdersList = emptyList()
-        sellerRevenueData = emptyList()
-        sellerTopProducts = emptyList()
-        sellerBulkOrdersList = emptyList()
-        deliveryTasksList = emptyList()
-        deliveryProfileDto = null
-        activeDeliveryTaskForMap = null
-        adminSellersList = emptyList()
-        adminDeliveryPartnersList = emptyList()
-        navController.navigate("login") {
-            popUpTo(0) { inclusive = true }
+        scope.launch {
+            try {
+                repository.setSellerAvailability(false)
+                repository.setDeliveryAvailability(false)
+            } catch (e: Exception) {
+                Log.e("VegitoApp", "Logout availability update error: ${e.message}")
+            } finally {
+                sessionManager.clearSession()
+                sessionManager.clearSelectedAddress()
+                cartItems = emptyList()
+                cartSummary = CartSummary()
+                customerOrdersList = emptyList()
+                savedAddressesList = emptyList()
+                favoriteProductIds = emptySet()
+                notificationsList = emptyList()
+                activeOrder = null
+                sellerProfile = null
+                sellerOrdersList = emptyList()
+                sellerRevenueData = emptyList()
+                sellerTopProducts = emptyList()
+                sellerBulkOrdersList = emptyList()
+                deliveryTasksList = emptyList()
+                deliveryProfileDto = null
+                activeDeliveryTaskForMap = null
+                adminSellersList = emptyList()
+                adminDeliveryPartnersList = emptyList()
+                navController.navigate("login") {
+                    popUpTo(0) { inclusive = true }
+                }
+            }
         }
     }
 
@@ -774,6 +797,12 @@ fun VegitoApp() {
                         categories = categoriesList,
                         allProducts = availableProducts,
                         marketIntelligence = marketIntelligenceList,
+                        nearbySellers = nearbySellers,
+                        selectedSellerId = selectedSellerId,
+                        onSelectSeller = { sellerId ->
+                            selectedSellerId = if (selectedSellerId == sellerId) null else sellerId
+                        },
+                        onChangeLocationClick = { showGlobalLocationSheet = true },
                         isLoadingCatalog = isCatalogLoading,
                         catalogError = catalogError,
                         catalogEmptyMessage = catalogEmptyMessage,
@@ -785,7 +814,10 @@ fun VegitoApp() {
                                 catalogEmptyMessage = null
                                 val lat = catalogLocation?.latitude
                                 val lon = catalogLocation?.longitude
-                                when (val result = repository.getProductCatalog(latitude = lat, longitude = lon)) {
+                                if (lat != null && lon != null) {
+                                    nearbySellers = repository.getNearbySellers(lat, lon)
+                                }
+                                when (val result = repository.getProductCatalog(latitude = lat, longitude = lon, sellerId = selectedSellerId)) {
                                     is VegitoRepository.CatalogResult.Success -> {
                                         productsList = result.products
                                         catalogEmptyMessage = if (result.totalCount == 0) {

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vegito.app.data.model.Category
 import com.vegito.app.data.model.MarketIntelligenceDto
+import com.vegito.app.data.model.NearbySellerDto
 import com.vegito.app.data.model.Offer
 import com.vegito.app.data.model.Product
 import com.vegito.app.ui.components.CompactProductCard
@@ -44,6 +45,10 @@ fun CustomerHomeScreen(
     categories: List<Category>,
     allProducts: List<Product>,
     marketIntelligence: List<MarketIntelligenceDto> = emptyList(),
+    nearbySellers: List<NearbySellerDto> = emptyList(),
+    selectedSellerId: Int? = null,
+    onSelectSeller: ((Int) -> Unit)? = null,
+    onChangeLocationClick: (() -> Unit)? = null,
     isLoadingCatalog: Boolean,
     catalogError: String? = null,
     catalogEmptyMessage: String? = null,
@@ -165,15 +170,31 @@ fun CustomerHomeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Button(
-                onClick = onRetryCatalog,
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary),
-                modifier = Modifier.height(48.dp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Refresh Catalog", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                if (onChangeLocationClick != null) {
+                    OutlinedButton(
+                        onClick = onChangeLocationClick,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.height(48.dp)
+                    ) {
+                        Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp), tint = VegitoPrimary)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Change Location", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    }
+                }
+                Button(
+                    onClick = onRetryCatalog,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary),
+                    modifier = Modifier.height(48.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Refresh", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
             }
 
             if (categories.isNotEmpty()) {
@@ -327,6 +348,135 @@ fun CustomerHomeScreen(
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(bottom = 90.dp)
     ) {
+        // 0. NEARBY STORES (within 20 km)
+        if (nearbySellers.isNotEmpty()) {
+            item {
+                Column(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🏪", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Stores Delivering to You",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        if (selectedSellerId != null) {
+                            Text(
+                                text = "Show All Stores",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = VegitoPrimary,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { onSelectSeller?.invoke(selectedSellerId) }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(nearbySellers) { seller ->
+                            val isSelected = selectedSellerId == seller.id
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) VegitoPrimary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) VegitoPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                ),
+                                shadowElevation = if (isSelected) 2.dp else 0.5.dp,
+                                modifier = Modifier
+                                    .width(210.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { onSelectSeller?.invoke(seller.id) }
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = seller.businessName.takeIf { it.isNotBlank() } ?: "Local Mandi Seller",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            maxLines = 1,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (isSelected) {
+                                            Icon(
+                                                Icons.Default.CheckCircle,
+                                                contentDescription = "Selected",
+                                                tint = VegitoPrimary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .background(
+                                                    if (seller.isAvailable && seller.isDeliverable) Color(0xFF2E7D32) else Color.Gray,
+                                                    CircleShape
+                                                )
+                                        )
+                                        Text(
+                                            text = if (seller.isAvailable && seller.isDeliverable) "Open & Delivering" else "Temporarily Closed",
+                                            fontSize = 11.sp,
+                                            color = if (seller.isAvailable && seller.isDeliverable) Color(0xFF2E7D32) else Color.Gray,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        seller.distanceKm?.let { d ->
+                                            Text(
+                                                text = "📍 %.1f km".format(d),
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Text(
+                                            text = "${seller.activeProductsCount} items",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 1. OFFER BANNER CAROUSEL
         if (offers.isNotEmpty()) {
             item {
@@ -513,6 +663,39 @@ fun CustomerHomeScreen(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // 2.6 SOLAPUR CLIMATE & STORAGE ADVISORY
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = VegitoPrimary.copy(alpha = 0.08f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("☀️", fontSize = 24.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Solapur Mandi Climate Advisory",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = VegitoPrimary
+                        )
+                        Text(
+                            text = "28°C • Humidity 42% • Optimal cold-chain storage active for farm-fresh greens.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

@@ -405,13 +405,15 @@ class AuthService:
         cart = Cart(user_id=user.id)
         db.add(cart)
 
-        if payload.address:
+        if payload.address or (payload.latitude is not None and payload.longitude is not None):
             address = Address(
                 user_id=user.id,
-                address_line1=payload.address,
+                address_line1=payload.address or "Saved Delivery Location",
                 city=payload.city or "Solapur",
                 state="Maharashtra",
                 pincode=payload.pincode or "413001",
+                latitude=Decimal(str(payload.latitude)) if payload.latitude is not None else None,
+                longitude=Decimal(str(payload.longitude)) if payload.longitude is not None else None,
                 is_default=True,
                 address_type="HOME",
             )
@@ -555,6 +557,8 @@ class AuthService:
                     address=payload.address,
                     city=payload.city,
                     pincode=payload.pincode,
+                    latitude=payload.latitude,
+                    longitude=payload.longitude,
                 ),
             )
         elif norm_role == "SELLER":

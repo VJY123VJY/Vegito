@@ -246,18 +246,11 @@ class ProductService:
         # If location filter or specific seller filter is active, filter products to eligible ones
         location_filter_applied = False
         if (lat is not None and lon is not None) or seller_id is not None:
-            filtered_by_location = [
+            raw_products = [
                 p for p in raw_products
                 if any(_is_offer_eligible(sp)[0] for sp in p.seller_products)
             ]
-            if filtered_by_location or seller_id is not None:
-                raw_products = filtered_by_location
-                location_filter_applied = True
-            else:
-                logger.info(
-                    "No seller offers within %s km of (%s, %s). Showing available marketplace catalog.",
-                    max_radius_km, lat, lon
-                )
+            location_filter_applied = True
 
         # Relevance scoring for search queries
         if clean_search and not TaxonomyService.get_category_intent(clean_search):

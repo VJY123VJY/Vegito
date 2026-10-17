@@ -55,7 +55,8 @@ interface VegitoApiService {
         @Query("page") page: Int = 1,
         @Query("page_size") pageSize: Int = 100,
         @Query("lat") latitude: Double? = null,
-        @Query("lon") longitude: Double? = null
+        @Query("lon") longitude: Double? = null,
+        @Query("seller_id") sellerId: Int? = null
     ): Response<ApiResponse<PaginatedData<ProductDto>>>
 
     @GET("/api/v1/products/{id}")
@@ -118,6 +119,13 @@ interface VegitoApiService {
 
     @DELETE("/api/v1/addresses/{id}")
     suspend fun deleteAddress(@Path("id") addressId: Int): Response<ApiResponse<Boolean>>
+
+    // NEARBY SHOPS DISCOVERY
+    @GET("/api/v1/customers/nearby-sellers")
+    suspend fun getNearbySellers(
+        @Query("lat") lat: Double,
+        @Query("lon") lon: Double
+    ): Response<ApiResponse<List<NearbySellerDto>>>
 
     // DELIVERY ELIGIBILITY & PRICING
     @GET("/api/v1/orders/delivery-fee")

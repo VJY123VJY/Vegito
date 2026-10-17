@@ -24,15 +24,22 @@ router = APIRouter(prefix="/customers", tags=["Customers"])
 
 class NearbySellerRead(BaseSchema):
     id: int
+    seller_id: int
     user_id: int
+    name: Optional[str] = None
     business_name: str
+    phone: Optional[str] = None
     business_type: Optional[str] = None
     address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     distance_km: float
     is_verified: bool
     rating: Decimal
     total_orders: int
     active_products_count: int
+    is_available: bool = True
+    is_deliverable: bool = True
 
 
 class CustomerHomeFeedRead(BaseSchema):
@@ -132,7 +139,7 @@ def get_nearby_sellers(
     sellers = (
         db.query(SellerProfile)
         .join(User, SellerProfile.user_id == User.id)
-        .filter(User.is_active == True, SellerProfile.is_available == True)
+        .filter(User.is_active == True)
         .all()
     )
 
@@ -150,22 +157,32 @@ def get_nearby_sellers(
             .filter(SellerProduct.seller_id == sp.user_id, SellerProduct.is_available == True, SellerProduct.stock_quantity > 0)
             .count()
         )
+        is_avail = bool(sp.is_available)
+        user = db.query(User).filter(User.id == sp.user_id).first()
         results.append(
             NearbySellerRead(
-                id=sp.id,
+                id=sp.user_id,
+                seller_id=sp.user_id,
                 user_id=sp.user_id,
+                name=user.name if user and user.name else sp.business_name,
                 business_name=sp.business_name,
+                phone=user.phone if user and user.phone else "",
                 business_type=sp.business_type,
                 address=sp.address or "Local Area",
+                latitude=float(s_lat) if s_lat is not None else None,
+                longitude=float(s_lon) if s_lon is not None else None,
                 distance_km=round(dist, 2),
                 is_verified=bool(sp.is_verified),
                 rating=sp.rating or Decimal("0.00"),
                 total_orders=sp.total_orders or 0,
                 active_products_count=prod_count,
+                is_available=is_avail,
+                is_deliverable=is_avail and dist <= 20.0,
             )
         )
 
-    results.sort(key=lambda s: s.distance_km)
+    # Sort available shops first, then nearest distance
+    results.sort(key=lambda s: (not s.is_available, s.distance_km))
     return APIResponse(data=results)
 
 

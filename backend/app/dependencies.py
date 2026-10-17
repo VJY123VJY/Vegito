@@ -78,7 +78,13 @@ def require_role(*allowed_roles: str):
     return role_checker
 
 
-require_customer = require_role(RoleEnum.CUSTOMER.value, RoleEnum.ADMIN.value, RoleEnum.SUPER_ADMIN.value)
+require_customer = require_role(
+    RoleEnum.CUSTOMER.value,
+    RoleEnum.SELLER.value,
+    RoleEnum.DELIVERY_PARTNER.value,
+    RoleEnum.ADMIN.value,
+    RoleEnum.SUPER_ADMIN.value,
+)
 require_seller = require_role(RoleEnum.SELLER.value, RoleEnum.ADMIN.value, RoleEnum.SUPER_ADMIN.value)
 require_delivery_partner = require_role(
     RoleEnum.DELIVERY_PARTNER.value, RoleEnum.ADMIN.value, RoleEnum.SUPER_ADMIN.value
