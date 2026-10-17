@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     OTP_DEV_CODE: str = "123456"
     OTP_MAX_ATTEMPTS: int = 5
 
+    # Fixed OTP test mode for Seller / Delivery Partner local testing
+    FIXED_OTP_TEST_MODE: bool = False
+
     # Delivery pickup testing only
     TEST_OTP: str = "123456"
     TEST_PICKUP_OTP: str = "123456"

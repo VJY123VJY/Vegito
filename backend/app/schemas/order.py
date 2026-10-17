@@ -100,3 +100,5 @@ class OrderDetailRead(OrderRead):
     customer_longitude: Optional[Decimal] = None
     delivery_partner_name: Optional[str] = None
     delivery_partner_phone: Optional[str] = None
+    delivery_partner_lat: Optional[Decimal] = None
+    delivery_partner_lng: Optional[Decimal] = None

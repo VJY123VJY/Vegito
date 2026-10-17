@@ -277,6 +277,12 @@ object LocationHelper {
             null
         }
 
+    fun cleanPlusCode(str: String?): String {
+        if (str.isNullOrBlank()) return ""
+        val cleaned = str.replace(Regex("""\b[A-Z0-9]{4,8}\+[A-Z0-9]{2,4}\b,?\s*"""), "").trim()
+        return cleaned.removePrefix(",").removeSuffix(",").trim()
+    }
+
     private suspend fun Location.toLocationSuccess(
         context: Context,
         isFreshFix: Boolean,
@@ -314,9 +320,10 @@ object LocationHelper {
                             city = bestMatch.locality ?: bestMatch.subAdminArea ?: ""
                             state = bestMatch.adminArea ?: ""
                             pincode = bestMatch.postalCode ?: ""
-                            area = bestMatch.subLocality ?: bestMatch.thoroughfare ?: bestMatch.featureName ?: ""
+                            val rawArea = bestMatch.subLocality ?: bestMatch.thoroughfare ?: bestMatch.featureName ?: ""
+                            area = cleanPlusCode(rawArea)
                             if (bestMatch.maxAddressLineIndex >= 0) {
-                                addressLine = bestMatch.getAddressLine(0)
+                                addressLine = cleanPlusCode(bestMatch.getAddressLine(0))
                             }
                         }
                     }
@@ -326,10 +333,12 @@ object LocationHelper {
             }
 
             // Construct truthful, non-fabricated address line if geocoder was unavailable
-            val finalAddressLine = addressLine?.ifBlank { null }
-                ?: listOf(area, city, state, pincode).filter { it.isNotBlank() }.joinToString(", ").ifBlank {
+            val cleanedAddressLine = cleanPlusCode(addressLine)
+            val finalAddressLine = cleanedAddressLine.ifBlank {
+                listOf(area, city, state, pincode).filter { it.isNotBlank() }.joinToString(", ").ifBlank {
                     "GPS: ${String.format(Locale.US, "%.5f, %.5f", lat, lng)}"
                 }
+            }
 
             val finalArea = area.ifBlank {
                 if (city.isNotBlank()) city else "Current Location"

@@ -42,13 +42,14 @@ import kotlinx.coroutines.delay
 fun OtpScreen(
     phone: String,
     role: String,
+    initialOtp: String? = null,
     isLoading: Boolean = false,
     errorMessage: String? = null,
     onVerifyOtp: (otp: String) -> Unit,
     onResendOtp: () -> Unit = {},
     onChangeNumber: (() -> Unit)? = null
 ) {
-    var otp by remember { mutableStateOf(TextFieldValue("")) }
+    var otp by remember(initialOtp) { mutableStateOf(TextFieldValue(initialOtp ?: "")) }
     var timerSeconds by remember { mutableIntStateOf(30) }
     val focusRequester = remember { FocusRequester() }
 
@@ -62,8 +63,10 @@ fun OtpScreen(
 
     // Mask phone number: e.g. +91 98765 *****
     val maskedPhone = remember(phone) {
-        if (phone.length == 10) {
-            "${phone.take(5)} •••••"
+        val clean = phone.filter { it.isDigit() }
+        if (clean.length >= 10) {
+            val last10 = clean.takeLast(10)
+            "${last10.take(5)} •••••"
         } else {
             phone
         }

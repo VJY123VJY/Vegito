@@ -29,7 +29,6 @@ fun ProfileScreen(
     onNavigateOrders: () -> Unit = {},
     onNavigateFavorites: () -> Unit = {},
     onNavigateNotifications: () -> Unit = {},
-    onNavigateDeveloperTools: () -> Unit = {},
     onSwitchRole: (String) -> Unit,
     onLogout: () -> Unit
 ) {
@@ -127,15 +126,6 @@ fun ProfileScreen(
                     icon = Icons.Default.Notifications,
                     onClick = onNavigateNotifications
                 )
-                if (BuildConfig.DEBUG) {
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    ProfileMenuItem(
-                        title = "Developer Tools",
-                        subtitle = "Run the one-order backend integration preflight",
-                        icon = Icons.Default.Build,
-                        onClick = onNavigateDeveloperTools
-                    )
-                }
             }
         }
 

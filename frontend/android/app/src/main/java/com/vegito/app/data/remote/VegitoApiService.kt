@@ -65,6 +65,21 @@ interface VegitoApiService {
     @GET("/api/v1/promotions")
     suspend fun getActiveOffers(): Response<ApiResponse<List<PromotionDto>>>
 
+    @GET("/api/v1/promotions/seller")
+    suspend fun getSellerPromotions(): Response<ApiResponse<List<PromotionDto>>>
+
+    @POST("/api/v1/promotions")
+    suspend fun createPromotion(@Body payload: PromotionCreateRequest): Response<ApiResponse<PromotionDto>>
+
+    @PATCH("/api/v1/promotions/{promo_id}/status")
+    suspend fun updatePromotionStatus(
+        @Path("promo_id") promoId: Int,
+        @Query("status") status: String
+    ): Response<ApiResponse<PromotionDto>>
+
+    @DELETE("/api/v1/promotions/{promo_id}")
+    suspend fun deletePromotion(@Path("promo_id") promoId: Int): Response<ApiResponse<Boolean>>
+
     // MARKET INTELLIGENCE & SOLAPUR APMC
     @GET("/api/v1/market-intelligence")
     suspend fun getMarketIntelligence(): Response<ApiResponse<List<MarketIntelligenceDto>>>
@@ -107,8 +122,11 @@ interface VegitoApiService {
     // DELIVERY ELIGIBILITY & PRICING
     @GET("/api/v1/orders/delivery-fee")
     suspend fun checkDeliveryFee(
-        @Query("address_id") addressId: Int,
-        @Query("seller_id") sellerId: Int? = null
+        @Query("address_id") addressId: Int? = null,
+        @Query("seller_id") sellerId: Int? = null,
+        @Query("latitude") latitude: Double? = null,
+        @Query("longitude") longitude: Double? = null,
+        @Query("weight_kg") weightKg: Double? = null
     ): Response<ApiResponse<DeliveryFeeResponse>>
 
     // ORDERS & CHECKOUT
@@ -255,6 +273,12 @@ interface VegitoApiService {
 
     @GET("/api/v1/delivery/earnings")
     suspend fun getDeliveryEarnings(): Response<ApiResponse<DeliveryEarningsData>>
+
+    @POST("/api/v1/location/update")
+    suspend fun updateDeliveryLocation(@Body request: Map<String, Any>): Response<ApiResponse<Boolean>>
+
+    @GET("/api/v1/location/current/{taskId}")
+    suspend fun getCurrentDeliveryLocation(@Path("taskId") taskId: Int): Response<ApiResponse<LiveLocationDto>>
 
     // B2B BULK (CUSTOMER)
     @POST("/api/v1/b2b/quote-request")

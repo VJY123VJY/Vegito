@@ -152,5 +152,46 @@ class VegitoModelsCatalogParsingTest {
         assertEquals("1304", domain.sellerId)
         assertEquals("369", domain.sellerProductId)
         assertEquals(true, domain.isPurchasable)
+        assertEquals(32.0, domain.marketReferencePrice ?: 0.0, 0.001)
+        assertEquals("STABLE", domain.marketTrend)
+        assertEquals("MSAMB / Solapur APMC", domain.marketSource)
+    }
+
+    @Test
+    fun testMarketIntelligenceDtoParsing() {
+        val json = """
+            {
+              "id": 1,
+              "product_id": 266,
+              "product_name": "Organic Tomato",
+              "market": "Solapur APMC Mandi",
+              "district": "Solapur",
+              "state": "Maharashtra",
+              "reference_price": "32.00",
+              "previous_price": "30.00",
+              "suggested_range_min": "28.00",
+              "suggested_range_max": "36.00",
+              "unit": "1 KG",
+              "trend": "UP",
+              "demand_signal": "HIGH",
+              "supply_signal": "MODERATE",
+              "source": "MSAMB / Solapur APMC",
+              "source_url": null,
+              "confidence": "1.00",
+              "market_date": "2026-10-15",
+              "timestamp": "2026-10-15T06:00:00Z"
+            }
+        """.trimIndent()
+
+        val dto = Gson().fromJson(json, MarketIntelligenceDto::class.java)
+        assertEquals(266, dto.productId)
+        assertEquals("Organic Tomato", dto.productName)
+        assertEquals("Solapur APMC Mandi", dto.market)
+        assertEquals(32.0, dto.referencePrice, 0.001)
+        assertEquals(30.0, dto.previousPrice ?: 0.0, 0.001)
+        assertEquals(28.0, dto.suggestedRangeMin, 0.001)
+        assertEquals(36.0, dto.suggestedRangeMax, 0.001)
+        assertEquals("UP", dto.trend)
+        assertEquals("MSAMB / Solapur APMC", dto.source)
     }
 }

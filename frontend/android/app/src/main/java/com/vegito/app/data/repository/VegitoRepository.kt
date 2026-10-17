@@ -146,35 +146,29 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         data class Failure(val httpStatus: Int?, val message: String) : CatalogResult
     }
 
-    sealed interface DemoSessionResult {
-        data class Authenticated(val user: UserProfile) : DemoSessionResult
-        data class Failure(val httpStatus: Int?, val message: String) : DemoSessionResult
+    suspend fun updateDeliveryLocation(taskId: Int, lat: Double, lng: Double, accuracy: Double? = null): Boolean {
+        return try {
+            val payload = mutableMapOf<String, Any>(
+                "task_id" to taskId,
+                "lat" to lat,
+                "lng" to lng
+            )
+            accuracy?.let { payload["accuracy"] = it }
+            val res = apiService.updateDeliveryLocation(payload)
+            res.isSuccessful && res.body()?.data == true
+        } catch (e: Exception) {
+            Log.e(TAG, "updateDeliveryLocation error: ${e.message}")
+            false
+        }
     }
 
-    suspend fun verifyDemoSession(): DemoSessionResult {
+    suspend fun getCurrentDeliveryLocation(taskId: Int): LiveLocationDto? {
         return try {
-            val response = apiService.getProfile()
-            val body = response.body()
-            if (response.isSuccessful && body?.success == true && body.data != null) {
-                DemoSessionResult.Authenticated(body.data)
-            } else {
-                val backendMessage = body?.error?.message
-                    ?: body?.message
-                    ?: parseBackendMessage(response.errorBody()?.string())
-                DemoSessionResult.Failure(
-                    httpStatus = response.code(),
-                    message = backendMessage ?: "Session verification failed (HTTP ${response.code()})."
-                )
-            }
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: IOException) {
-            val (category, userMessage) = classifyNetworkError(error)
-            Log.w(TAG, "Demo session verification network failure category=$category (${error.javaClass.simpleName})")
-            DemoSessionResult.Failure(null, userMessage)
-        } catch (error: JsonParseException) {
-            Log.e(TAG, "Demo session response parsing failed (${error.javaClass.simpleName})")
-            DemoSessionResult.Failure(null, "The API returned an invalid session response.")
+            val res = apiService.getCurrentDeliveryLocation(taskId)
+            if (res.isSuccessful) res.body()?.data else null
+        } catch (e: Exception) {
+            Log.e(TAG, "getCurrentDeliveryLocation error: ${e.message}")
+            null
         }
     }
 
@@ -464,6 +458,71 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         }
     }
 
+    suspend fun getSellerPromotions(): List<PromotionDto> {
+        return try {
+            val res = apiService.getSellerPromotions()
+            if (res.isSuccessful && res.body()?.success == true) {
+                res.body()?.data.orEmpty()
+            } else {
+                Log.w(TAG, "getSellerPromotions failed: HTTP ${res.code()}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSellerPromotions network error: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun createPromotion(
+        title: String,
+        description: String?,
+        price: Double,
+        sellerProductId: Int,
+        quantity: Double = 1.0,
+        type: String = "BUNDLE"
+    ): Boolean {
+        return try {
+            val req = PromotionCreateRequest(
+                title = title,
+                description = description,
+                type = type,
+                price = price,
+                status = "ACTIVE",
+                items = listOf(PromotionItemRequest(sellerProductId = sellerProductId, quantity = quantity))
+            )
+            val res = apiService.createPromotion(req)
+            if (res.isSuccessful && res.body()?.success == true) {
+                true
+            } else {
+                Log.w(TAG, "createPromotion failed: HTTP ${res.code()}")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "createPromotion network error: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun updatePromotionStatus(promoId: Int, status: String): Boolean {
+        return try {
+            val res = apiService.updatePromotionStatus(promoId, status)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "updatePromotionStatus network error: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun deletePromotion(promoId: Int): Boolean {
+        return try {
+            val res = apiService.deletePromotion(promoId)
+            res.isSuccessful && res.body()?.success == true
+        } catch (e: Exception) {
+            Log.e(TAG, "deletePromotion network error: ${e.message}", e)
+            false
+        }
+    }
+
     suspend fun getMarketIntelligence(): List<MarketIntelligenceDto> {
         return try {
             val res = apiService.getMarketIntelligence()
@@ -492,6 +551,11 @@ class VegitoRepository(private val apiService: VegitoApiService) {
             Log.e(TAG, "getSellerMarketIntelligence network error: ${e.message}")
             emptyList()
         }
+    }
+
+    suspend fun publishSellerPrice(sellerProductId: String, newPrice: Double): Boolean {
+        val idInt = sellerProductId.toIntOrNull() ?: return false
+        return publishSellerPrice(idInt, newPrice)
     }
 
     suspend fun publishSellerPrice(sellerProductId: Int, newPrice: Double): Boolean {
@@ -579,12 +643,25 @@ class VegitoRepository(private val apiService: VegitoApiService) {
         }
     }
 
-    suspend fun checkDeliveryEligibility(addressId: Int, sellerId: Int? = null): DeliveryFeeResponse? {
+    suspend fun checkDeliveryEligibility(
+        addressId: Int? = null,
+        sellerId: Int? = null,
+        latitude: Double? = null,
+        longitude: Double? = null,
+        weightKg: Double? = null
+    ): DeliveryFeeResponse? {
         return try {
-            val response = apiService.checkDeliveryFee(addressId, sellerId)
+            val response = apiService.checkDeliveryFee(
+                addressId = addressId,
+                sellerId = sellerId,
+                latitude = latitude,
+                longitude = longitude,
+                weightKg = weightKg
+            )
             if (response.isSuccessful && response.body()?.success == true) {
                 response.body()?.data
             } else {
+                Log.w(TAG, "checkDeliveryEligibility returned ${response.code()}: ${response.errorBody()?.string()}")
                 null
             }
         } catch (e: Exception) {

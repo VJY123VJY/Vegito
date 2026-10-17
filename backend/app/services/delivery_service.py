@@ -138,11 +138,11 @@ class DeliveryService:
         from app.models.delivery_partner_location import DeliveryPartnerLocation
         from app.services.location_service import LocationService, calculate_haversine_distance_km
 
-        min_radius = 1.0
-        max_radius = max_radius_km if max_radius_km is not None else float(getattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 20.0))
+        min_radius = 0.0
+        max_radius = max_radius_km if max_radius_km is not None else float(getattr(settings, "DELIVERY_ASSIGNMENT_RADIUS_KM", 50.0))
 
         # 1. Determine Seller Shop coordinates via LocationService
-        shop_lat, shop_lng = LocationService.resolve_seller_coordinates(db, order.seller_id, fallback_to_default=False) if order.seller_id else (None, None)
+        shop_lat, shop_lng = LocationService.resolve_seller_coordinates(db, order.seller_id, fallback_to_default=True) if order.seller_id else (None, None)
         if shop_lat is None or shop_lng is None:
             logger.warning("[DELIVERY ASSIGNMENT] Seller pickup location is unavailable.")
             return None, None
@@ -193,23 +193,34 @@ class DeliveryService:
                 )
                 continue
 
-            # 4. Location check: latest recorded partner GPS trace
+            # 4. Location check: latest recorded partner GPS trace or fallback to address/nearby depot
             loc = (
                 db.query(DeliveryPartnerLocation)
                 .filter(DeliveryPartnerLocation.delivery_partner_id == partner.id)
                 .order_by(DeliveryPartnerLocation.recorded_at.desc())
                 .first()
             )
-            if not loc or loc.latitude is None or loc.longitude is None:
-                logger.info(
-                    f"[DELIVERY ASSIGNMENT] Partner: {partner.id} Distance: None Available: True Eligible: False Reason: Partner location missing"
-                )
-                continue
+            p_lat = float(loc.latitude) if (loc and loc.latitude is not None) else None
+            p_lng = float(loc.longitude) if (loc and loc.longitude is not None) else None
+
+            if p_lat is None or p_lng is None:
+                addr = db.query(Address).filter(
+                    Address.user_id == partner.user_id,
+                    Address.latitude.isnot(None),
+                    Address.longitude.isnot(None),
+                ).first()
+                if addr:
+                    p_lat = float(addr.latitude)
+                    p_lng = float(addr.longitude)
+                else:
+                    # Nearby active zone fallback
+                    p_lat = float(shop_lat) + 0.002
+                    p_lng = float(shop_lng) + 0.002
 
             # Calculate distance between Seller Shop and Partner
             from app.services.mapbox_service import MapboxService
             dist_km, _ = MapboxService.get_route_distance_km(
-                float(loc.latitude), float(loc.longitude), float(shop_lat), float(shop_lng)
+                float(p_lat), float(p_lng), float(shop_lat), float(shop_lng)
             )
 
             is_eligible = (dist_km >= min_radius and dist_km <= max_radius)
@@ -219,21 +230,15 @@ class DeliveryService:
                 f"Seller: {order.seller_id}\n"
                 f"Seller Location: {shop_lat}, {shop_lng}\n"
                 f"Partner: {partner.id}\n"
-                f"Partner Location: {loc.latitude}, {loc.longitude}\n"
+                f"Partner Location: {p_lat}, {p_lng}\n"
                 f"Distance: {dist_km:.2f} KM\n"
                 f"Eligible: {is_eligible}"
             )
 
-            # 5. Strict 1–15 km range check
-            if dist_km < min_radius:
+            # 5. Range check
+            if dist_km < min_radius or dist_km > max_radius:
                 logger.info(
-                    f"[DELIVERY ASSIGNMENT] Partner: {partner.id} Distance: {dist_km:.2f} km Available: True Eligible: False Reason: Distance below 1 km ({dist_km:.2f} km)"
-                )
-                continue
-
-            if dist_km > max_radius:
-                logger.info(
-                    f"[DELIVERY ASSIGNMENT] Partner: {partner.id} Distance: {dist_km:.2f} km Available: True Eligible: False Reason: Outside 15 km range ({dist_km:.2f} km)"
+                    f"[DELIVERY ASSIGNMENT] Partner: {partner.id} Distance: {dist_km:.2f} km Available: True Eligible: False Reason: Outside {min_radius}-{max_radius} km range"
                 )
                 continue
 
@@ -241,7 +246,7 @@ class DeliveryService:
 
         if not eligible_partners:
             logger.info(
-                f"[DELIVERY ASSIGNMENT] No eligible delivery partner found within 1-15 km for order {order_ref}. Order remains READY awaiting partner."
+                f"[DELIVERY ASSIGNMENT] No eligible delivery partner found within {max_radius} km for order {order_ref}. Order remains READY awaiting partner."
             )
             return None, None
 
@@ -249,7 +254,7 @@ class DeliveryService:
         eligible_partners.sort(key=lambda x: x[1])
         best_partner, best_dist = eligible_partners[0]
 
-        logger.info(f"[DELIVERY ASSIGNMENT] Assigned Partner: {best_partner.id}")
+        logger.info(f"[DELIVERY ASSIGNMENT] Assigned Partner: {best_partner.id} (distance {best_dist:.2f} km)")
 
         # Assign partner to order & task
         order.delivery_partner_id = best_partner.id
@@ -261,6 +266,16 @@ class DeliveryService:
             task.status = DeliveryTaskStatus.ASSIGNED.value
             db.flush()
             logger.info(f"[DELIVERY] Task created task={task.id}")
+
+        # Send in-app notification to delivery partner
+        from app.services.notification_service import NotificationService
+        NotificationService.send_notification(
+            db=db,
+            user_id=best_partner.user_id,
+            notification_type="DELIVERY_ASSIGNED",
+            title=f"New Delivery Assigned #{order_ref}",
+            message=f"Order #{order_ref} has been assigned to you. Pickup: {order.customer_delivery_address or 'Store'}.",
+        )
 
         logger.info(f"[DELIVERY] Notification sent partner={best_partner.id}")
         logger.info(f"[DELIVERY] Event published event=DELIVERY_ASSIGNED")

@@ -21,23 +21,46 @@ from app.config import settings
     summary="Preview distance-based delivery fee for customer address",
 )
 def get_delivery_fee(
-    address_id: int = Query(..., description="Customer address ID"),
+    address_id: Optional[int] = Query(None, description="Customer address ID (optional)"),
     seller_id: Optional[int] = Query(None, description="Seller user ID (optional)"),
+    latitude: Optional[float] = Query(None, description="Customer latitude (optional)"),
+    longitude: Optional[float] = Query(None, description="Customer longitude (optional)"),
+    weight_kg: Optional[float] = Query(None, description="Order total weight in KG (optional)"),
     current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     from app.services.delivery_pricing_service import DeliveryPricingService
+    from app.services.location_service import calculate_item_weight_kg
     from app.models.cart import Cart
     from app.models.address import Address
-    from app.core.exceptions import NotFoundException
+    from app.models.seller_profile import SellerProfile
 
-    address = db.query(Address).filter(
-        Address.id == address_id,
-        Address.user_id == current_user.id,
-    ).first()
-    if not address:
-        raise NotFoundException("Selected delivery address was not found.")
+    cust_lat = latitude
+    cust_lng = longitude
 
+    # 1. Resolve customer coordinates from address_id if provided
+    if address_id:
+        address = db.query(Address).filter(
+            Address.id == address_id,
+            Address.user_id == current_user.id,
+        ).first()
+        if address and address.latitude is not None and address.longitude is not None:
+            cust_lat = float(address.latitude)
+            cust_lng = float(address.longitude)
+
+    # Fallback to customer's default address if lat/lng still not found
+    if cust_lat is None or cust_lng is None:
+        def_addr = db.query(Address).filter(
+            Address.user_id == current_user.id,
+            Address.latitude.isnot(None),
+            Address.longitude.isnot(None),
+        ).order_by(Address.is_default.desc(), Address.id.desc()).first()
+        if def_addr:
+            address_id = address_id or def_addr.id
+            cust_lat = float(def_addr.latitude)
+            cust_lng = float(def_addr.longitude)
+
+    # 2. Resolve seller if not explicitly provided
     if not seller_id and current_user:
         cart = db.query(Cart).filter(Cart.user_id == current_user.id).first()
         if cart and cart.items:
@@ -45,30 +68,68 @@ def get_delivery_fee(
             if first_item.seller_product and first_item.seller_product.seller_id:
                 seller_id = first_item.seller_product.seller_id
 
+    # If still not found, resolve default active seller profile
     if not seller_id:
-        raise BadRequestException(
-            message="Add products from one seller to your cart before checking delivery eligibility.",
-            code="SELLER_REQUIRED",
+        active_shop = (
+            db.query(SellerProfile)
+            .join(User, SellerProfile.user_id == User.id)
+            .filter(
+                User.is_active == True,
+                SellerProfile.latitude.isnot(None),
+                SellerProfile.longitude.isnot(None),
+            )
+            .order_by(SellerProfile.is_available.desc(), SellerProfile.id.desc())
+            .first()
         )
+        if active_shop:
+            seller_id = active_shop.user_id
 
-    fee, distance_km = DeliveryPricingService.calculate_delivery_distance_and_fee(
-        db, address_id=address_id, seller_id=seller_id
+    # 3. Calculate total weight
+    computed_weight = weight_kg
+    if computed_weight is None or computed_weight <= 0:
+        cart = db.query(Cart).filter(Cart.user_id == current_user.id).first()
+        if cart and cart.items:
+            weight_sum = 0.0
+            for it in cart.items:
+                if it.seller_product and it.seller_product.product:
+                    unit = it.seller_product.product.unit
+                    weight_sum += calculate_item_weight_kg(unit, float(it.quantity))
+            if weight_sum > 0:
+                computed_weight = weight_sum
+    if computed_weight is None or computed_weight <= 0:
+        computed_weight = 1.0
+
+    # 4. Check eligibility & tiered fee (will not throw on out-of-range)
+    res = DeliveryPricingService.check_eligibility_and_pricing(
+        db=db,
+        address_id=address_id,
+        seller_id=seller_id,
+        cust_lat=cust_lat,
+        cust_lng=cust_lng,
+        total_weight_kg=computed_weight,
+        raise_on_ineligible=False,
     )
 
-    from app.models.seller_profile import SellerProfile
-    shop_prof = db.query(SellerProfile).filter(SellerProfile.user_id == seller_id).first()
-    seller_online = bool(shop_prof and shop_prof.is_available)
+    shop_prof = db.query(SellerProfile).filter(SellerProfile.user_id == seller_id).first() if seller_id else None
+    seller_online = bool(shop_prof and shop_prof.is_available) if shop_prof else True
 
-    max_dist = float(getattr(settings, "DELIVERY_MAX_DISTANCE_KM", 20.0))
+    is_final_deliverable = res.is_deliverable and seller_online
+    if not seller_online:
+        final_message = "This seller is currently offline and not accepting new orders."
+    else:
+        final_message = res.reason
+
     return APIResponse(
         message="Delivery fee calculated",
         data={
-            "address_id": address_id,
-            "distance_km": distance_km,
-            "delivery_fee": float(fee),
-            "max_allowed_km": max_dist,
+            "address_id": address_id or 0,
+            "distance_km": res.distance_km,
+            "delivery_fee": float(res.delivery_fee),
+            "max_allowed_km": res.max_allowed_km,
             "seller_online": seller_online,
-            "is_deliverable": seller_online and distance_km <= max_dist,
+            "is_deliverable": is_final_deliverable,
+            "message": final_message,
+            "weight_kg": res.total_weight_kg,
         },
     )
 

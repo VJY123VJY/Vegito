@@ -512,7 +512,9 @@ data class DeliveryFeeResponse(
     @SerializedName("delivery_fee") val deliveryFee: Double = 0.0,
     @SerializedName("max_allowed_km") val maxAllowedKm: Double = 20.0,
     @SerializedName("seller_online") val sellerOnline: Boolean = true,
-    @SerializedName("is_deliverable") val isDeliverable: Boolean = false
+    @SerializedName("is_deliverable") val isDeliverable: Boolean = false,
+    @SerializedName("message") val message: String? = null,
+    @SerializedName("weight_kg") val weightKg: Double? = null
 )
 
 data class OrderCreateRequest(
@@ -597,6 +599,14 @@ data class OrderResponseDto(
         )
     }
 }
+
+data class LiveLocationDto(
+    val lat: Double = 0.0,
+    val lng: Double = 0.0,
+    val accuracy: Double? = null,
+    val ts: String = "",
+    @SerializedName("partner_name") val partnerName: String? = null
+)
 
 data class ProductDto(
     val id: Int = 0,
@@ -767,6 +777,20 @@ data class PromotionDto(
         )
     }
 }
+
+data class PromotionItemRequest(
+    @SerializedName("seller_product_id") val sellerProductId: Int,
+    val quantity: Double = 1.0
+)
+
+data class PromotionCreateRequest(
+    val title: String,
+    val description: String? = null,
+    val type: String = "BUNDLE",
+    val price: Double,
+    val status: String = "ACTIVE",
+    val items: List<PromotionItemRequest>
+)
 
 // ---------------------------------------------------------------------------
 // INVENTORY & STOCK MODELS

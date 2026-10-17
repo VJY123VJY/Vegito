@@ -30,7 +30,8 @@ fun DeliveryMapScreen(
     task: DeliveryTask?,
     onBack: () -> Unit,
     onVerifyPickupOtp: (taskId: String, otp: String) -> Unit,
-    onVerifyCustomerOtp: (taskId: String, otp: String) -> Unit
+    onVerifyCustomerOtp: (taskId: String, otp: String) -> Unit,
+    onSendLocationUpdate: ((taskId: String, lat: Double, lng: Double) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -40,13 +41,16 @@ fun DeliveryMapScreen(
     var showCustomerDialog by remember { mutableStateOf(false) }
     var inputOtp by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
-        scope.launch {
+    LaunchedEffect(task?.id) {
+        val currentTaskId = task?.id ?: return@LaunchedEffect
+        while (true) {
             val res = LocationHelper.getFreshLocation(context)
             if (res is LocationResult.Success) {
                 riderLat = res.latitude
                 riderLng = res.longitude
+                onSendLocationUpdate?.invoke(currentTaskId, res.latitude, res.longitude)
             }
+            kotlinx.coroutines.delay(8_000L)
         }
     }
 

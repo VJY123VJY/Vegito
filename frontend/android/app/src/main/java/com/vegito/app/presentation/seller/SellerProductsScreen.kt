@@ -31,10 +31,121 @@ fun SellerProductsScreen(
     products: List<Product>,
     onBack: (() -> Unit)? = null,
     onAddProduct: () -> Unit,
-    onEditStock: (productId: Int, change: Double, isAdd: Boolean) -> Unit = { _, _, _ -> }
+    onEditStock: (productId: Int, change: Double, isAdd: Boolean) -> Unit = { _, _, _ -> },
+    onPublishPrice: ((sellerProductId: String, newPrice: Double) -> Unit)? = null
 ) {
     var selectedProductForStock by remember { mutableStateOf<Product?>(null) }
     var adjustStockQuantityStr by remember { mutableStateOf("10") }
+    var selectedProductForPrice by remember { mutableStateOf<Product?>(null) }
+    var newPriceStr by remember { mutableStateOf("") }
+
+    if (selectedProductForPrice != null) {
+        val prod = selectedProductForPrice!!
+        val ref = prod.marketReferencePrice
+        val minSuggested = if (ref != null && ref > 0) (ref * 1.05).toInt() else null
+        val maxSuggested = if (ref != null && ref > 0) (ref * 1.25).toInt() else null
+
+        AlertDialog(
+            onDismissRequest = { selectedProductForPrice = null },
+            title = { Text("भाव ठरवा / Set Price: ${prod.name}", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("सध्याचा भाव: ₹${prod.price} / ${prod.unit}", fontSize = 13.sp)
+
+                    if (ref != null && ref > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Text(
+                                    "🏛️ Solapur APMC Mandi Rate: ₹${ref.toInt()} / kg",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF2E7D32)
+                                )
+                                Text(
+                                    "Safe Recommended Range: ₹$minSuggested - ₹$maxSuggested / kg",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "Source: ${prod.marketSource ?: "MSAMB / Solapur APMC"}",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedButton(
+                                onClick = { newPriceStr = ref.toInt().toString() },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                            ) {
+                                Text("Mandi: ₹${ref.toInt()}", fontSize = 10.sp)
+                            }
+                            if (minSuggested != null) {
+                                OutlinedButton(
+                                    onClick = { newPriceStr = minSuggested.toString() },
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                ) {
+                                    Text("+5%: ₹$minSuggested", fontSize = 10.sp)
+                                }
+                            }
+                            if (maxSuggested != null) {
+                                OutlinedButton(
+                                    onClick = { newPriceStr = maxSuggested.toString() },
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                ) {
+                                    Text("+25%: ₹$maxSuggested", fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            "Today's verified Solapur market price is unavailable.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = newPriceStr,
+                        onValueChange = { newPriceStr = it },
+                        label = { Text("नवीन विक्री भाव (₹) / New Price") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val parsed = newPriceStr.toDoubleOrNull()
+                        if (parsed != null && parsed > 0.0) {
+                            onPublishPrice?.invoke(prod.sellerProductId, parsed)
+                        }
+                        selectedProductForPrice = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
+                ) {
+                    Text("भाव प्रसिद्ध करा (Publish)")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedProductForPrice = null }) {
+                    Text("रद्द करा")
+                }
+            }
+        )
+    }
 
     if (selectedProductForStock != null) {
         val prod = selectedProductForStock!!
@@ -160,18 +271,43 @@ fun SellerProductsScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(product.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text("₹${product.price} / ${product.unit} • साठा: ${product.stockQuantity}", fontSize = 12.sp)
+                            if (product.marketReferencePrice != null && product.marketReferencePrice > 0) {
+                                Text(
+                                    "APMC Rate: ₹${product.marketReferencePrice.toInt()}/kg (${product.marketTrend ?: "STABLE"})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF2E7D32)
+                                )
+                            }
                             Spacer(modifier = Modifier.height(4.dp))
                             FreshnessBadge(percentage = product.freshnessPercentage)
                         }
 
-                        Button(
-                            onClick = { selectedProductForStock = product },
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalAlignment = Alignment.End
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("साठा बदला", fontSize = 12.sp)
+                            Button(
+                                onClick = { selectedProductForStock = product },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("साठा", fontSize = 11.sp)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    selectedProductForPrice = product
+                                    newPriceStr = product.price.toString()
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text("भाव ठरवा", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

@@ -3,6 +3,7 @@ package com.vegito.app
 import com.vegito.app.data.model.AddressCreateDto
 import com.vegito.app.data.model.UnifiedRegisterRequestDto
 import com.vegito.app.data.model.UserProfile
+import com.vegito.app.data.repository.VegitoRepository
 import com.vegito.app.utils.PhoneUtils
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -176,5 +177,11 @@ class AuthAndRegistrationTest {
         assertFalse(sanitized!!.contains("123456"))
         assertFalse(sanitized.contains("jwt.abc.xyz"))
         assertFalse(sanitized.contains("9309424359"))
+    }
+
+    @Test
+    fun testSmsCarrierRestrictionErrorParsing() {
+        val jsonRestriction = "{\"detail\":\"SMS delivery to this number is restricted by the carrier or provider settings.\"}"
+        assertEquals("SMS delivery to this number is restricted by the carrier or provider settings.", VegitoRepository.parseBackendMessage(jsonRestriction))
     }
 }

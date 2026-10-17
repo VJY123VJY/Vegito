@@ -187,23 +187,28 @@ class OrderService:
                 code="CUSTOMER_LOCATION_MISSING"
             )
 
-        seller_dist = LocationService.calculate_distance(cust_lat, cust_lon, s_lat, s_lon)
-        is_in_bounds, bounds_msg = LocationService.is_within_delivery_bounds(seller_dist, max_km=20.0)
-        if not is_in_bounds:
-            out_msg = f"Delivery address is outside the store's 20 KM delivery area ({seller_dist:.2f} KM from {sp_prof.business_name})."
-            raise BadRequestException(
-                message=out_msg,
-                code="DELIVERY_OUT_OF_RANGE",
-                details={"distance": round(seller_dist, 2), "max_distance": 20.0, "seller_name": sp_prof.business_name}
-            )
+        from app.services.location_service import calculate_item_weight_kg
+        total_order_weight_kg = sum(
+            calculate_item_weight_kg(it["unit"], float(it["quantity"]))
+            for it in items_to_create
+        )
+        if total_order_weight_kg <= 0:
+            total_order_weight_kg = 1.0
 
-        # Centralized Server-Side Distance-Based Delivery Fee (1–20 KM, >20 KM blocked)
+        # Centralized Server-Side Distance-Based Delivery Fee & Rule A/B Eligibility Re-validation
         from app.services.delivery_pricing_service import DeliveryPricingService
-        delivery_charge, delivery_distance_km = DeliveryPricingService.calculate_delivery_distance_and_fee(
+        delivery_res = DeliveryPricingService.check_eligibility_and_pricing(
             db=db,
             address_id=order_in.address_id,
             seller_id=seller_user_id,
+            cust_lat=cust_lat,
+            cust_lng=cust_lon,
+            total_weight_kg=total_order_weight_kg,
+            raise_on_ineligible=True,
         )
+        delivery_charge = delivery_res.delivery_fee
+        delivery_distance_km = delivery_res.distance_km
+        seller_dist = delivery_distance_km
 
         # Coupon validation
         discount_amount = Decimal("0.00")
@@ -474,6 +479,27 @@ class OrderService:
         if dp and dp.user:
             detail.delivery_partner_name = dp.user.name or "Delivery Partner"
             detail.delivery_partner_phone = dp.user.phone
+
+            # Real-time coordinates from live location store or persistent location table
+            loc_data = None
+            task_id = order.delivery_task.id if order.delivery_task else None
+            if task_id:
+                from app.routers.location import LOCATION_STORE
+                loc_data = LOCATION_STORE.get(task_id)
+            if loc_data and loc_data.get("lat") is not None and loc_data.get("lng") is not None:
+                detail.delivery_partner_lat = Decimal(str(loc_data["lat"]))
+                detail.delivery_partner_lng = Decimal(str(loc_data["lng"]))
+            else:
+                from app.models.delivery_partner_location import DeliveryPartnerLocation
+                latest_loc = (
+                    db.query(DeliveryPartnerLocation)
+                    .filter(DeliveryPartnerLocation.delivery_partner_id == dp.id)
+                    .order_by(DeliveryPartnerLocation.recorded_at.desc())
+                    .first()
+                )
+                if latest_loc:
+                    detail.delivery_partner_lat = latest_loc.latitude
+                    detail.delivery_partner_lng = latest_loc.longitude
 
         # Determine pickup verification state
         is_picked_up = bool(

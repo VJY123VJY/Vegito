@@ -85,6 +85,8 @@ fun CheckoutScreen(
                 } else if (!res.isDeliverable) {
                     eligibilityError = if (!res.sellerOnline) {
                         "This seller is currently offline. Please choose another seller or try again later."
+                    } else if (!res.message.isNullOrBlank()) {
+                        res.message
                     } else {
                         "Sorry, this location is outside the seller's delivery area. (${String.format("%.1f", res.distanceKm)} km from seller)"
                     }
@@ -385,22 +387,26 @@ fun CheckoutScreen(
                         }
                     } else if (eligibilityResponse != null) {
                         val dist = eligibilityResponse!!.distanceKm
+                        val weight = eligibilityResponse!!.weightKg ?: 0.0
+                        val isSameLoc = dist <= 0.05
                         Text(
-                            text = "Distance from seller: ${String.format("%.1f", dist)} km (Max: ${String.format("%.0f", eligibilityResponse!!.maxAllowedKm)} km)",
+                            text = if (isSameLoc) "Customer and seller are at the same address (${String.format("%.2f", dist)} km)"
+                                   else "Distance: ${String.format("%.1f", dist)} km • Order weight: ${String.format("%.1f", weight)} kg (Max: ${String.format("%.0f", eligibilityResponse!!.maxAllowedKm)} km)",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         if (eligibilityResponse!!.isDeliverable) {
                             Text(
-                                text = "✓ Delivery Available • Calculated Fee: ₹${String.format("%.1f", calculatedDeliveryFee)}",
+                                text = if (isSameLoc) "✓ Same-Address Local Delivery • Fee: ₹${String.format("%.1f", calculatedDeliveryFee)}"
+                                       else "✓ Delivery Available • Calculated Fee: ₹${String.format("%.1f", calculatedDeliveryFee)}",
                                 color = Color(0xFF2E7D32),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
                         } else {
                             Text(
-                                text = "✕ Outside 15 km delivery radius.",
+                                text = eligibilityResponse!!.message ?: "✕ Outside allowable delivery radius.",
                                 color = MaterialTheme.colorScheme.error,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
@@ -531,14 +537,10 @@ fun CheckoutScreen(
             onAddressConfirmed = { addr ->
                 scope.launch {
                     val savedAddress = onAddressUpdated(addr)
-                    if (savedAddress != null) {
-                        currentAddress = savedAddress
-                        eligibilityError = null
-                        orderError = null
-                        showLocationSheet = false
-                    } else {
-                        eligibilityError = "Could not save this delivery address. Please try again."
-                    }
+                    currentAddress = savedAddress ?: addr
+                    eligibilityError = null
+                    orderError = null
+                    showLocationSheet = false
                 }
             }
         )

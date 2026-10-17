@@ -20,7 +20,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vegito.app.BuildConfig
 import com.vegito.app.utils.PhoneUtils
 import com.vegito.app.data.local.SessionManager
-import com.vegito.app.data.demo.DemoOrderRunner
 import com.vegito.app.data.model.*
 import com.vegito.app.data.remote.RetrofitClient
 import com.vegito.app.data.repository.VegitoRepository
@@ -29,9 +28,6 @@ import com.vegito.app.presentation.auth.*
 import com.vegito.app.presentation.b2b.B2BBulkScreen
 import com.vegito.app.presentation.customer.*
 import com.vegito.app.presentation.delivery.*
-import com.vegito.app.presentation.devtools.DemoOrderScreen
-import com.vegito.app.presentation.devtools.DemoOrderViewModel
-import com.vegito.app.presentation.devtools.DemoOrderViewModelFactory
 import com.vegito.app.navigation.Routes
 import com.vegito.app.navigation.RoleNavigation
 import com.vegito.app.utils.LocationHelper
@@ -72,6 +68,7 @@ fun VegitoApp() {
     var productsList by remember { mutableStateOf<List<Product>>(emptyList()) }
     var offersList by remember { mutableStateOf<List<Offer>>(emptyList()) }
     var categoriesList by remember { mutableStateOf<List<Category>>(emptyList()) }
+    var marketIntelligenceList by remember { mutableStateOf<List<MarketIntelligenceDto>>(emptyList()) }
     var favoriteProductIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var notificationsList by remember { mutableStateOf<List<NotificationDto>>(emptyList()) }
     var savedAddressesList by remember { mutableStateOf<List<SavedAddress>>(emptyList()) }
@@ -157,6 +154,9 @@ fun VegitoApp() {
 
         val cats = repository.getCategories()
         categoriesList = cats
+
+        val marketRates = repository.getMarketIntelligence()
+        marketIntelligenceList = marketRates
 
         if (token != null) {
             val savedAddrs = repository.getUserAddresses()
@@ -368,11 +368,11 @@ fun VegitoApp() {
         }
         isAuthLoading = true
         authErrorMessage = null
-        pendingPhoneForOtp = phone
+        pendingPhoneForOtp = normalized
         pendingRoleForOtp = role
 
         scope.launch {
-            when (val result = repository.sendOtp(phone, role)) {
+            when (val result = repository.sendOtp(normalized, role)) {
                 is VegitoRepository.AuthResult.Success -> {
                     isAuthLoading = false
                     authDevOtp = result.data.devOtp
@@ -607,10 +607,12 @@ fun VegitoApp() {
 
                 val handleRegisterFormSubmitted: (UnifiedRegisterRequestDto) -> Unit = { reqDto ->
                     authErrorMessage = null
-                    pendingRegistrationData = reqDto
-                    pendingPhoneForOtp = reqDto.phone
+                    val normalizedPhone = PhoneUtils.normalizePhoneNumber(reqDto.phone) ?: reqDto.phone
+                    val normalizedReq = reqDto.copy(phone = normalizedPhone)
+                    pendingRegistrationData = normalizedReq
+                    pendingPhoneForOtp = normalizedPhone
                     pendingRoleForOtp = reqDto.role.lowercase()
-                    triggerTwilioSendOtp(reqDto.phone, reqDto.role.lowercase())
+                    triggerTwilioSendOtp(normalizedPhone, reqDto.role.lowercase())
                 }
 
                 composable("login") {
@@ -619,11 +621,12 @@ fun VegitoApp() {
                         isLoading = isAuthLoading,
                         errorMessage = authErrorMessage,
                         onSendOtp = { phone, role ->
-                            pendingPhoneForOtp = phone
+                            val normalizedPhone = PhoneUtils.normalizePhoneNumber(phone) ?: phone
+                            pendingPhoneForOtp = normalizedPhone
                             pendingRoleForOtp = role
                             pendingRegistrationData = null
                             authErrorMessage = null
-                            triggerTwilioSendOtp(phone, role)
+                            triggerTwilioSendOtp(normalizedPhone, role)
                         },
                         onPasswordLogin = { phone, pass, role ->
                             isAuthLoading = true
@@ -682,6 +685,7 @@ fun VegitoApp() {
                     OtpScreen(
                         phone = pendingPhoneForOtp,
                         role = pendingRoleForOtp,
+                        initialOtp = authDevOtp,
                         isLoading = isAuthLoading,
                         errorMessage = authErrorMessage,
                         onChangeNumber = {
@@ -769,6 +773,7 @@ fun VegitoApp() {
                         offers = offersList,
                         categories = categoriesList,
                         allProducts = availableProducts,
+                        marketIntelligence = marketIntelligenceList,
                         isLoadingCatalog = isCatalogLoading,
                         catalogError = catalogError,
                         catalogEmptyMessage = catalogEmptyMessage,
@@ -1017,11 +1022,71 @@ fun VegitoApp() {
                             }
                         },
                         onCheckDeliveryEligibility = { addr ->
-                            val addrId = addr.id.toIntOrNull()
-                            if (addrId == null) null else repository.checkDeliveryEligibility(addrId)
+                            var addrId = addr.id.toIntOrNull()
+                            if (addrId == null && LocationHelper.isValidCoordinates(addr.latitude, addr.longitude)) {
+                                val saved = repository.saveAddress(
+                                    AddressCreateDto(
+                                        addressLine1 = addr.addressLine.ifBlank { "Delivery Address" },
+                                        city = addr.city.ifBlank { "Pune" },
+                                        state = addr.state.ifBlank { "Maharashtra" },
+                                        pincode = addr.pincode.ifBlank { "411004" },
+                                        latitude = addr.latitude,
+                                        longitude = addr.longitude,
+                                        landmark = addr.landmark,
+                                        isDefault = true
+                                    )
+                                )
+                                if (saved != null) {
+                                    addrId = saved.id.toIntOrNull()
+                                    sessionManager.saveSelectedAddress(saved)
+                                    savedAddressesList = repository.getUserAddresses()
+                                }
+                            }
+                            val targetSellerId = cartItems.firstOrNull()?.product?.sellerId?.toIntOrNull()
+                            val totalWeight = cartItems.sumOf { item ->
+                                val u = item.product.unit.lowercase()
+                                val factor = when {
+                                    "quintal" in u -> 100.0
+                                    "ton" in u -> 1000.0
+                                    "250g" in u -> 0.25
+                                    "500g" in u -> 0.5
+                                    "100g" in u -> 0.1
+                                    "kg" in u -> 1.0
+                                    "piece" in u || "pc" in u -> 0.5
+                                    "dozen" in u -> 1.5
+                                    else -> 1.0
+                                }
+                                item.quantity * factor
+                            }
+                            repository.checkDeliveryEligibility(
+                                addressId = addrId,
+                                sellerId = targetSellerId,
+                                latitude = addr.latitude,
+                                longitude = addr.longitude,
+                                weightKg = if (totalWeight > 0) totalWeight else 1.0
+                            )
                         },
                         onPlaceOrder = { method, checkoutAddress ->
-                            val addrId = checkoutAddress.id.toIntOrNull()
+                            var addrId = checkoutAddress.id.toIntOrNull()
+                            if (addrId == null && LocationHelper.isValidCoordinates(checkoutAddress.latitude, checkoutAddress.longitude)) {
+                                val saved = repository.saveAddress(
+                                    AddressCreateDto(
+                                        addressLine1 = checkoutAddress.addressLine.ifBlank { "Delivery Address" },
+                                        city = checkoutAddress.city.ifBlank { "Pune" },
+                                        state = checkoutAddress.state.ifBlank { "Maharashtra" },
+                                        pincode = checkoutAddress.pincode.ifBlank { "411004" },
+                                        latitude = checkoutAddress.latitude,
+                                        longitude = checkoutAddress.longitude,
+                                        landmark = checkoutAddress.landmark,
+                                        isDefault = true
+                                    )
+                                )
+                                if (saved != null) {
+                                    addrId = saved.id.toIntOrNull()
+                                    sessionManager.saveSelectedAddress(saved)
+                                    savedAddressesList = repository.getUserAddresses()
+                                }
+                            }
                             if (addrId == null ||
                                 !LocationHelper.isValidCoordinates(checkoutAddress.latitude, checkoutAddress.longitude)
                             ) {
@@ -1128,9 +1193,10 @@ fun VegitoApp() {
                 composable("customer_tracking") {
                     val ordToTrack = activeOrder ?: customerOrdersList.firstOrNull()
 
-                    LaunchedEffect(ordToTrack?.id) {
-                        ordToTrack?.id?.toIntOrNull()?.let { id ->
-                            val full = repository.getOrderDetail(id)
+                    LaunchedEffect(ordToTrack?.id, currentRoute) {
+                        val orderId = ordToTrack?.id?.toIntOrNull() ?: return@LaunchedEffect
+                        while (currentRoute == "customer_tracking") {
+                            val full = repository.getOrderDetail(orderId)
                             if (full != null) {
                                 val currentAddr = ordToTrack.deliveryAddress
                                 val merged = if (LocationHelper.isValidCoordinates(full.deliveryAddress.latitude, full.deliveryAddress.longitude)) {
@@ -1144,6 +1210,7 @@ fun VegitoApp() {
                                 } else full.deliveryAddress
                                 activeOrder = full.copy(deliveryAddress = merged)
                             }
+                            delay(6000L)
                         }
                     }
 
@@ -1190,23 +1257,9 @@ fun VegitoApp() {
                         onNavigateOrders = { navController.navigate("customer_orders") },
                         onNavigateFavorites = { navController.navigate("customer_favorites") },
                         onNavigateNotifications = { navController.navigate("customer_notifications") },
-                        onNavigateDeveloperTools = { navController.navigate(Routes.DEVELOPER_TOOLS) },
                         onSwitchRole = { newRole -> handleSwitchWorkspace(newRole) },
                         onLogout = { performLogout() }
                     )
-                }
-
-                composable(Routes.DEVELOPER_TOOLS) {
-                    if (BuildConfig.DEBUG) {
-                        val demoRunner = remember(repository, sessionManager) {
-                            DemoOrderRunner(repository, sessionManager)
-                        }
-                        val factory = remember(demoRunner) { DemoOrderViewModelFactory(demoRunner) }
-                        val demoViewModel: DemoOrderViewModel = viewModel(factory = factory)
-                        DemoOrderScreen(viewModel = demoViewModel)
-                    } else {
-                        Text("Developer tools are available only in debug builds.")
-                    }
                 }
 
                 // SELLER WORKSPACE
@@ -1244,6 +1297,7 @@ fun VegitoApp() {
                         onNavigateAddProduct = { navController.navigate("seller_add_product") },
                         onNavigateInventory = { navController.navigate("seller_inventory") },
                         onNavigateAnalytics = { navController.navigate("seller_analytics") },
+                        onNavigateOffers = { navController.navigate("seller_offers") },
                         onNavigateBulkOrders = { navController.navigate("seller_bulk_orders") },
                         onNavigateProfile = { navController.navigate("seller_profile") },
                         onNavigateSettings = { navController.navigate("seller_settings") },
@@ -1325,6 +1379,92 @@ fun VegitoApp() {
                                 repository.adjustInventory(prodId, change, changeType)
                                 val updatedProds = repository.getProducts()
                                 if (updatedProds.isNotEmpty()) productsList = updatedProds
+                            }
+                        },
+                        onPublishPrice = { sellerProductId, newPrice ->
+                            scope.launch {
+                                val success = repository.publishSellerPrice(sellerProductId, newPrice)
+                                if (success) {
+                                    snackbarHostState.showSnackbar("नवीन भाव यशस्वीपणे प्रसिद्ध केला (Price Published: ₹$newPrice)")
+                                    val updatedProds = repository.getProducts()
+                                    if (updatedProds.isNotEmpty()) productsList = updatedProds
+                                } else {
+                                    snackbarHostState.showSnackbar("भाव बदल अयशस्वी (Failed to publish price)")
+                                }
+                            }
+                        }
+                    )
+                }
+
+                composable("seller_offers") {
+                    var sellerOffersList by remember { mutableStateOf<List<PromotionDto>>(emptyList()) }
+                    var isOffersLoading by remember { mutableStateOf(false) }
+
+                    fun refreshOffers() {
+                        scope.launch {
+                            isOffersLoading = true
+                            sellerOffersList = repository.getSellerPromotions()
+                            isOffersLoading = false
+                        }
+                    }
+
+                    LaunchedEffect(token, currentRoute) {
+                        if (token != null) {
+                            refreshOffers()
+                        }
+                    }
+
+                    SellerOffersScreen(
+                        promotions = sellerOffersList,
+                        sellerProducts = productsList,
+                        isLoading = isOffersLoading,
+                        onBack = {
+                            if (!navController.popBackStack()) {
+                                navController.navigate("seller_dashboard")
+                            }
+                        },
+                        onRefresh = { refreshOffers() },
+                        onCreateOffer = { title, desc, price, spId ->
+                            scope.launch {
+                                val ok = repository.createPromotion(
+                                    title = title,
+                                    description = desc,
+                                    price = price,
+                                    sellerProductId = spId
+                                )
+                                if (ok) {
+                                    snackbarHostState.showSnackbar("Offer published successfully!")
+                                    refreshOffers()
+                                    val newOffers = repository.getActiveOffers()
+                                    if (newOffers.isNotEmpty()) offersList = newOffers
+                                } else {
+                                    snackbarHostState.showSnackbar("Failed to publish offer. Please try again.")
+                                }
+                            }
+                        },
+                        onToggleOfferStatus = { promoId, newStatus ->
+                            scope.launch {
+                                val ok = repository.updatePromotionStatus(promoId, newStatus)
+                                if (ok) {
+                                    refreshOffers()
+                                    val newOffers = repository.getActiveOffers()
+                                    if (newOffers.isNotEmpty()) offersList = newOffers
+                                } else {
+                                    snackbarHostState.showSnackbar("Failed to update offer status.")
+                                }
+                            }
+                        },
+                        onDeleteOffer = { promoId ->
+                            scope.launch {
+                                val ok = repository.deletePromotion(promoId)
+                                if (ok) {
+                                    snackbarHostState.showSnackbar("Offer deleted.")
+                                    refreshOffers()
+                                    val newOffers = repository.getActiveOffers()
+                                    if (newOffers.isNotEmpty()) offersList = newOffers
+                                } else {
+                                    snackbarHostState.showSnackbar("Failed to delete offer.")
+                                }
                             }
                         }
                     )
@@ -1578,6 +1718,12 @@ fun VegitoApp() {
                                     activeDeliveryTaskForMap = refreshed.find { it.id == taskId }
                                 }
                             }
+                        },
+                        onSendLocationUpdate = { taskId, lat, lng ->
+                            val idInt = taskId.toIntOrNull() ?: return@DeliveryMapScreen
+                            scope.launch {
+                                repository.updateDeliveryLocation(idInt, lat, lng)
+                            }
                         }
                     )
                 }
@@ -1645,22 +1791,33 @@ fun VegitoApp() {
                 currentAddress = selectedAddress,
                 onDismiss = { showGlobalLocationSheet = false },
                 onAddressConfirmed = { confirmedAddr ->
-                    scope.launch {
-                        val saved = repository.saveAddress(
-                            AddressCreateDto(
-                                addressLine1 = confirmedAddr.addressLine,
-                                city = confirmedAddr.city,
-                                state = confirmedAddr.state,
-                                pincode = confirmedAddr.pincode,
-                                latitude = confirmedAddr.latitude,
-                                longitude = confirmedAddr.longitude,
-                                landmark = confirmedAddr.landmark,
-                                isDefault = true
+                    // 1. Instantly update local session state so UI updates immediately
+                    sessionManager.saveSelectedAddress(confirmedAddr)
+
+                    // 2. Asynchronously persist to backend if authenticated
+                    if (token != null) {
+                        scope.launch {
+                            val safeCity = confirmedAddr.city.ifBlank { "Solapur" }
+                            val safeState = confirmedAddr.state.ifBlank { "Maharashtra" }
+                            val safePincode = confirmedAddr.pincode.ifBlank { "413001" }
+                            val safeLine1 = confirmedAddr.addressLine.ifBlank { "Current Location" }
+
+                            val saved = repository.saveAddress(
+                                AddressCreateDto(
+                                    addressLine1 = safeLine1,
+                                    city = safeCity,
+                                    state = safeState,
+                                    pincode = safePincode,
+                                    latitude = confirmedAddr.latitude,
+                                    longitude = confirmedAddr.longitude,
+                                    landmark = confirmedAddr.landmark,
+                                    isDefault = true
+                                )
                             )
-                        )
-                        if (saved != null) {
-                            sessionManager.saveSelectedAddress(saved)
-                            savedAddressesList = repository.getUserAddresses()
+                            if (saved != null) {
+                                sessionManager.saveSelectedAddress(saved)
+                                savedAddressesList = repository.getUserAddresses()
+                            }
                         }
                     }
                     showGlobalLocationSheet = false

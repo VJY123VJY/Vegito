@@ -76,7 +76,7 @@ def test_distance_based_delivery_pricing_bands_and_over_limit(client: TestClient
     # Address outside 20 km must raise exception
     with pytest.raises(Exception) as exc_info:
         DeliveryPricingService.calculate_delivery_distance_and_fee(db, addr_outside.id, seller_user.id)
-    assert "outside our 20 KM delivery area" in str(exc_info.value)
+    assert "exceeds the 20 km limit" in str(exc_info.value)
 
     # Test HTTP Endpoint GET /orders/delivery-fee
     cust_token = create_access_token({"sub": str(cust_user.id), "role": "CUSTOMER", "role_id": 1})
@@ -87,8 +87,9 @@ def test_distance_based_delivery_pricing_bands_and_over_limit(client: TestClient
     assert res1.json()["data"]["delivery_fee"] == 20.0
 
     res_out = client.get(f"/api/v1/orders/delivery-fee?address_id={addr_outside.id}&seller_id={seller_user.id}", headers=headers)
-    assert res_out.status_code == 400
-    assert "outside our 20 KM delivery area" in res_out.text
+    assert res_out.status_code == 200
+    assert res_out.json()["data"]["is_deliverable"] is False
+    assert "exceeds the 20 km limit" in res_out.json()["data"]["message"]
 
 
 def test_checkout_blocks_outside_area_and_accepts_valid_address(client: TestClient, db):
@@ -133,7 +134,7 @@ def test_checkout_blocks_outside_area_and_accepts_valid_address(client: TestClie
         headers=headers,
     )
     assert bad_res.status_code == 400
-    assert "20 KM delivery area" in bad_res.text
+    assert "exceeds the 20 km limit" in bad_res.text or "20 km limit" in bad_res.text.lower()
 
     # Checkout with Valid Address (approx 1.2 km -> ₹30 fee) -> MUST SUCCEED
     ok_res = client.post(
@@ -170,10 +171,10 @@ def test_seller_ready_assigns_partner_and_enforces_concurrency(client: TestClien
     db.add_all([shop, p_busy, p_free])
     db.flush()
 
-    # Rider busy location: 0.5 km from shop
-    loc_busy = DeliveryPartnerLocation(delivery_partner_id=p_busy.id, latitude=Decimal("17.6840"), longitude=Decimal("75.9064"))
-    # Rider free location: ~2.16 km from shop (>= 1.0 km)
-    loc_free = DeliveryPartnerLocation(delivery_partner_id=p_free.id, latitude=Decimal("17.7000"), longitude=Decimal("75.9064"))
+    # Rider busy location: 0.03 km from shop (< 0.1 km, but busy)
+    loc_busy = DeliveryPartnerLocation(delivery_partner_id=p_busy.id, latitude=Decimal("17.6808"), longitude=Decimal("75.9064"))
+    # Rider free location: ~0.11 km from shop (nearest available free partner)
+    loc_free = DeliveryPartnerLocation(delivery_partner_id=p_free.id, latitude=Decimal("17.6815"), longitude=Decimal("75.9064"))
     db.add_all([loc_busy, loc_free])
 
     # Address

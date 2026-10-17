@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vegito.app.data.model.Category
+import com.vegito.app.data.model.MarketIntelligenceDto
 import com.vegito.app.data.model.Offer
 import com.vegito.app.data.model.Product
 import com.vegito.app.ui.components.CompactProductCard
@@ -42,6 +43,7 @@ fun CustomerHomeScreen(
     offers: List<Offer>,
     categories: List<Category>,
     allProducts: List<Product>,
+    marketIntelligence: List<MarketIntelligenceDto> = emptyList(),
     isLoadingCatalog: Boolean,
     catalogError: String? = null,
     catalogEmptyMessage: String? = null,
@@ -375,6 +377,141 @@ fun CustomerHomeScreen(
                                     labelColor = MaterialTheme.colorScheme.onSurface
                                 )
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2.5 SOLAPUR APMC MANDI BENCHMARK RATES
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("📊", fontSize = 18.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "Solapur APMC Mandi Daily Rates",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Verified APMC Wholesale Reference",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF2E7D32),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF2E7D32).copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = "MSAMB Official",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2E7D32),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    if (marketIntelligence.isEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Today's verified Solapur market price is unavailable. Mandi rates are published during daily trading hours.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    } else {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(marketIntelligence) { item ->
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                    modifier = Modifier.width(150.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = item.productName ?: "Commodity #${item.productId}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            val trendSymbol = when (item.trend.uppercase()) {
+                                                "UP" -> "↗"
+                                                "DOWN" -> "↘"
+                                                else -> "→"
+                                            }
+                                            val trendColor = when (item.trend.uppercase()) {
+                                                "UP" -> Color(0xFFE65100)
+                                                "DOWN" -> Color(0xFF2E7D32)
+                                                else -> Color.Gray
+                                            }
+                                            Text(
+                                                text = trendSymbol,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = trendColor
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        Text(
+                                            text = "₹${item.referencePrice.toInt()} / ${item.unit}",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 15.sp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+
+                                        if (item.suggestedRangeMin > 0 && item.suggestedRangeMax > 0) {
+                                            Text(
+                                                text = "Range: ₹${item.suggestedRangeMin.toInt()} - ₹${item.suggestedRangeMax.toInt()}",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+
+                                        Text(
+                                            text = item.source,
+                                            fontSize = 9.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

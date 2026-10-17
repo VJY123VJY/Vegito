@@ -173,6 +173,14 @@ fun CompactProductCard(
                             fontSize = 13.sp,
                             color = VegitoPrimary
                         )
+                        if (product.marketReferencePrice != null && product.marketReferencePrice > 0) {
+                            Text(
+                                text = "Mandi: ₹${product.marketReferencePrice.toInt()}/kg",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF2E7D32)
+                            )
+                        }
                     } else {
                         Text(
                             text = "Currently unavailable",

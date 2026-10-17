@@ -153,6 +153,23 @@ def setup_inbuilt_accounts():
             dp.kyc_status = "VERIFIED"
             print(f"Updated DeliveryPartner profile ID={dp.id}")
 
+        # Add current location for Delivery Partner 1 (near Karvenagar Pune shop)
+        from app.models.delivery_partner_location import DeliveryPartnerLocation
+        dp_loc = db.query(DeliveryPartnerLocation).filter(DeliveryPartnerLocation.delivery_partner_id == dp.id).first()
+        if not dp_loc:
+            dp_loc = DeliveryPartnerLocation(
+                delivery_partner_id=dp.id,
+                latitude=Decimal("18.4995000"),
+                longitude=Decimal("73.8320000"),
+                recorded_at=datetime.datetime.now(datetime.timezone.utc),
+            )
+            db.add(dp_loc)
+        else:
+            dp_loc.latitude = Decimal("18.4995000")
+            dp_loc.longitude = Decimal("73.8320000")
+            dp_loc.recorded_at = datetime.datetime.now(datetime.timezone.utc)
+        db.flush()
+
         # ── 3. SETUP BACKUP DELIVERY PARTNER: 8888888888 ──────────────────────────
         phone_backup = "+918888888888"
         backup_user = db.query(User).filter(User.phone.like("%8888888888%")).first()
@@ -189,6 +206,21 @@ def setup_inbuilt_accounts():
             )
             db.add(dp2)
             db.flush()
+
+        dp2_loc = db.query(DeliveryPartnerLocation).filter(DeliveryPartnerLocation.delivery_partner_id == dp2.id).first()
+        if not dp2_loc:
+            dp2_loc = DeliveryPartnerLocation(
+                delivery_partner_id=dp2.id,
+                latitude=Decimal("18.5010000"),
+                longitude=Decimal("73.8335000"),
+                recorded_at=datetime.datetime.now(datetime.timezone.utc),
+            )
+            db.add(dp2_loc)
+        else:
+            dp2_loc.latitude = Decimal("18.5010000")
+            dp2_loc.longitude = Decimal("73.8335000")
+            dp2_loc.recorded_at = datetime.datetime.now(datetime.timezone.utc)
+        db.flush()
 
         db.commit()
         print("\nAll Inbuilt Test Accounts Configured Successfully in Database!")

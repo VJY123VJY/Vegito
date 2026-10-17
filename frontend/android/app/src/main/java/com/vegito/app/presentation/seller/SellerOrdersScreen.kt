@@ -397,30 +397,50 @@ fun SellerOrdersScreen(
                             ) {
                                 when (statusUpper) {
                                     "NEW", "ORDER_PLACED" -> {
-                                        Button(
-                                            onClick = {
-                                                if (processingOrderId == null) {
-                                                    processingOrderId = order.id
-                                                    onUpdateStatus(order.id, "ACCEPTED")
-                                                    scope.launch {
-                                                        delay(1200L)
-                                                        processingOrderId = null
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    if (processingOrderId == null) {
+                                                        processingOrderId = order.id
+                                                        onUpdateStatus(order.id, "REJECTED")
+                                                        scope.launch {
+                                                            delay(1200L)
+                                                            processingOrderId = null
+                                                        }
                                                     }
-                                                }
-                                            },
-                                            enabled = !isProcessing,
-                                            colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary),
-                                            shape = RoundedCornerShape(10.dp)
-                                        ) {
-                                            if (isProcessing) {
-                                                CircularProgressIndicator(
-                                                    color = Color.White,
-                                                    modifier = Modifier.size(16.dp),
-                                                    strokeWidth = 2.dp
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
+                                                },
+                                                enabled = !isProcessing,
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                            ) {
+                                                Text("Reject", fontWeight = FontWeight.SemiBold)
                                             }
-                                            Text("Accept Order", fontWeight = FontWeight.Bold)
+
+                                            Button(
+                                                onClick = {
+                                                    if (processingOrderId == null) {
+                                                        processingOrderId = order.id
+                                                        onUpdateStatus(order.id, "ACCEPTED")
+                                                        scope.launch {
+                                                            delay(1200L)
+                                                            processingOrderId = null
+                                                        }
+                                                    }
+                                                },
+                                                enabled = !isProcessing,
+                                                colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary),
+                                                shape = RoundedCornerShape(10.dp)
+                                            ) {
+                                                if (isProcessing) {
+                                                    CircularProgressIndicator(
+                                                        color = Color.White,
+                                                        modifier = Modifier.size(16.dp),
+                                                        strokeWidth = 2.dp
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                }
+                                                Text("Accept Order", fontWeight = FontWeight.Bold)
+                                            }
                                         }
                                     }
 

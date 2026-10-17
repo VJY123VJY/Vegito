@@ -39,6 +39,7 @@ fun SellerDashboardScreen(
     onNavigateAddProduct: () -> Unit = onNavigateProducts,
     onNavigateInventory: () -> Unit = {},
     onNavigateAnalytics: () -> Unit = {},
+    onNavigateOffers: () -> Unit = {},
     onNavigateBulkOrders: () -> Unit = {},
     onNavigateProfile: () -> Unit,
     onNavigateSettings: () -> Unit,
@@ -520,11 +521,11 @@ fun SellerDashboardScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 QuickActionCard(
-                    title = "Add Produce (+)",
-                    subtitle = "New Veg / Fruit",
-                    icon = Icons.Default.AddCircle,
+                    title = "Offers & Deals",
+                    subtitle = "Promotions & Discounts",
+                    icon = Icons.Default.LocalOffer,
                     modifier = Modifier.weight(1f),
-                    onClick = onNavigateAddProduct
+                    onClick = onNavigateOffers
                 )
 
                 QuickActionCard(
@@ -601,6 +602,10 @@ fun SellerDashboardScreen(
                 DrawerMenuItem("Store Analytics & Revenue", Icons.Default.Analytics) {
                     showMenuSheet = false
                     onNavigateAnalytics()
+                }
+                DrawerMenuItem("Seller Deals & Offers", Icons.Default.LocalOffer) {
+                    showMenuSheet = false
+                    onNavigateOffers()
                 }
                 DrawerMenuItem("B2B Wholesale Portal", Icons.Default.BusinessCenter) {
                     showMenuSheet = false

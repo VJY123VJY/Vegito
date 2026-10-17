@@ -59,6 +59,38 @@ def calculate_haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2:
     return R * c
 
 
+def calculate_item_weight_kg(unit: Optional[str], quantity: float) -> float:
+    """Calculates approximate or exact weight in KG based on product unit and quantity."""
+    unit_str = (unit or "").lower().strip()
+    if "quintal" in unit_str:
+        factor = 100.0
+    elif "ton" in unit_str:
+        factor = 1000.0
+    elif "250g" in unit_str or "250 g" in unit_str:
+        factor = 0.25
+    elif "500g" in unit_str or "500 g" in unit_str:
+        factor = 0.5
+    elif "100g" in unit_str or "100 g" in unit_str:
+        factor = 0.1
+    elif "gm" in unit_str or "gram" in unit_str:
+        import re
+        m = re.search(r"(\d+)\s*(?:g|gm|gram)", unit_str)
+        factor = (float(m.group(1)) / 1000.0) if m else 0.001
+    elif "kg" in unit_str:
+        import re
+        m = re.search(r"(\d+(?:\.\d+)?)\s*kg", unit_str)
+        factor = float(m.group(1)) if m else 1.0
+    elif "bundle" in unit_str or "bunch" in unit_str:
+        factor = 0.25
+    elif "piece" in unit_str or "pc" in unit_str:
+        factor = 0.5
+    elif "dozen" in unit_str:
+        factor = 1.5
+    else:
+        factor = 1.0
+    return float(quantity) * factor
+
+
 class LocationService:
     @staticmethod
     def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -66,29 +98,50 @@ class LocationService:
         return calculate_haversine_distance_km(lat1, lon1, lat2, lon2)
 
     @staticmethod
+    def get_max_delivery_distance_km(total_weight_kg: Optional[float] = None) -> float:
+        """Rule A: Order weight <= 30 kg -> Max 20 km. Rule B: Order weight > 30 kg -> Max 50 km."""
+        if total_weight_kg is not None and total_weight_kg > 30.0:
+            return 50.0
+        return 20.0
+
+    @staticmethod
     def is_within_delivery_bounds(
         distance_km: float,
         allow_same_location: bool = True,
         min_km: Optional[float] = None,
         max_km: Optional[float] = None,
+        total_weight_kg: Optional[float] = None,
     ) -> Tuple[bool, str]:
         """
         Validates if distance is within Vegito's operational bounds:
-        - Must be <= MAX_DELIVERY_DISTANCE_KM (20.0 km).
-        - If < MIN_DELIVERY_DISTANCE_KM (1.0 km), allowed as local/same-location delivery if allow_same_location is True.
+        - Customer and seller at same address (distance 0 km) MUST be deliverable.
+        - Rule A: Order weight <= 30 kg -> Max delivery distance 20 km.
+        - Rule B: Order weight > 30 kg -> Max delivery distance 50 km.
         """
-        min_limit = min_km if min_km is not None else MIN_DELIVERY_DISTANCE_KM
-        max_limit = max_km if max_km is not None else MAX_DELIVERY_DISTANCE_KM
+        if total_weight_kg is not None:
+            max_limit = LocationService.get_max_delivery_distance_km(total_weight_kg)
+        elif max_km is not None:
+            max_limit = max_km
+        else:
+            max_limit = MAX_DELIVERY_DISTANCE_KM
+
+        # Customer and seller at same address (distance 0 km or <= 0.05 km) MUST be deliverable
+        if distance_km <= 0.05:
+            return True, f"Distance of {distance_km:.2f} km is within same-location delivery zone."
 
         if distance_km > max_limit:
-            return False, f"Distance of {distance_km:.2f} km exceeds maximum delivery radius of {max_limit:.1f} km."
+            weight_str = f" (Order weight: {total_weight_kg:.1f} kg)" if total_weight_kg is not None else ""
+            rule_str = "orders up to 30 kg" if (total_weight_kg is None or total_weight_kg <= 30.0) else "orders over 30 kg"
+            return (
+                False,
+                f"Delivery address is {distance_km:.1f} km away, which exceeds the {int(max_limit)} km limit for {rule_str}{weight_str}.",
+            )
 
-        if distance_km < min_limit:
-            if allow_same_location:
-                return True, f"Distance of {distance_km:.2f} km is within local neighborhood delivery zone (< {min_limit:.1f} km)."
+        min_limit = min_km if min_km is not None else 0.0
+        if distance_km < min_limit and not allow_same_location:
             return False, f"Distance of {distance_km:.2f} km is below minimum delivery distance of {min_limit:.1f} km."
 
-        return True, f"Distance of {distance_km:.2f} km is within operational bounds ({min_limit:.1f}–{max_limit:.1f} km)."
+        return True, f"Distance of {distance_km:.2f} km is within operational bounds (max {int(max_limit)} km)."
 
     @staticmethod
     def is_within_b2b_bulk_bounds(
