@@ -1,6 +1,7 @@
 package com.vegito.app.presentation.seller
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -189,37 +190,43 @@ fun SellerDashboardScreen(
             // Command Center Header Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(18.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "$greetingWord, ROHIT 👋",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = VegitoPrimary,
-                                letterSpacing = 0.8.sp
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "$greetingWord, PARTNER 👋",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = VegitoPrimary,
+                                    letterSpacing = 0.8.sp
+                                )
+                            }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = resolvedStoreName,
-                                fontSize = 19.sp,
-                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Black,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
+
+                        // Live Pulse Dot & Online Toggle
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (isOnline) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isOnline) Color(0xFF047857).copy(alpha = 0.12f) else Color(0xFFEF4444).copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, if (isOnline) Color(0xFF047857).copy(alpha = 0.3f) else Color(0xFFEF4444).copy(alpha = 0.3f)),
                             modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable {
                                     val newState = !isOnline
                                     isOnline = newState
@@ -227,21 +234,21 @@ fun SellerDashboardScreen(
                                 }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(9.dp)
+                                        .size(8.dp)
                                         .clip(CircleShape)
-                                        .background(if (isOnline) Color(0xFF2E7D32) else Color(0xFFC62828))
+                                        .background(if (isOnline) Color(0xFF10B981) else Color(0xFFEF4444))
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    if (isOnline) "STORE ONLINE" else "STORE OFFLINE",
+                                    text = if (isOnline) "LIVE • ONLINE" else "OFFLINE",
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isOnline) Color(0xFF2E7D32) else Color(0xFFC62828)
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (isOnline) Color(0xFF047857) else Color(0xFFDC2626)
                                 )
                             }
                         }
@@ -645,13 +652,14 @@ private fun QuickActionCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Card(
+    Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
             .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        shadowElevation = 1.dp
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -659,14 +667,14 @@ private fun QuickActionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = VegitoPrimary.copy(alpha = 0.12f),
-                    modifier = Modifier.size(36.dp)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(VegitoPrimary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(icon, contentDescription = title, tint = VegitoPrimary, modifier = Modifier.size(20.dp))
-                    }
+                    Icon(icon, contentDescription = title, tint = VegitoPrimary, modifier = Modifier.size(22.dp))
                 }
                 if (badge != null) {
                     Surface(
@@ -684,7 +692,7 @@ private fun QuickActionCard(
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
             Text(subtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -730,30 +738,40 @@ private fun DashboardMetricCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Card(
+    Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(18.dp))
             .clickable { onClick() },
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        shadowElevation = 1.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(20.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.Gray.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(iconTint.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(18.dp))
+                }
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
             }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(value, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-            Text(title, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(title, fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, fontWeight = FontWeight.Medium)
         }
     }
 }

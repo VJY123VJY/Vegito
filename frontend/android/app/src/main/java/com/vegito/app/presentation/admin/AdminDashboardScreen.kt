@@ -1,6 +1,7 @@
 package com.vegito.app.presentation.admin
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -82,32 +83,84 @@ fun AdminDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // System Health & Advisory Card
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                shadowElevation = 1.dp
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Shield, contentDescription = "Security", tint = VegitoPrimary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Enterprise Security & Command Center", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Shield, contentDescription = "Security", tint = VegitoPrimary, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("System Health & Security", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFF047857).copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                "99.9% UPTIME",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF047857),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        "All Mandi clusters, payment gateways, and GPS dispatch engines are active. Web Command Center is recommended for geographic heatmaps & batch settlement.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 16.sp
-                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("APIs & DB: OK", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Twilio SMS: Live", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
                 }
             }
 
             // Gross Revenue Card with Growth Indicator
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = VegitoPrimary.copy(alpha = 0.12f))
+                color = VegitoPrimary.copy(alpha = 0.10f),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, VegitoPrimary.copy(alpha = 0.35f)),
+                shadowElevation = 2.dp
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Row(
@@ -116,32 +169,40 @@ fun AdminDashboardScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Analytics, contentDescription = "Analytics", tint = VegitoPrimary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Gross Revenue Today", fontWeight = FontWeight.Bold, color = VegitoPrimary, fontSize = 14.sp)
-                    }
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(VegitoPrimary.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Analytics, contentDescription = "Analytics", tint = VegitoPrimary, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Gross Platform Revenue", fontWeight = FontWeight.Bold, color = VegitoPrimary, fontSize = 14.sp)
+                        }
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF2E7D32).copy(alpha = 0.15f)
+                            color = Color(0xFF047857).copy(alpha = 0.15f)
                         ) {
                             Text(
-                                "+14.2% vs yesterday",
+                                "📈 +14.2% Today",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF2E7D32)
+                                color = Color(0xFF047857)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         "₹${String.format("%.2f", animatedRevenue)}",
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Black,
                         color = VegitoPrimary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("Total Platform Orders Processed: ${analytics.totalOrdersToday}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Total Platform Orders Today: ${analytics.totalOrdersToday}", fontSize = 12.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
                 }
             }
 
@@ -152,14 +213,14 @@ fun AdminDashboardScreen(
             ) {
                 MetricCard(
                     modifier = Modifier.weight(1f),
-                    title = "Customers",
+                    title = "Active Customers",
                     value = "${analytics.totalCustomers}",
                     icon = Icons.Default.People,
                     onClick = {}
                 )
                 MetricCard(
                     modifier = Modifier.weight(1f),
-                    title = "Sellers",
+                    title = "Verified Sellers",
                     value = "${analytics.totalSellers}",
                     icon = Icons.Default.Store,
                     onClick = onNavigateSellers
@@ -190,10 +251,12 @@ fun AdminDashboardScreen(
             // Quick Management Operations
             Text("Operations Management", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
-            Card(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                shadowElevation = 1.dp
             ) {
                 Column(modifier = Modifier.padding(vertical = 4.dp)) {
                     AdminActionItem(
@@ -214,7 +277,7 @@ fun AdminDashboardScreen(
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     AdminActionItem(
                         title = "Live Platform Orders",
-                        subtitle = "Track orders across all Solapur mandi hubs",
+                        subtitle = "Track orders across all Solapur & Pune hubs",
                         icon = Icons.Default.ReceiptLong,
                         badgeCount = analytics.totalOrdersToday,
                         onClick = onNavigateOrders
@@ -234,25 +297,41 @@ private fun MetricCard(
     badgeColor: Color = VegitoPrimary,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = modifier.clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        shadowElevation = 1.dp
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(icon, contentDescription = title, tint = badgeColor, modifier = Modifier.size(22.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(14.dp))
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(badgeColor.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = title, tint = badgeColor, modifier = Modifier.size(19.dp))
+                }
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(14.dp)
+                )
             }
             Spacer(modifier = Modifier.height(10.dp))
-            Text(title, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+            Text(value, fontSize = 21.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
             Spacer(modifier = Modifier.height(2.dp))
-            Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text(title, fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
         }
     }
 }

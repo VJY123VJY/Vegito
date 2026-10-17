@@ -143,30 +143,40 @@ fun DeliveryDashboardScreen(
             // Header Banner: DELIVERY CENTER + LIVE ONLINE TOGGLE
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(18.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🚚", fontSize = 22.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                                    .background(VegitoPrimary.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("🛵", fontSize = 22.sp)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column {
-                                Text("DELIVERY CENTER", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
-                                Text("Same Seller Express Delivery", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("FLEET COMMAND", fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = VegitoPrimary, letterSpacing = 0.8.sp)
+                                Text("Delivery Partner", fontWeight = FontWeight.Black, fontSize = 19.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
                         }
 
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (onlineState) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (onlineState) Color(0xFF047857).copy(alpha = 0.12f) else Color(0xFFEF4444).copy(alpha = 0.12f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (onlineState) Color(0xFF047857).copy(alpha = 0.3f) else Color(0xFFEF4444).copy(alpha = 0.3f)),
                             modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable {
                                     val newState = !onlineState
                                     onlineState = newState
@@ -174,21 +184,21 @@ fun DeliveryDashboardScreen(
                                 }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(9.dp)
+                                        .size(8.dp)
                                         .clip(CircleShape)
-                                        .background(if (onlineState) Color(0xFF2E7D32) else Color(0xFFC62828))
+                                        .background(if (onlineState) Color(0xFF10B981) else Color(0xFFEF4444))
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    if (onlineState) "ONLINE" else "OFFLINE",
+                                    text = if (onlineState) "ON DUTY" else "OFF DUTY",
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (onlineState) Color(0xFF2E7D32) else Color(0xFFC62828)
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (onlineState) Color(0xFF047857) else Color(0xFFDC2626)
                                 )
                             }
                         }
@@ -199,13 +209,14 @@ fun DeliveryDashboardScreen(
             // Real Live Device Status Row (Battery, Network, GPS)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -216,23 +227,23 @@ fun DeliveryDashboardScreen(
                         Text(
                             text = if (batteryLevel != null) "$batteryLevel%" else "100%",
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Bold
                         )
                     }
 
                     // Network
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val netColor = when (networkStatus) {
-                            NetworkStatus.ONLINE -> Color(0xFF2E7D32)
+                            NetworkStatus.ONLINE -> Color(0xFF047857)
                             NetworkStatus.WEAK -> Color(0xFFF57F17)
-                            NetworkStatus.OFFLINE -> Color(0xFFC62828)
+                            NetworkStatus.OFFLINE -> Color(0xFFDC2626)
                         }
                         Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(netColor))
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
                         Text(
                             text = "Net: ${networkStatus.name}",
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             color = netColor
                         )
                     }
@@ -240,16 +251,16 @@ fun DeliveryDashboardScreen(
                     // GPS Status
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val gpsColor = when (gpsQuality) {
-                            GpsQuality.GOOD -> Color(0xFF2E7D32)
+                            GpsQuality.GOOD -> Color(0xFF047857)
                             GpsQuality.WEAK -> Color(0xFFF57F17)
-                            GpsQuality.UNAVAILABLE -> Color(0xFFC62828)
+                            GpsQuality.UNAVAILABLE -> Color(0xFFDC2626)
                         }
                         Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(gpsColor))
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
                         Text(
                             text = "GPS: ${gpsQuality.name}",
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             color = gpsColor
                         )
                     }
@@ -457,13 +468,14 @@ private fun MetricCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Card(
+    Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(18.dp))
             .clickable { onClick() },
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        shadowElevation = 1.dp
     ) {
         Column(
             modifier = Modifier
@@ -475,12 +487,21 @@ private fun MetricCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(icon, contentDescription = title, tint = color, modifier = Modifier.size(20.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.Gray.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(color.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = title, tint = color, modifier = Modifier.size(20.dp))
+                }
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
             }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-            Text(title, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(value, fontSize = 22.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(title, fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
         }
     }
 }

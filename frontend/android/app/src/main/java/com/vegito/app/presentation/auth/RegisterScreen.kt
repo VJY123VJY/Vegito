@@ -21,6 +21,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -42,6 +44,14 @@ enum class RegisterStep {
     ROLE_SELECTION,
     REGISTRATION_FORM
 }
+
+private data class RoleCardData(
+    val key: String,
+    val title: String,
+    val emoji: String,
+    val tagline: String,
+    val perk: String
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -239,117 +249,188 @@ fun RegisterScreen(
                 )
             }
 
+            // Step Progress Indicator (Step 1 or 2)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Step 1 pill
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(VegitoPrimary)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                // Step 2 pill
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(
+                            if (currentStep == RegisterStep.REGISTRATION_FORM) VegitoPrimary
+                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+                )
+            }
+
+            Text(
+                text = if (currentStep == RegisterStep.ROLE_SELECTION) "STEP 1 OF 2: CHOOSE ACCOUNT TYPE" else "STEP 2 OF 2: ACCOUNT DETAILS",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                color = VegitoPrimary,
+                modifier = Modifier.padding(bottom = 14.dp)
+            )
+
             // ==============================================================
             // STEP 1 — ROLE SELECTION
             // ==============================================================
             if (currentStep == RegisterStep.ROLE_SELECTION) {
-                Spacer(modifier = Modifier.height(8.dp))
-                com.vegito.app.presentation.auth.components.VegitoBrandMark(sizeDp = 68)
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(4.dp))
+                com.vegito.app.presentation.auth.components.VegitoBrandMark(sizeDp = 76)
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = "Let’s get you started.",
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
+                    text = "How will you use Vegito?",
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onBackground,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Your everyday essentials are just a few steps away.",
-                    fontSize = 14.5.sp,
+                    text = "Select your role to personalize your marketplace experience",
+                    fontSize = 13.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 // Role Options List
                 val roles = listOf(
-                    Triple("CUSTOMER", "Customer", "Shop fresh vegetables, fruits & groceries with fast doorstep delivery."),
-                    Triple("SELLER", "Seller", "Sell your farm produce, fruits and grocery inventory to local buyers."),
-                    Triple("DELIVERY_PARTNER", "Delivery Partner", "Deliver orders safely to neighborhood customers and earn flexibly.")
+                    RoleCardData(
+                        key = "CUSTOMER",
+                        title = "Customer",
+                        emoji = "🛍️",
+                        tagline = "Shop fresh vegetables, fruits & groceries with fast doorstep delivery.",
+                        perk = "⚡ 15-25 min express delivery"
+                    ),
+                    RoleCardData(
+                        key = "SELLER",
+                        title = "Seller / Mandi Trader",
+                        emoji = "🏪",
+                        tagline = "Publish APMC Mandi produce, supply local households & bulk kitchens.",
+                        perk = "📈 Direct buyers • Zero listing fees"
+                    ),
+                    RoleCardData(
+                        key = "DELIVERY_PARTNER",
+                        title = "Delivery Fleet Partner",
+                        emoji = "🛵",
+                        tagline = "Deliver orders safely to neighborhood customers with competitive daily payouts.",
+                        perk = "💰 Flexible shifts • Instant earnings"
+                    )
                 )
 
-                roles.forEach { (roleKey, title, description) ->
-                    val isSelected = selectedRole == roleKey
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                selectedRole = roleKey
-                                localError = null
-                            },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isSelected) VegitoPrimary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
-                        ),
+                roles.forEach { role ->
+                    val isSelected = selectedRole == role.key
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = if (isSelected) VegitoPrimary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
                         border = BorderStroke(
                             width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) VegitoPrimary else MaterialTheme.colorScheme.outlineVariant
+                            color = if (isSelected) VegitoPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                         ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp)
+                        shadowElevation = if (isSelected) 2.dp else 0.5.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .clickable {
+                                selectedRole = role.key
+                                localError = null
+                            }
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(18.dp),
+                                .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) VegitoPrimary else VegitoPrimary.copy(alpha = 0.12f),
-                                modifier = Modifier.size(46.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isSelected) VegitoPrimary.copy(alpha = 0.15f)
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = when (roleKey) {
-                                            "SELLER" -> Icons.Default.Store
-                                            "DELIVERY_PARTNER" -> Icons.Default.DeliveryDining
-                                            else -> Icons.Default.Person
-                                        },
-                                        contentDescription = null,
-                                        tint = if (isSelected) Color.White else VegitoPrimary,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
+                                Text(role.emoji, fontSize = 24.sp)
                             }
 
-                            Spacer(modifier = Modifier.width(16.dp))
+                            Spacer(modifier = Modifier.width(14.dp))
 
                             Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = role.title,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = title,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Text(
-                                    text = description,
-                                    fontSize = 12.5.sp,
+                                    text = role.tagline,
+                                    fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 17.sp
+                                    lineHeight = 16.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = role.perk,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = VegitoPrimary
                                 )
                             }
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = {
-                                    selectedRole = roleKey
-                                    localError = null
-                                },
-                                colors = RadioButtonDefaults.colors(selectedColor = VegitoPrimary)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isSelected) VegitoPrimary else Color.Transparent)
+                                    .border(
+                                        width = if (isSelected) 0.dp else 1.5.dp,
+                                        color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Button(
                     onClick = {
@@ -359,15 +440,15 @@ fun RegisterScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = VegitoPrimary)
                 ) {
-                    Text("Continue", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Continue to Details", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.width(8.dp))
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -378,9 +459,16 @@ fun RegisterScreen(
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    TextButton(onClick = onNavigateLogin) {
-                        Text("Login", color = VegitoPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    }
+                    Text(
+                        text = "Sign In",
+                        color = VegitoPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { onNavigateLogin() }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
                 }
             }
 
