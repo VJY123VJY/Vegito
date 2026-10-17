@@ -49,8 +49,12 @@ class AuthService:
         if user.delivery_partner or primary_role == "DELIVERY_PARTNER":
             roles.add("DELIVERY_PARTNER")
 
-        # For customer accounts, role is strictly CUSTOMER
-        if primary_role == "CUSTOMER":
+        # Inbuilt test accounts (e.g. 9309424359) allow testing both Customer & Seller
+        clean_p = (user.phone or "").replace("+91", "").strip()[-10:]
+        if clean_p == "9309424359":
+            roles.add("CUSTOMER")
+            roles.add("SELLER")
+        elif primary_role == "CUSTOMER":
             roles = {"CUSTOMER"}
         else:
             # Operators (seller / delivery partner) should only have operator workspaces, not customer
@@ -187,6 +191,56 @@ class AuthService:
 
         user = db.query(User).filter(User.phone == phone).first()
         is_new_user = False
+
+        # Strict validation for fixed OTP test accounts in development
+        clean_phone = phone.replace("+91", "").strip()[-10:]
+        from app.services.otp_service import is_fixed_otp_enabled, FIXED_TEST_ACCOUNTS
+
+        if is_fixed_otp_enabled(clean_phone) and clean_phone in FIXED_TEST_ACCOUNTS:
+            expected_role = FIXED_TEST_ACCOUNTS[clean_phone]
+            if not user:
+                raise NotFoundException(
+                    f"Test account for {clean_phone[-4:]} does not exist. Please initialize the {expected_role} test account."
+                )
+            if not user.is_active:
+                raise ForbiddenException("Your account is deactivated. Please contact support.")
+
+            authorized_roles = AuthService.get_user_authorized_roles(db, user)
+
+            active_role = expected_role
+            if role_context:
+                norm_ctx = role_context.strip().upper()
+                if norm_ctx == "DELIVERY":
+                    norm_ctx = "DELIVERY_PARTNER"
+                if norm_ctx in authorized_roles:
+                    active_role = norm_ctx
+                elif clean_phone != "9309424359" and norm_ctx != expected_role:
+                    raise ForbiddenException(
+                        f"Access denied. Mobile number {clean_phone[-4:]} is only authorized for {expected_role} role, not {norm_ctx}."
+                    )
+            elif expected_role in authorized_roles:
+                active_role = expected_role
+            else:
+                active_role = authorized_roles[0] if authorized_roles else expected_role
+            token_payload: Dict[str, Any] = {
+                "sub": str(user.id),
+                "role": active_role,
+                "phone": user.phone,
+            }
+            access_token = create_access_token(token_payload)
+
+            return TokenResponse(
+                access_token=access_token,
+                token_type="bearer",
+                expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                user_id=user.id,
+                role=active_role,
+                phone=user.phone,
+                name=user.name,
+                is_new_user=False,
+                authorized_roles=authorized_roles,
+            )
+
         if not user:
             # Safe default registration is CUSTOMER only
             customer_role_id = ROLE_ID_MAP[RoleEnum.CUSTOMER]

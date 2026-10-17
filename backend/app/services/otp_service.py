@@ -24,6 +24,32 @@ def _mask_phone(phone: str) -> str:
     return "******"
 
 
+FIXED_TEST_ACCOUNTS: Dict[str, str] = {
+    "9309424359": "SELLER",            # Inbuilt Seller testing account
+    "9876543210": "DELIVERY_PARTNER",  # Inbuilt Delivery Partner testing account
+    "8888888888": "DELIVERY_PARTNER",  # Inbuilt Delivery Partner testing account
+    "9999999999": "SELLER",
+}
+FIXED_TEST_OTP = "123456"
+
+
+def is_fixed_otp_enabled(phone: Optional[str] = None) -> bool:
+    """
+    Fixed OTP authentication is enabled for:
+    1. Specifically designated inbuilt test accounts (regardless of environment).
+    2. When FIXED_OTP_TEST_MODE is True outside of production.
+    """
+    if phone:
+        clean = (phone or "").replace("+91", "").strip()[-10:]
+        if clean in FIXED_TEST_ACCOUNTS:
+            return True
+    env = (getattr(settings, "ENVIRONMENT", "") or "").strip().lower()
+    if env == "production":
+        return False
+    return bool(getattr(settings, "FIXED_OTP_TEST_MODE", False))
+
+
+
 class OtpService:
     @staticmethod
     def clear_rate_limits():
@@ -54,6 +80,7 @@ class OtpService:
     def send_otp(phone: str) -> dict:
         e164_phone = OtpService.to_e164(phone)
         masked = _mask_phone(phone)
+        clean_phone = phone.replace("+91", "").strip()[-10:]
 
         # Rate limiting: 30-second resend cooldown per phone number
         now = time.time()
@@ -64,6 +91,12 @@ class OtpService:
             raise TooManyRequestsException(
                 f"Please wait {remaining} seconds before requesting another verification code."
             )
+
+        # Fixed OTP test bypass for local testing of Seller & Delivery Partner
+        if is_fixed_otp_enabled(clean_phone) and clean_phone in FIXED_TEST_ACCOUNTS:
+            _last_sent_timestamps[e164_phone] = now
+            logger.info("Fixed test OTP active for %s (%s) — SMS delivery bypassed", masked, FIXED_TEST_ACCOUNTS[clean_phone])
+            return {"fallback": True, "dev_otp": FIXED_TEST_OTP}
 
         if not OtpService.is_twilio_configured():
             is_test_mode = getattr(settings, "OTP_TEST_MODE", False) or getattr(settings, "OTP_DEV_MODE", False)
@@ -96,6 +129,9 @@ class OtpService:
                     "Too many verification requests. Please wait a few minutes before trying again."
                 ) from exc
             elif exc.code == 21608:
+                if clean_phone in FIXED_TEST_ACCOUNTS:
+                    logger.info("Carrier restriction for test account %s, falling back to test OTP", masked)
+                    return {"fallback": True, "dev_otp": FIXED_TEST_OTP}
                 raise BadRequestException(
                     "SMS delivery to this number is restricted by the carrier or provider settings."
                 ) from exc
@@ -113,9 +149,19 @@ class OtpService:
         clean_code = (otp_code or "").strip()
         e164_phone = OtpService.to_e164(phone)
         masked = _mask_phone(phone)
+        clean_phone = phone.replace("+91", "").strip()[-10:]
 
         if not clean_code or len(clean_code) < 4:
             raise BadRequestException("Please enter a valid 6-digit verification code.")
+
+        # Fixed OTP test verification for Seller / Delivery Partner testing
+        if is_fixed_otp_enabled(clean_phone) and clean_phone in FIXED_TEST_ACCOUNTS:
+            if clean_code == FIXED_TEST_OTP:
+                logger.info("Fixed test OTP verified successfully for %s", masked)
+                return True
+            else:
+                logger.warning("Fixed test OTP verification failed for %s", masked)
+                raise BadRequestException("Invalid verification code. Please check the code and try again.")
 
         if not OtpService.is_twilio_configured():
             is_test_mode = getattr(settings, "OTP_TEST_MODE", False) or getattr(settings, "OTP_DEV_MODE", False)
